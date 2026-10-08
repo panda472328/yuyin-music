@@ -8,6 +8,7 @@
 - 真实 Windows 安装交接使用临时目录中的无害记录 EXE，验证授权后父进程仍运行时不会执行、正常退出后才执行、中文与空格路径下 NSIS 参数完整、篡改及未知来源拒绝。测试中没有执行实际 NSIS、修改注册表、启动或关闭真实播放器；因此不声明完成了实际安装版覆盖升级。
 - 本机证据：`.qa/account-update-lMWXtp/evidence.json`、`.qa/account-update-IUMd7R/evidence.json`、`.qa/account-updates-dev-evidence.json`、`.qa/account-updates-unpacked-evidence.json`、`.qa/native-update-handoff-evidence.json`；记录 EXE 与截图不进入源码仓库。更新不读取 Bilibili 会话、真实音乐库或账号数据。
 - 正式发布后，GitHub `release.published` 工作流 [37799317389](https://github.com/panda472328/yuyin-music/actions/runs/37799317389) 成功，main 的稳定清单自动推进至 0.4.10。最终正式程序在新建绝对路径 profile 中通过 6 项真实清单检查：启动与登录页手动检查均为 `up-to-date`，两次固定 Raw HTTPS 请求返回 200、无 Cookie／Authorization，没有下载或运行安装包，零页面错误并正常退出。实际版本、清单大小及 SHA-256 与公开附件相符。证据：`.qa/pc-live-stable-update-evidence.json` 和截图 `.qa/pc-live-stable-update.png`。
+- 公开 EXE 的完整重新下载与 SHA-256 校验已由上述 GitHub 工作流执行通过，本机匿名读取 Release 与 Raw／API 清单也一致。本机另行下载多次遇到网络 EOF，停在约 50 MB；该局部文件标为 `.partial`，不计为本机完整下载校验通过。发布页的最终安装文件未受影响，证据：`.qa/publication/pc-v0.4.10/snapshot.json` 和 `download-incomplete.json`。
 
 本项目通过 Bilibili 原有网页播放器在独立后台窗口播放。搜索结果、页面访问和可播放范围受 Bilibili 当前规则影响；主界面应明确展示这些错误，并提供正常的登录或验证入口。
 
