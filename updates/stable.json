@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "platform": "windows",
+  "version": "0.4.9",
+  "artifact": {
+    "url": "https://github.com/panda472328/yuyin-music/releases/download/pc-v0.4.9/Yuyin-0.4.9-Setup.exe",
+    "sha256": "d2531d5f8ab088a09898a98dd55db30767d5e9e54e772b1f6fefee7997e34a11",
+    "size": 113801921
+  },
+  "releaseNotesUrl": "https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.9",
+  "notes": "Bilibili 官方综合搜索后手动选曲；提供 Windows x64 中文安装版。此历史版本尚无应用内更新入口。",
+  "publishedAt": "2026-10-08T10:01:51.000Z"
+}

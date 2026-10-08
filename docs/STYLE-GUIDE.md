@@ -1,6 +1,6 @@
 # 余音 PC 样式标准
 
-本标准帮助维护者与 agent 快速定位、修改和验证外观。基线是 PC 0.4.9 的米白／鼠尾草绿视觉；Android 0.1.1 采用相同品牌，但位于独立仓库。下文区分现有实现与新增主题时需要补齐的工作，不假定已存在运行时主题切换。
+本标准帮助维护者与 agent 快速定位、修改和验证外观。基线是 PC 0.4.10 的米白／鼠尾草绿视觉；Android 0.1.1 采用相同品牌，但位于独立仓库。下文区分现有实现与新增主题时需要补齐的工作，不假定已存在运行时主题切换。
 
 ## 1. 修改入口与范围
 
@@ -9,6 +9,7 @@
 | 整体配色 | `src/main.tsx` | `src/theme.css` → `src/styles.css` |
 | 侧栏、品牌、搜索、页面、播放器、队列、歌单弹窗 | `src/App.tsx` | `src/styles.css` |
 | 登录页与账号菜单 | `src/BilibiliAccount.tsx` | `src/styles.css` 的 `login-*`、`account-*` |
+| 软件更新、登录页检查入口与新版本提示 | `src/Updates.tsx`，`src/App.tsx` 的顶层 provider | `src/styles.css` 的 `update-*`、`.login-update`；发布流程见 `docs/UPDATES.md` |
 | Bilibili 收藏夹导入 | `src/BilibiliFavoritesDialog.tsx` | `src/styles.css` 的 `bilibili-*`、`.modal` |
 | 主歌词页面 | `src/LyricsView.tsx` | `src/lyrics.css`，组件直接导入 |
 | 主窗的桌面歌词设置 | `src/DesktopLyricsSettings.tsx` | `src/styles.css` 的 `desktop-lyrics-*` 设置类 |
@@ -33,6 +34,9 @@
 | `--ink` | `#4d5a43` | 正文基础颜色 |
 | `--green` | `#4c663a` | 品牌、主按钮、重点与焦点 |
 | `--line` | `#e6eadf` | 结构分隔线 |
+| `--surface` | `#fffefa` | 更新提示卡片表面 |
+| `--text-muted` | `#788174` | 更新说明、版本检查补充文字 |
+| `--warning-text` | `#8b715b` | 更新失败与校验失败文字 |
 
 其他表面和状态色目前直接写在相应 CSS 中，修改整套主题时必须一起审查，不能只换五个变量就宣称全覆盖：
 
@@ -87,6 +91,7 @@
 | 播放器 | `.player-bar`、`.now-playing`、`.playback-center`、`.main-play`、`.timeline`、`.player-tools` | playing／paused／loading／error，拖进度和音量 |
 | 队列 | `.queue-panel`、`.queue-list`、`.queue-song`、`.queue-empty` | `.current`、删除／清空、独立滚动 |
 | 设置 | `.settings-panel`、`.setting-row`、`.switch` | `.on`、`aria-checked`、保存错误、忙时禁用 |
+| 软件更新 | `.update-settings`、`.update-setting-row`、`.update-actions`、`.update-banner`、`.login-update` | checking／available／downloading／downloaded／installing／error，进度、重试、稍后更新；便携版引导下载安装版 |
 | 弹窗 | `.modal-backdrop`、`.modal`、`.bilibili-modal` | 焦点管理、Escape、表单、长收藏夹列表滚动 |
 | 提示 | `.toast`、`.playback-error`、`.error-state`、`.empty-state`、`.loading-state` | 错误不被静默隐藏，按钮可执行下一步 |
 | 主歌词 | `.lyrics-page`、`.lyrics-layout`、`.lyrics-scroll`、`.lyric-line`、`.lyrics-reading-footer` | `.is-bilibili`、`.is-current`、`.is-calibrating`、来源／偏移／刷新 |
@@ -106,6 +111,10 @@
 - 主 CSS 有 ≤900px 的网页预览规则，但 PC 原生最小宽 1080px；不要用这些规则假定实现了手机版。≥1600px 有大屏装饰调整。
 
 层级参考：歌曲菜单 15、队列 18、播放器 20、播放错误 22、账号锚点 45、弹窗 50、toast 100；独立歌词工具栏 10／状态提示 2。新增浮层选择符合遮挡关系的层级，不使用任意巨大 `z-index`。transform／opacity／filter 可产生新 stacking context，调整后实测菜单遮挡。
+
+更新提示层级为 30，主界面右下固定在播放器上方，底部 114px；登录界面移至左下，避开右侧登录按钮。最大高度限制并允许内部滚动；≤780px 高度时登录卡减少留白，保留全部控件。歌单或收藏夹弹窗打开时隐藏更新提示，避免新增按钮进入弹窗的键盘焦点循环。提示不抢焦点；“稍后更新”仅隐藏本轮提示，下载完成的新状态仍可再次提醒。登录页与设置页都提供检查入口，更新不依赖 Bilibili 账号。更新提示及全部后代为 `no-drag`，不要给全局桌面歌词 renderer 导入这些样式。版本文案由 `package.json`／原生状态读取，不写固定版本号。
+
+外观改动保留“发现新版→用户选择下载→校验通过→用户选择退出并安装”的状态和动作顺序。自动检查不得下载或安装，安装失败和网络错误必须可见且可重试；状态只来自受限更新 IPC，不在 renderer 接受任意下载 URL、路径或脚本。
 
 桌面歌词原生尺寸固定 **900×200**，透明、无边框、置顶、不显示任务栏；控制器将其保持在显示器工作区内。CSS 上方预留工具栏，`.has-error` 增加留白，当前句与下一句完整显示。改变原生尺寸需同步 `electron/desktop-lyrics.ts`、`electron/desktop-settings-store.ts` 中旧位置读入尺寸、长句自适应和屏幕边界验收，不能只改 CSS。
 

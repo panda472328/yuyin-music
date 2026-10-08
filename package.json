@@ -1,6 +1,6 @@
 {
   "name": "yuyin-music",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "private": true,
   "description": "余音 · 基于 Bilibili 的桌面音乐播放器",
   "main": "out/main/index.js",
@@ -46,7 +46,10 @@
       "package.json"
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "build/icon.ico",
       "signExecutable": false
     },
@@ -56,7 +59,9 @@
       "perMachine": false,
       "selectPerMachineByDefault": false,
       "allowToChangeInstallationDirectory": true,
-      "installerLanguages": ["zh_CN"],
+      "installerLanguages": [
+        "zh_CN"
+      ],
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "余音音乐播放器",

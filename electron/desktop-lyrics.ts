@@ -48,6 +48,7 @@ export class DesktopLyricsController extends EventEmitter {
   private initialized = false
   private disposed = false
   private closing = false
+  private preparingUpdate = false
   private disposal: Promise<void> | null = null
   private persistenceError: string | null = null
   private windowError: string | null = null
@@ -133,6 +134,7 @@ export class DesktopLyricsController extends EventEmitter {
   async updateSettings(patch: Partial<DesktopLyricsSettings>): Promise<DesktopLyricsSnapshot> {
     const safePatch = settingsPatch(patch)
     if (this.disposed || this.closing) throw new Error('桌面歌词已退出。')
+    if (this.preparingUpdate) throw new Error('正在准备更新，请稍后修改桌面歌词设置。')
     const operation = this.mutationQueue.then(async () => {
       // Early renderer requests wait for persisted preferences, so a slow read cannot overwrite a newer choice.
       await this.ready
@@ -177,6 +179,21 @@ export class DesktopLyricsController extends EventEmitter {
     this.flushQueue = operation.catch(() => undefined)
     return operation
   }
+
+  /** An update must not replace the application while an accepted setting failed to save. */
+  async flushForUpdate(): Promise<void> {
+    await this.flush()
+    if (this.persistenceError) throw new Error(`桌面歌词设置尚未保存：${this.persistenceError}`)
+  }
+
+  async prepareUpdateShutdown(): Promise<void> {
+    if (this.disposed || this.closing) throw new Error('桌面歌词已退出。')
+    this.preparingUpdate = true
+    try { await this.flushForUpdate() }
+    catch (error) { this.preparingUpdate = false; throw error }
+  }
+
+  cancelUpdateShutdown(): void { this.preparingUpdate = false }
 
   dispose(): Promise<void> {
     if (this.disposal) return this.disposal
@@ -283,7 +300,7 @@ export class DesktopLyricsController extends EventEmitter {
         if (this.window === window && !this.disposed) this.notify()
       })
       window.on('move', () => {
-        if (this.disposed || this.closing || this.window !== window || window.isDestroyed()) return
+        if (this.disposed || this.closing || this.preparingUpdate || this.window !== window || window.isDestroyed()) return
         const [x, y] = window.getPosition()
         this.position = { x, y }
         if (this.moveTimer) clearTimeout(this.moveTimer)

@@ -3,6 +3,7 @@ import { ArrowDownToLine, ArrowRight, AudioLines, Check, ChevronDown, ExternalLi
 import type { BilibiliAccount } from '../electron/types'
 import { api } from './api'
 import type { useBilibiliAccount } from './useBilibiliAccount'
+import { UpdateSettings } from './Updates'
 
 type AccountState = ReturnType<typeof useBilibiliAccount>
 
@@ -18,6 +19,7 @@ export function BilibiliLoginGate({ session }: { session: AccountState }) {
         {session.watchingLogin && !session.error && <div className="login-watch" role="status"><span />等待登录完成，完成后会自动进入</div>}
         {session.error && <div className="login-error" role="alert">{session.error}</div>}
         <div className="login-privacy"><ShieldCheck size={16} /><span>登录在 Bilibili 官方页面完成<small>会话保存在本机，无需每次重新登录</small></span></div>
+        <UpdateSettings compact />
       </section>
     </main><footer className="login-footer"><AudioLines size={14} />让音乐有自己的归处</footer>
   </div>

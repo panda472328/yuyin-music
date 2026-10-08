@@ -254,3 +254,45 @@ test('losing login flushes a pending drag and restores the enabled overlay at th
   assert.deepEqual(windows[1].getPosition(), [411, 622])
   assert.deepEqual(controller.getSnapshot().settings, settings().settings)
 })
+
+test('updating waits for accepted lyric settings and the final drag position to reach disk', async t => {
+  const { directory, store } = fixture(t)
+  store.write(settings())
+  const { controller, windows } = await controllerHarness(directory)
+  t.after(() => controller.dispose())
+  await controller.initialize()
+  windows[0].setPosition(420, 610)
+  const accepted = controller.updateSettings({ opacity: .4 })
+  await controller.flushForUpdate()
+  await accepted
+  assert.deepEqual(store.read().data?.bounds, { x: 420, y: 610, width: 900, height: 200 })
+  assert.equal(store.read().data?.settings.opacity, .4)
+})
+
+test('updating is rejected if an accepted lyric setting failed to save', async t => {
+  const { directory, primary, backup, store } = fixture(t)
+  store.write(settings(false))
+  const { controller } = await controllerHarness(directory)
+  t.after(() => controller.dispose())
+  await controller.initialize()
+  writeFileSync(primary, '{controlled corruption')
+  writeFileSync(backup, '{controlled backup corruption')
+  await controller.updateSettings({ opacity: .3 })
+  await assert.rejects(controller.flushForUpdate(), /桌面歌词设置尚未保存/)
+  assert.equal(readFileSync(primary, 'utf8'), '{controlled corruption')
+})
+
+test('update quit preparation freezes new settings and cancellation restores normal changes', async t => {
+  const { directory, store } = fixture(t)
+  store.write(settings(false))
+  const { controller } = await controllerHarness(directory)
+  t.after(() => controller.dispose())
+  await controller.initialize()
+  const accepted = controller.updateSettings({ font: 'serif' })
+  await controller.prepareUpdateShutdown()
+  await accepted
+  await assert.rejects(controller.updateSettings({ font: 'rounded' }), /正在准备更新/)
+  controller.cancelUpdateShutdown()
+  await controller.updateSettings({ font: 'rounded' })
+  assert.equal(store.read().data?.settings.font, 'rounded')
+})

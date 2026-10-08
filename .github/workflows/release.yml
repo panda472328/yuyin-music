@@ -1,0 +1,74 @@
+name: Publish Windows stable release
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'pc-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-stable-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event_name == 'push' && github.repository == 'panda472328/yuyin-music'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validate platform and version
+        run: node scripts/release.mjs --validate-version --tag "$env:RELEASE_TAG"
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Test release channel guards
+        run: node --test scripts/release.test.mjs
+      - name: Run application tests
+        run: npm test
+      - name: Build only the Windows x64 NSIS installer
+        run: npm run dist:installer -- --x64 --publish never
+      - name: Publish one installer, then advance stable channel
+        shell: pwsh
+        run: |
+          $releaseVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/release.mjs --publish --tag "$env:RELEASE_TAG" --artifact "release/Yuyin-$releaseVersion-Setup.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  advance-existing-release:
+    if: github.event_name == 'release' && github.repository == 'panda472328/yuyin-music' && !github.event.release.prerelease && startsWith(github.event.release.tag_name, 'pc-v')
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate released tag against its source versions
+        run: node scripts/release.mjs --validate-version --tag "$env:RELEASE_TAG"
+      - name: Verify existing public installer and advance stable channel
+        shell: pwsh
+        run: |
+          $releaseVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $releaseFilename = "Yuyin-$releaseVersion-Setup.exe"
+          gh release download "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" --pattern "$releaseFilename" --dir release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/release.mjs --publish --tag "$env:RELEASE_TAG" --artifact "release/$releaseFilename"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

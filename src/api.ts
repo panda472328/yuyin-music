@@ -3,8 +3,15 @@ import type { LyricsLookupResult, LyricsRequest, LyricsTrack } from '../electron
 import { buildLyricsQueries, selectLyricsMatch } from './lyrics'
 import type { DesktopLyricsContent, DesktopLyricsSettings, DesktopLyricsSnapshot } from '../electron/desktop-lyrics-types'
 import { DESKTOP_LYRICS_DEFAULT_SETTINGS, DESKTOP_LYRICS_DEFAULT_CONTENT } from '../electron/desktop-lyrics-types'
+import type { UpdateState } from './shared/update'
 
 export interface MusicAPI {
+  getUpdateState(): Promise<UpdateState>
+  checkForUpdates(): Promise<UpdateState>
+  downloadUpdate(): Promise<UpdateState>
+  installUpdate(): Promise<UpdateState>
+  openUpdateRelease(): Promise<void>
+  onUpdateState(callback: (state: UpdateState) => void): () => void
   search(query: string, page?: number): Promise<SearchResult>
   play(song: Song): Promise<PlaybackStatus>
   pause(): Promise<PlaybackStatus>
@@ -43,8 +50,14 @@ declare global { interface Window { musicAPI?: MusicAPI } }
 
 const desktopRequired = async (): Promise<never> => { throw new Error('请在余音桌面客户端中播放，网页预览仅提供界面和音乐库功能。') }
 const idle: PlaybackStatus = { state: 'idle', song: null, currentTime: 0, duration: 0, volume: .7, error: null }
+const previewUpdate: UpdateState = { status: 'idle', currentVersion: '预览', manifest: null, progress: null, error: null,
+  checkedAt: null, canInstall: false, installDisabledReason: '网页预览不支持软件更新，请使用余音 Windows 安装版。' }
 
 const previewAPI: MusicAPI = {
+  async getUpdateState() { return { ...previewUpdate } },
+  async checkForUpdates() { return { ...previewUpdate, status: 'error', error: previewUpdate.installDisabledReason } },
+  downloadUpdate: desktopRequired, installUpdate: desktopRequired, openUpdateRelease: desktopRequired,
+  onUpdateState() { return () => {} },
   async search(query, page = 1) {
     const params = new URLSearchParams({ search_type: 'video', keyword: query, order: 'totalrank', page: String(page), page_size: '20' })
     const response = await fetch(`/bili-api/x/web-interface/search/type?${params}`)

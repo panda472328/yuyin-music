@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, screen, session } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, screen, session, shell } from 'electron'
 import { isAbsolute, join } from 'node:path'
 import { BilibiliService, BilibiliError } from './bilibili'
 import { BackgroundPlayer } from './player'
@@ -9,6 +9,8 @@ import type { LyricsRequest } from './lyrics-types'
 import { DesktopLyricsController } from './desktop-lyrics'
 import { MusicLibraryStore } from './library-store'
 import { LocalPreferencesStore } from './preferences-store'
+import { AppUpdater } from './updater'
+import { installationSupport, prepareUpdateInstaller, type PreparedUpdateInstaller } from './update-installer'
 
 const explicitDataPath = app.commandLine.getSwitchValue('user-data-dir')
 app.setPath('userData', explicitDataPath && isAbsolute(explicitDataPath) ? explicitDataPath : join(app.getPath('appData'), 'YuyinMusic'))
@@ -23,6 +25,9 @@ let subtitlesService: BilibiliSubtitlesService
 let desktopLyrics: DesktopLyricsController
 let quitCompleted = false
 let quitting = false
+let updater: AppUpdater
+let saveWindowForUpdate: (() => boolean) | null = null
+let pendingUpdateInstaller: PreparedUpdateInstaller | null = null
 
 const isTrustedSender = (event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent) =>
   !!mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.id === event.sender.id &&
@@ -49,6 +54,16 @@ function restoreWindowBounds(window: BrowserWindow, target: Electron.Rectangle):
 }
 
 function registerIPC() {
+  ipcMain.handle('update:state', event => { if (!isTrustedSender(event)) throw new Error('未授权检查更新。'); return updater.getState() })
+  ipcMain.handle('update:check', event => { if (!isTrustedSender(event)) throw new Error('未授权检查更新。'); return updater.check() })
+  ipcMain.handle('update:download', event => { if (!isTrustedSender(event)) throw new Error('未授权下载更新。'); return updater.download() })
+  ipcMain.handle('update:install', event => { if (!isTrustedSender(event)) throw new Error('未授权安装更新。'); return updater.install() })
+  ipcMain.handle('update:release', event => {
+    if (!isTrustedSender(event)) throw new Error('未授权查看更新。')
+    const release = updater.getState().manifest?.releaseNotesUrl
+    if (!release) throw new Error('请先检查新版本。')
+    return shell.openExternal(release)
+  })
   const withLogin = async <T>(operation: () => Promise<T>): Promise<T> => {
     const revision = await service.requireLogin()
     service.assertSessionRevision(revision)
@@ -153,13 +168,14 @@ async function createWindow() {
   if (windowState?.maximized) mainWindow.maximize()
   const window = mainWindow
   let windowSaveTimer: ReturnType<typeof setTimeout> | null = null
-  const saveWindow = () => {
+  const saveWindow = (): boolean => {
     if (windowSaveTimer) clearTimeout(windowSaveTimer)
     windowSaveTimer = null
-    if (window.isDestroyed()) return
-    try { preferencesStore.write('yuyin-window-state-v1', JSON.stringify({ version: 1, bounds: window.getNormalBounds(), maximized: window.isMaximized() })) }
-    catch (error) { window.webContents.send('preferences:error', error instanceof Error ? error.message : '保存窗口位置失败。') }
+    if (window.isDestroyed()) return false
+    try { preferencesStore.write('yuyin-window-state-v1', JSON.stringify({ version: 1, bounds: window.getNormalBounds(), maximized: window.isMaximized() })); return true }
+    catch (error) { window.webContents.send('preferences:error', error instanceof Error ? error.message : '保存窗口位置失败。'); return false }
   }
+  saveWindowForUpdate = saveWindow
   const scheduleWindowSave = () => {
     if (windowSaveTimer) clearTimeout(windowSaveTimer)
     windowSaveTimer = setTimeout(saveWindow, 300)
@@ -176,6 +192,24 @@ async function createWindow() {
   subtitlesService = new BilibiliSubtitlesService(biliSession)
   player = new BackgroundPlayer({ session: biliSession, parent: mainWindow })
   desktopLyrics = new DesktopLyricsController({ isMainSender: isTrustedSender, getCurrentBvid: () => player.getStatus().song?.bvid ?? null })
+  updater = new AppUpdater({
+    currentVersion: app.getVersion(), cacheDirectory: join(app.getPath('userData'), 'updates'),
+    ...installationSupport(app.isPackaged, process.platform, process.execPath, Boolean(process.env.PORTABLE_EXECUTABLE_FILE)),
+    onState: state => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update:state', state) },
+    install: async (file, manifest) => {
+      await desktopLyrics.flushForUpdate()
+      if (!saveWindowForUpdate?.()) throw new Error('窗口设置尚未保存，请重试后再更新。')
+      const installer = await prepareUpdateInstaller(process.execPath, file, manifest)
+      // The user may close the window while the helper is hashing its file. Do not
+      // turn that ordinary shutdown into an authorized update or leave an idle helper.
+      if (quitting || !mainWindow || mainWindow.isDestroyed()) {
+        installer.cancel()
+        throw new Error('软件正在退出，已取消此次更新。')
+      }
+      pendingUpdateInstaller = installer
+      setImmediate(() => app.quit())
+    },
+  })
   await desktopLyrics.setSessionAvailable(false)
   const applySessionAvailability = (available: boolean) => {
     // Even a paused song can have resume() awaiting a native snapshot. Advance the
@@ -192,12 +226,13 @@ async function createWindow() {
   desktopLyrics.registerIPC()
   player.on('status', status => mainWindow?.webContents.send('music:status', status))
   player.on('ended', () => mainWindow?.webContents.send('music:ended'))
-  mainWindow.on('closed', () => { mainWindow = null; player.dispose(); service.dispose(); app.quit() })
+  mainWindow.on('closed', () => { mainWindow = null; saveWindowForUpdate = null; updater.dispose(); player.dispose(); service.dispose(); app.quit() })
   registerIPC()
   mainWindow.once('ready-to-show', () => mainWindow?.show())
   if (process.env.ELECTRON_RENDERER_URL) await mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   else await mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   await desktopLyrics.initialize()
+  updater.start()
 }
 
 if (!app.requestSingleInstanceLock()) app.quit()
@@ -215,7 +250,29 @@ app.on('before-quit', event => {
   event.preventDefault()
   if (quitting) return
   quitting = true
-  player?.dispose(); service?.dispose()
-  void Promise.resolve(desktopLyrics?.dispose()).finally(() => { quitCompleted = true; app.quit() })
+  const updateRequested = pendingUpdateInstaller !== null
+  let updateAuthorized = false
+  void (async () => {
+    if (pendingUpdateInstaller) {
+      await desktopLyrics.prepareUpdateShutdown()
+      if (!saveWindowForUpdate?.()) throw new Error('窗口设置未能保存，已取消此次更新。')
+      await pendingUpdateInstaller.startAfterExit()
+      updateAuthorized = true
+    }
+    updater?.dispose(); player?.dispose(); service?.dispose()
+    await desktopLyrics?.dispose()
+    pendingUpdateInstaller = null
+    quitCompleted = true; app.quit()
+  })().catch(error => {
+    pendingUpdateInstaller?.cancel(); pendingUpdateInstaller = null
+    if (updateRequested && !updateAuthorized && mainWindow && !mainWindow.isDestroyed()) {
+      desktopLyrics.cancelUpdateShutdown()
+      quitting = false
+      updater.reportInstallationFailure(error)
+      return
+    }
+    if (updateRequested) dialog.showErrorBox('余音更新未安装', error instanceof Error ? error.message : '保存设置或启动安装器失败，请重新打开余音后重试。')
+    quitCompleted = true; app.quit()
+  })
 })
 app.on('activate', () => { if (!mainWindow) void createWindow() })

@@ -1,6 +1,6 @@
 # 参与余音 PC 版
 
-本仓库是 Windows 桌面端，功能版本目前为 0.4.9。Android 的问题和修改请提交到 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。两个仓库使用独立版本、构建与数据，不把手机源码或 APK 放进 PC 仓库。
+本仓库是 Windows 桌面端，功能版本目前为 0.4.10。Android 的问题和修改请提交到 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。两个仓库使用独立版本、构建与数据，不把手机源码或 APK 放进 PC 仓库。
 
 ## 开发流程
 
@@ -46,6 +46,7 @@ npm test
 - `npm run dist` 可在本机生成 Windows 安装版和便携版，产物在 `release/`。GitHub Release 仅发布一个最终安装版 EXE，校验值和来源写在发布说明，完整许可链接源码文档；源码仓库不提交 EXE、`out/`、`node_modules/` 或本地验收目录。
 - 发布页说明平台、版本、文件用途、校验值和验证限制；仅测试过受控响应时，不声明真实网络播放全部通过。
 - Android 使用其独立仓库、版本号和 `android-vX.Y.Z` 公开发布标签，保留早期 `mobile-v` 历史。修改共同品牌时按照样式标准分别实现与验证。
+- 自动发布及稳定通道见 [docs/UPDATES.md](docs/UPDATES.md)。`pc-vX.Y.Z` 标签触发 Actions，最终安装包公开并复核后才写入 `updates/stable.json`；普通 main 提交不通知客户端。改发布工具时运行 `node --test scripts/release.test.mjs` 和对应产物的 `--dry-run`。
 
 ## 许可
 

@@ -8,6 +8,12 @@ function libraryRequest(channel: string, ...args: unknown[]): string | null {
 }
 
 const musicAPI: MusicAPI = {
+  getUpdateState: () => ipcRenderer.invoke('update:state'),
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  openUpdateRelease: () => ipcRenderer.invoke('update:release'),
+  onUpdateState(callback) { const listener = (_event: unknown, state: Parameters<typeof callback>[0]) => callback(state); ipcRenderer.on('update:state', listener); return () => ipcRenderer.removeListener('update:state', listener) },
   search: (query, page) => ipcRenderer.invoke('music:search', query, page),
   play: song => ipcRenderer.invoke('music:play', song),
   pause: () => ipcRenderer.invoke('music:pause'),

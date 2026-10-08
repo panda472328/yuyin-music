@@ -14,6 +14,8 @@ import { Monitor } from 'lucide-react'
 import { loadUISettings, saveUISettings, type UISettings } from './ui-settings'
 import { useBilibiliAccount } from './useBilibiliAccount'
 import { BilibiliAccountMenu, BilibiliLoginGate } from './BilibiliAccount'
+import { UpdateProvider, UpdateSettings, useUpdates } from './Updates'
+import packageInfo from '../package.json'
 
 type Page = 'discover' | 'library' | 'favorites' | 'history' | 'search' | 'lyrics' | 'settings' | `playlist:${string}`
 type Modal = { type: 'create' } | { type: 'bilibili' } | { type: 'rename', id: string, name: string } | { type: 'add', song: Song } | { type: 'delete', id: string, name: string } | null
@@ -37,7 +39,7 @@ function IconButton({ children, label, onClick, active = false, disabled = false
 }
 
 export default function App() {
-  return isDesktop ? <DesktopAccountApp /> : <MusicApp />
+  return <UpdateProvider>{isDesktop ? <DesktopAccountApp /> : <MusicApp />}</UpdateProvider>
 }
 
 function DesktopAccountApp() {
@@ -48,6 +50,7 @@ function DesktopAccountApp() {
 }
 
 function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBilibiliAccount> }) {
+  const { setBannerBlocked } = useUpdates()
   const [initialLibrary] = useState(() => initializeLibrary())
   const [library, setLibrary] = useState<LibraryState>(initialLibrary.state)
   const [initialUI] = useState(() => loadUISettings(initialLibrary.state.settings.volume))
@@ -66,6 +69,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
   const desktopLyrics = useDesktopLyrics(status, lyrics)
   const [queueOpen, setQueueOpen] = useState(false)
   const [modal, setModal] = useState<Modal>(null)
+  useEffect(() => { setBannerBlocked(Boolean(modal)); return () => setBannerBlocked(false) }, [modal, setBannerBlocked])
   const [modalName, setModalName] = useState('')
   const [toast, setToast] = useState([initialLibrary.error, initialUI.error].filter(Boolean).join(' '))
   const [menuSong, setMenuSong] = useState<string | null>(null)
@@ -356,7 +360,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
           {visibleSongs.length ? songTable(visibleSongs) : emptyState(page === 'history' ? '下一首，会留下记忆' : libraryFilter ? '没有匹配的歌曲' : '留个位置，给下一首喜欢', page === 'history' ? '成功开始播放的歌曲会自动记录在这里。' : '搜索喜欢的歌曲，点亮爱心或添加到歌单。')}
         </>}
 
-        {page === 'settings' && <><div className="page-heading"><div><div className="eyebrow">MAKE YOURSELF AT HOME</div><h1>听歌偏好<span className="heading-dot">.</span></h1><p>按你的习惯，布置这个音乐空间。</p></div><span className="version">余音 v0.4.9</span></div><div className="settings-panel"><h2>播放与音源</h2><div className="setting-row"><span><strong>Bilibili 账号与验证</strong><small>在独立窗口登录。会话保存在本机，余音不会读取你的密码。</small></span><button className="button-secondary" onClick={() => void (accountSession ? accountSession.openLogin() : api.login().catch(error => notify(errorText(error))))}>打开 Bilibili<ExternalLink size={14} /></button></div><div className="setting-row"><span><strong>睡眠定时</strong><small>{sleepUntil ? `将在 ${new Date(sleepUntil).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 暂停播放` : '给今晚的音乐留一个安静的结尾。'}</small></span><select aria-label="睡眠定时" value={sleepUntil ? 'active' : 'off'} onChange={event => { const value = event.target.value; setSleepUntil(value === 'off' ? null : Date.now() + Number(value) * 60_000) }}><option value="off">关闭</option>{sleepUntil && <option value="active">已设定</option>}<option value="15">15 分钟后</option><option value="30">30 分钟后</option><option value="60">60 分钟后</option><option value="90">90 分钟后</option></select></div></div><DesktopLyricsSettings desktop={desktopLyrics} /><div className="settings-panel"><h2>我的音乐库</h2><div className="setting-row"><span><strong>导出音乐库备份</strong><small>保存歌单、收藏、历史和听歌偏好，不包含音频文件。</small></span><button className="button-secondary" onClick={() => void api.exportLibrary(JSON.stringify(library, null, 2)).then(saved => { if (saved) notify('音乐库已导出') }).catch(error => notify(errorText(error)))}><ArrowDownToLine size={15} />导出备份</button></div><div className="setting-row"><span><strong>恢复我的收藏</strong><small>导入余音 JSON 备份，与当前歌单和收藏合并。</small></span><button className="button-secondary" onClick={() => void importBackup()}><ArrowUpFromLine size={15} />导入备份</button></div><div className="library-stats"><span><strong>{library.favorites.length}</strong>首收藏</span><span><strong>{library.playlists.length}</strong>份歌单</span><span><strong>{library.history.length}</strong>条历史</span><span className="storage-note"><Check size={14} />{initialLibrary.error ? "音乐库读取失败，保存已暂停" : "更改后立即保存到本机"}</span></div></div><div className="settings-panel shortcut-panel"><h2>顺手的快捷键</h2><span>搜索<kbd>Ctrl K</kbd></span><span>播放 / 暂停<kbd>Space</kbd></span><span>上一首 / 下一首<kbd>Alt ← / →</kbd></span></div><div className="about-note"><AudioLines size={22} /><p>余音是一扇自己的音乐窗口。播放由后台浏览器中的 Bilibili 原视频提供，<br />音质和可用性随原视频而定；部分内容可能需要在源站登录或完成验证。</p>{!isDesktop && <small>当前为网页预览，请运行桌面客户端使用后台播放。</small>}</div></>}
+        {page === 'settings' && <><div className="page-heading"><div><div className="eyebrow">MAKE YOURSELF AT HOME</div><h1>听歌偏好<span className="heading-dot">.</span></h1><p>按你的习惯，布置这个音乐空间。</p></div><span className="version">余音 v{packageInfo.version}</span></div><div className="settings-panel"><h2>播放与音源</h2><div className="setting-row"><span><strong>Bilibili 账号与验证</strong><small>在独立窗口登录。会话保存在本机，余音不会读取你的密码。</small></span><button className="button-secondary" onClick={() => void (accountSession ? accountSession.openLogin() : api.login().catch(error => notify(errorText(error))))}>打开 Bilibili<ExternalLink size={14} /></button></div><div className="setting-row"><span><strong>睡眠定时</strong><small>{sleepUntil ? `将在 ${new Date(sleepUntil).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 暂停播放` : '给今晚的音乐留一个安静的结尾。'}</small></span><select aria-label="睡眠定时" value={sleepUntil ? 'active' : 'off'} onChange={event => { const value = event.target.value; setSleepUntil(value === 'off' ? null : Date.now() + Number(value) * 60_000) }}><option value="off">关闭</option>{sleepUntil && <option value="active">已设定</option>}<option value="15">15 分钟后</option><option value="30">30 分钟后</option><option value="60">60 分钟后</option><option value="90">90 分钟后</option></select></div></div><UpdateSettings /><DesktopLyricsSettings desktop={desktopLyrics} /><div className="settings-panel"><h2>我的音乐库</h2><div className="setting-row"><span><strong>导出音乐库备份</strong><small>保存歌单、收藏、历史和听歌偏好，不包含音频文件。</small></span><button className="button-secondary" onClick={() => void api.exportLibrary(JSON.stringify(library, null, 2)).then(saved => { if (saved) notify('音乐库已导出') }).catch(error => notify(errorText(error)))}><ArrowDownToLine size={15} />导出备份</button></div><div className="setting-row"><span><strong>恢复我的收藏</strong><small>导入余音 JSON 备份，与当前歌单和收藏合并。</small></span><button className="button-secondary" onClick={() => void importBackup()}><ArrowUpFromLine size={15} />导入备份</button></div><div className="library-stats"><span><strong>{library.favorites.length}</strong>首收藏</span><span><strong>{library.playlists.length}</strong>份歌单</span><span><strong>{library.history.length}</strong>条历史</span><span className="storage-note"><Check size={14} />{initialLibrary.error ? "音乐库读取失败，保存已暂停" : "更改后立即保存到本机"}</span></div></div><div className="settings-panel shortcut-panel"><h2>顺手的快捷键</h2><span>搜索<kbd>Ctrl K</kbd></span><span>播放 / 暂停<kbd>Space</kbd></span><span>上一首 / 下一首<kbd>Alt ← / →</kbd></span></div><div className="about-note"><AudioLines size={22} /><p>余音是一扇自己的音乐窗口。播放由后台浏览器中的 Bilibili 原视频提供，<br />音质和可用性随原视频而定；部分内容可能需要在源站登录或完成验证。</p>{!isDesktop && <small>当前为网页预览，请运行桌面客户端使用后台播放。</small>}</div></>}
       </main>
     </div>
 
