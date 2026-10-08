@@ -67,5 +67,14 @@
     "portable": {
       "artifactName": "Yuyin-${version}-Windows.exe"
     }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/panda472328/yuyin-music.git"
+  },
+  "homepage": "https://github.com/panda472328/yuyin-music#readme",
+  "bugs": {
+    "url": "https://github.com/panda472328/yuyin-music/issues"
   }
 }
