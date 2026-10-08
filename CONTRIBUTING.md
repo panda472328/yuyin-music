@@ -43,7 +43,7 @@ npm test
 
 - PC 功能版本以 `package.json` 为准，标签格式 `pc-vX.Y.Z`；主界面目前存在版本文案，升级时一起搜索更新。
 - 文档整理不强制增加功能版本，发布说明应区分程序变化与公开文档整理。
-- `npm run dist` 生成 Windows 安装版和便携版，产物在 `release/`。安装包进入 GitHub Release，源码仓库不提交 EXE、`out/`、`node_modules/` 或本地验收目录。
+- `npm run dist` 可在本机生成 Windows 安装版和便携版，产物在 `release/`。GitHub Release 仅发布一个最终安装版 EXE，校验值和来源写在发布说明，完整许可链接源码文档；源码仓库不提交 EXE、`out/`、`node_modules/` 或本地验收目录。
 - 发布页说明平台、版本、文件用途、校验值和验证限制；仅测试过受控响应时，不声明真实网络播放全部通过。
 - Android 使用其独立仓库、版本号和 `android-vX.Y.Z` 公开发布标签，保留早期 `mobile-v` 历史。修改共同品牌时按照样式标准分别实现与验证。
 

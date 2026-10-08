@@ -18,7 +18,7 @@
 
 `licenses/` 中上述文本从本版本实际使用的依赖包复制，版权行与许可全文保持原样。Lucide 原许可中包含 Feather 的归属，不将其改为本项目作者的版权。
 
-Electron 发行目录中包含 `LICENSE.electron.txt` 和 `LICENSES.chromium.html`。后者约 20 MB，收录 Chromium 及相关运行时组件的完整许可，不重复放入源码 Git 仓库。GitHub [发行页](https://github.com/panda472328/yuyin-music/releases) 的许可证压缩包同时提供这两份运行时文件和本仓库的许可证文本。重新分发程序时应一并保留对应版本的完整许可证和声明；不能用此表代替原发行包的完整声明。
+Electron 发行目录中包含 `LICENSE.electron.txt` 和 `LICENSES.chromium.html`。后者约 20 MB，收录 Chromium 及相关运行时组件的完整许可。本仓库的 [Electron 44.6.0 完整运行时许可压缩包](docs/runtime-licenses/Electron-44.6.0.zip) 原样保存这两份文件，其他组件的完整许可位于 `licenses/`。发行页仅保留最终安装器，通过发布说明链接本文件和上述原文。重新分发程序时应一并保留对应版本的完整许可证和声明；不能用此表代替原发行包的完整声明。
 
 NSIS 的 COPYING 同时列出了其压缩组件的许可和 LZMA 链接例外。这里提供原始完整文本，不将项目原创代码改为 CPL，也不删改 NSIS 原作者的许可条件。上游源码入口见表中链接。
 
@@ -37,4 +37,4 @@ TypeScript（Apache-2.0）、Vite（MIT）、electron-vite（MIT）、electron-b
 
 ## 更新规则
 
-升级依赖或运行时后，同时核对 `package-lock.json`、实际发行组件及其原 LICENSE / NOTICE，更新本文件和 `licenses/`；更换 Electron 后从新的正式运行时复制完整 Chromium 声明到相应发行许可证压缩包。现有许可文本不得通过全局替换版权名称或改为 MIT 的方式更新。
+升级依赖或运行时后，同时核对 `package-lock.json`、实际发行组件及其原 LICENSE / NOTICE，更新本文件和 `licenses/`；更换 Electron 后从新的正式运行时复制完整 Electron / Chromium 声明到 `docs/runtime-licenses/` 对应版本的压缩包，并更新链接。现有许可文本不得通过全局替换版权名称或改为 MIT 的方式更新。
