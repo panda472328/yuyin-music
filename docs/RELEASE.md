@@ -8,6 +8,15 @@ PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码�
 
 本轮采用已在本机验收的安装包进行首次发布，发布源码提交使用 GitHub 标准 `[skip ci]` 标记，避免标签构建另一个同版本文件。源码与运行机制检查见 [QA.md](QA.md)，GitHub 正式发布后的稳定通道流程见 [UPDATES.md](UPDATES.md)。
 
+| 项目 | 值 |
+| --- | --- |
+| 安装包实际构建及标签提交 | `18649bbb4cdf11ced8cd9251e577c0db5b36e973` |
+| 安装包 SHA-256 | `8edd5f60113fa73f56ee82e8ea8363dd43bba37f9e6dc8bfe776bdf7c76a636a` |
+| 安装包字节数 | `113809571` |
+| 正式发布时间（UTC） | `2026-10-08T15:15:58Z` |
+
+后续验证文档和稳定清单提交只推进 main，不移动已发布标签，也不重建或替换这一安装文件。
+
 ## PC 0.4.9（历史）
 
 公开发布页：[pc-v0.4.9](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.9)。

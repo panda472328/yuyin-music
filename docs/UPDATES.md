@@ -20,11 +20,11 @@ GitHub Raw、Release 下载在用户网络中不可达时，应用会显示失�
 
 1. 在 PC 仓库更新 `package.json`、`package-lock.json` 中的版本，补充同版本 `CHANGELOG.md` 章节；使用无前导零的 `X.Y.Z` 正式版本。不要移动或重用公开标签。
 2. 完成 `npm run typecheck`、`npm test`、`npm run build` 及有关原生／界面验收。发布流程会重新运行业务测试、发布保护测试和生产打包；CI 不会替代真实安装、升级和设备验收。
-3. 提交、推送源码，为该提交建立并推送 `pc-vX.Y.Z` 标签。例如下一版本为 0.4.10 时：
+3. 提交、推送源码，为该提交建立并推送 `pc-vX.Y.Z` 标签。例如下一版本为 0.4.11 时：
 
    ```sh
-   git tag pc-v0.4.10
-   git push origin pc-v0.4.10
+   git tag pc-v0.4.11
+   git push origin pc-v0.4.11
    ```
 
 4. Actions 在 Windows x64 上只构建 NSIS 安装器 `Yuyin-X.Y.Z-Setup.exe`。它先创建草稿、只上传一个安装文件，核对 GitHub 附件大小并重新下载校验 SHA-256；随后公开 Release，最后更新 main 的清单。`latest.yml`、`.blockmap`、便携包、许可压缩包和本地校验文件不会作为发布附件。
@@ -38,7 +38,7 @@ GitHub Raw、Release 下载在用户网络中不可达时，应用会显示失�
 
 `release.published` 事件执行独立 `advance-existing-release` job：检出该标签，校验 package／lock 版本，下载唯一最终安装包，复核公开状态、唯一附件、SHA-256 和大小，然后推进 main 的清单。它使用发布页现有文件，不重新构建、不替换附件。
 
-同一次发布只选一种构建来源。手工上传本机最终文件时，发布源码提交可使用 GitHub 标准 `[skip ci]` 标记，让 tag push 跳过自动构建，避免两个不同构建抢占相同版本。这不影响 `release.published` 校验流程。本次第一版更新桥接包采用本机验收后的最终产物和该标记；文档不把尚未完成的发布记为已完成。
+同一次发布只选一种构建来源。手工上传本机最终文件时，发布源码提交可使用 GitHub 标准 `[skip ci]` 标记，让 tag push 跳过自动构建，避免两个不同构建抢占相同版本。这不影响 `release.published` 校验流程。首次更新桥接版本 0.4.10 采用本机验收后的最终产物和该标记，已于 2026-10-08 正式发布。
 
 自动 tag 构建使用 `GITHUB_TOKEN` 创建 Release 时，GitHub 不会递归触发 `release.published` workflow；原 tag 工作流的发布脚本会自己推进清单。人工发布或既有本机发布入口则由发布事件校验，两条路径都保留一个最终安装附件。手工和事件工作流同时写入同版本相同文件时可以幂等收敛，不改变已公开内容。
 
@@ -82,4 +82,4 @@ node scripts/release.mjs --publish --tag pc-vX.Y.Z --artifact release/Yuyin-X.Y.
 
 下载地址和说明地址只允许本平台仓库、相同版本的固定 GitHub 路径；版本每段最多六位，说明最多 8000 字，Windows 文件大小最多 500,000,000 字节。SHA-256 为小写 64 位十六进制，时间为 UTC ISO 格式。清单不含账号、Cookie、个人音乐库或私钥，安装时保留原应用身份及数据目录。
 
-当前初始清单描述已经公开的历史 0.4.9 文件，不重新发布或修改该附件，也不会给相同版本显示新版本。第一版带更新功能的正式包仍需递增版本并发布。
+上面的契约示例描述历史 0.4.9 文件，不重新发布或修改该附件，也不会给相同版本显示新版本。首次带更新功能的正式包为 [0.4.10](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.10)；当前稳定通道以 main 的 `updates/stable.json` 为准。

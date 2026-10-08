@@ -4,9 +4,10 @@
 
 - TypeScript、生产构建、126 项业务回归及 6 类播放器竞态检查通过。更新回归覆盖固定公开来源、清单与文件校验、拒绝降级、并发检查、断网重试、临时文件清理、下载后重启恢复、安装前篡改拒绝和安装准备失败后重试；桌面歌词更新退出的保存、冻结与恢复回归通过。
 - 两个仓库独立的发布脚本各有 14 项受控检查，验证唯一安装文件、公开前下载复核、同文件重试、清单权限失败及并发版本保护。测试使用虚构 GitHub API；不把它标为 GitHub Actions 在线通过。
-- 实际 Electron 开发包的 7 组更新 UI 检查通过，包含登录前检查、发现不下载、不自动安装、下载进度、错误重试、稍后更新、歌单弹窗焦点隔离及便携限制；1440×950、1080×680 截图已检查，登录提示位于左下以避开登录按钮。另有完整 10 组既有账号、受控会话和保存回归通过，零 renderer 错误，所有启动使用独立绝对路径 profile。
+- 实际 Electron 开发包和最终 `win-unpacked` 正式程序分别通过 7 组更新 UI 检查，包含登录前检查、发现不下载、不自动安装、下载进度、错误重试、稍后更新、歌单弹窗焦点隔离及便携限制；1440×950、1080×680 截图已检查，登录提示位于左下以避开登录按钮。两种程序也分别通过完整 10 组既有账号、受控会话和保存回归，零 renderer 错误，所有启动使用独立绝对路径 profile。
 - 真实 Windows 安装交接使用临时目录中的无害记录 EXE，验证授权后父进程仍运行时不会执行、正常退出后才执行、中文与空格路径下 NSIS 参数完整、篡改及未知来源拒绝。测试中没有执行实际 NSIS、修改注册表、启动或关闭真实播放器；因此不声明完成了实际安装版覆盖升级。
-- 本机证据：`.qa/account-update-lMWXtp/evidence.json`、`.qa/account-updates-dev-evidence.json`、`.qa/native-update-handoff-evidence.json`；记录 EXE 与截图不进入源码仓库。更新不读取 Bilibili 会话、真实音乐库或账号数据。
+- 本机证据：`.qa/account-update-lMWXtp/evidence.json`、`.qa/account-update-IUMd7R/evidence.json`、`.qa/account-updates-dev-evidence.json`、`.qa/account-updates-unpacked-evidence.json`、`.qa/native-update-handoff-evidence.json`；记录 EXE 与截图不进入源码仓库。更新不读取 Bilibili 会话、真实音乐库或账号数据。
+- 正式发布后，GitHub `release.published` 工作流 [37799317389](https://github.com/panda472328/yuyin-music/actions/runs/37799317389) 成功，main 的稳定清单自动推进至 0.4.10。最终正式程序在新建绝对路径 profile 中通过 6 项真实清单检查：启动与登录页手动检查均为 `up-to-date`，两次固定 Raw HTTPS 请求返回 200、无 Cookie／Authorization，没有下载或运行安装包，零页面错误并正常退出。实际版本、清单大小及 SHA-256 与公开附件相符。证据：`.qa/pc-live-stable-update-evidence.json` 和截图 `.qa/pc-live-stable-update.png`。
 
 本项目通过 Bilibili 原有网页播放器在独立后台窗口播放。搜索结果、页面访问和可播放范围受 Bilibili 当前规则影响；主界面应明确展示这些错误，并提供正常的登录或验证入口。
 
