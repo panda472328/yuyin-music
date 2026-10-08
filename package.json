@@ -1,0 +1,71 @@
+{
+  "name": "yuyin-music",
+  "version": "0.4.9",
+  "private": true,
+  "description": "余音 · 基于 Bilibili 的桌面音乐播放器",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "dev:web": "vite --config vite.web.config.ts --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && electron-vite build",
+    "start": "electron .",
+    "dist": "npm run build && electron-builder --win nsis portable",
+    "dist:installer": "npm run build && electron-builder --win nsis",
+    "dist:portable": "npm run build && electron-builder --win portable",
+    "test": "tsx --test tests/*.test.ts && node tests/player-races.cjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^44.6.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^5.0.0",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.58.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0"
+  },
+  "build": {
+    "appId": "com.yuyin.music",
+    "productName": "余音",
+    "directories": {
+      "output": "release"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "build/icon.ico",
+      "signExecutable": false
+    },
+    "nsis": {
+      "artifactName": "Yuyin-${version}-Setup.exe",
+      "oneClick": false,
+      "perMachine": false,
+      "selectPerMachineByDefault": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerLanguages": ["zh_CN"],
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "余音音乐播放器",
+      "uninstallDisplayName": "余音音乐播放器 ${version}",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    },
+    "portable": {
+      "artifactName": "Yuyin-${version}-Windows.exe"
+    }
+  }
+}

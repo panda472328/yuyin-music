@@ -1,0 +1,53 @@
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; background: transparent; }
+body { overflow: hidden; font-family: 'Microsoft YaHei', '微软雅黑', sans-serif; -webkit-font-smoothing: antialiased; }
+button, select { font: inherit; }
+button, select { cursor: pointer; }
+button:disabled, select:disabled { cursor: default; opacity: .4; }
+button:focus-visible, select:focus-visible { outline: 2px solid #b9f2d0; outline-offset: 2px; }
+p { margin: 0; }
+.desktop-lyrics { position: relative; width: 100%; height: 100%; min-width: 0; padding: 50px 28px 24px; color: var(--lyrics-color, #fff); user-select: none; background: transparent; cursor: move; }
+.desktop-lyrics.has-error { padding-top: 76px; }
+/* Lyrics, title and blank space move the native window; controls remain ordinary hit targets. */
+.desktop-lyrics, .desktop-lyrics-copy, .desktop-lyrics-copy *, .desktop-lyrics-caption, .desktop-lyrics-caption *, .desktop-lyrics-status { -webkit-app-region: drag; }
+.desktop-lyrics-toolbar { position: absolute; z-index: 10; top: 4px; left: 50%; transform: translateX(-50%); height: 40px; max-width: calc(100% - 32px); display: flex; align-items: center; gap: 9px; padding: 4px 5px 4px 8px; border: 1px solid #b9f2d024; border-radius: 11px; background: #1c2925eb; color: #e7efe9; box-shadow: 0 3px 16px #0b171d26; opacity: 1; pointer-events: auto; cursor: default; transition: opacity .18s ease, visibility .18s ease; }
+.desktop-lyrics.toolbar-hidden .desktop-lyrics-toolbar { opacity: 0; visibility: hidden; pointer-events: none; }
+.desktop-lyrics.toolbar-visible .desktop-lyrics-toolbar { opacity: 1; visibility: visible; pointer-events: auto; }
+/* Include SVG paths and swatch children so Windows never treats a control as a title bar. */
+.desktop-lyrics-toolbar, .desktop-lyrics-toolbar * { -webkit-app-region: no-drag; }
+.desktop-lyrics-toolbar .desktop-lyrics-handle, .desktop-lyrics-toolbar .desktop-lyrics-handle * { -webkit-app-region: drag; }
+.desktop-lyrics.is-locked, .desktop-lyrics.is-locked *, .desktop-lyrics.is-locked .desktop-lyrics-toolbar .desktop-lyrics-handle, .desktop-lyrics.is-locked .desktop-lyrics-toolbar .desktop-lyrics-handle * { -webkit-app-region: no-drag !important; cursor: default; }
+.desktop-lyrics-copy, .desktop-lyrics-caption { opacity: var(--lyrics-opacity, 1); }
+.desktop-lyrics-handle { display: flex; align-items: center; gap: 7px; flex: 1 0 auto; min-width: 135px; padding-right: 10px; cursor: move; }
+.desktop-lyrics-handle > svg { color: #78988a; }
+.desktop-lyrics-brand { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; letter-spacing: 1px; font-weight: 650; color: #b9f2d0; }
+.desktop-lyrics-label { font-size: 10px; color: #9aac9f; letter-spacing: .5px; }
+.desktop-toolbar-divider { width: 1px; height: 14px; background: #b9f2d020; flex-shrink: 0; }
+.desktop-font-select { width: 98px; height: 30px; padding: 0 6px; color: #dae5de; font-size: 11px; border: 0; border-radius: 5px; background: #ffffff09; color-scheme: dark; }
+.desktop-font-select:hover { background: #ffffff12; }
+.desktop-font-select option { background: #24342c; color: #e8efe9; }
+.desktop-font-size { display: flex; align-items: center; gap: 2px; }
+.desktop-lyrics-toolbar button { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 30px; height: 30px; border: 0; border-radius: 6px; color: #baccc0; background: transparent; }
+.desktop-lyrics-toolbar button:hover:not(:disabled) { color: #e5f4e9; background: #b9f2d015; }
+.desktop-font-size output { min-width: 21px; text-align: center; font-size: 11px; color: #d5e1d7; font-variant-numeric: tabular-nums; }
+.desktop-lyrics-colors { display: flex; align-items: center; gap: 1px; }
+.desktop-lyrics-colors button > span { width: 10px; height: 10px; border-radius: 50%; }
+.desktop-lyrics-colors button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px #b9f2d061; background: #b9f2d012; }
+.desktop-opacity-control { display: inline-flex; align-items: center; gap: 5px; color: #9eafa4; font-size: 9px; white-space: nowrap; }
+.desktop-opacity-control input { width: 58px; height: 12px; accent-color: #b9f2d0; }
+.desktop-opacity-control output { min-width: 27px; color: #d5e1d7; font-variant-numeric: tabular-nums; text-align: right; }
+.desktop-lyrics-lock[aria-pressed="true"] { color: #b9f2d0; background: #b9f2d018; }
+.desktop-lyrics-toolbar .desktop-lyrics-close:hover:not(:disabled) { color: #fff; background: #ffffff18; }
+.desktop-lyrics-copy { display: grid; grid-template-rows: minmax(0, 1fr) 35px; gap: 3px; height: 100%; width: 100%; font-family: var(--lyrics-font, 'Microsoft YaHei', sans-serif); text-align: center; }
+.desktop-current-area, .desktop-next-area { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; }
+.desktop-lyric-current, .desktop-lyric-next { width: 100%; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; line-height: 1.13; text-wrap: pretty; paint-order: stroke fill; -webkit-text-stroke: 2.2px #14211dda; text-shadow: 0 2px 4px #000b, 0 4px 12px #0008; }
+.desktop-lyric-current { font-weight: 650; letter-spacing: .025em; }
+.desktop-lyric-next { color: color-mix(in srgb, var(--lyrics-color, #fff) 78%, #c1c8c3); font-weight: 500; letter-spacing: .02em; -webkit-text-stroke-width: 1.6px; }
+.desktop-lyrics-copy.is-placeholder .desktop-lyric-current { font-weight: 550; }
+.desktop-lyrics-copy.is-placeholder .desktop-lyric-next { opacity: .85; }
+.desktop-lyrics-caption { position: absolute; bottom: 5px; left: 32px; right: 32px; height: 15px; display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 10px; color: #e0e8e2; text-shadow: 0 1px 2px #000, 0 1px 5px #000b; letter-spacing: .7px; }
+.desktop-song-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 650px; }
+.desktop-playing-dot { width: 4px; height: 4px; flex-shrink: 0; border-radius: 50%; background: #aeb7b2; box-shadow: 0 0 3px #16201d; }
+.desktop-playing-dot.is-playing { background: #b9f2d0; }
+.desktop-paused-label { color: #b9cec1; font-size: 9px; flex-shrink: 0; }
+.desktop-lyrics-status { position: absolute; top: 47px; left: 50%; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 48px); padding: 4px 11px; font-size: 10px; line-height: 1.4; border-radius: 6px; background: #1d2925ed; border: 1px solid #b9f2d02e; color: #dce9de; box-shadow: 0 2px 8px #0003; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
