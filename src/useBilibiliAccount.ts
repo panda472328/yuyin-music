@@ -5,6 +5,7 @@ import { AccountSession, initialAccountSession } from './bilibili-account-sessio
 export function useBilibiliAccount() {
   const [session, setSession] = useState(initialAccountSession)
   const [openingLogin, setOpeningLogin] = useState(false)
+  const [enteringGuest, setEnteringGuest] = useState(false)
   const [watchingLogin, setWatchingLogin] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
   const controller = useRef<AccountSession | null>(null)
@@ -13,7 +14,7 @@ export function useBilibiliAccount() {
 
   useEffect(() => {
     mounted.current = true
-    const current = new AccountSession({ getAccount: () => api.getBilibiliAccount(), pause: () => api.pause(), onState: setSession })
+    const current = new AccountSession({ getAccount: () => api.getBilibiliAccount(), continueAsGuest: () => api.continueAsGuest(), pause: () => api.pause(), onState: setSession })
     controller.current = current
     const unsubscribe = api.onBilibiliSessionChanged(() => { void current.check(true) })
     const focus = () => { void current.check(true) }
@@ -35,7 +36,7 @@ export function useBilibiliAccount() {
   useEffect(() => {
     // Poll quickly while the official login window is in use; otherwise keep a
     // light periodic check for server-side expiry while playback remains open.
-    if (!watchingLogin && session.phase !== 'loggedIn') return
+    if (!watchingLogin && session.phase !== 'loggedIn' && session.phase !== 'guest') return
     const interval = setInterval(() => { void controller.current?.check() }, watchingLogin ? 2500 : 60_000)
     return () => clearInterval(interval)
   }, [watchingLogin, session.phase])
@@ -43,6 +44,14 @@ export function useBilibiliAccount() {
   const refresh = useCallback(() => {
     setLoginError(null)
     void controller.current?.check(true)
+  }, [])
+
+  const continueAsGuest = useCallback(async () => {
+    if (!controller.current) return
+    setEnteringGuest(true)
+    setLoginError(null)
+    try { await controller.current.continueAsGuest() }
+    finally { if (mounted.current) setEnteringGuest(false) }
   }, [])
 
   const openLogin = useCallback(async () => {
@@ -63,5 +72,5 @@ export function useBilibiliAccount() {
     return operation
   }, [])
 
-  return { ...session, error: loginError || session.error, openingLogin, watchingLogin, refresh, openLogin }
+  return { ...session, error: loginError || session.error, openingLogin, watchingLogin, enteringGuest, refresh, openLogin, continueAsGuest }
 }

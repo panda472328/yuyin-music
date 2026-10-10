@@ -1,4 +1,5 @@
 import type { Song } from '../electron/types'
+import type { SearchMode } from './shared/search-mode'
 
 export type PlayMode = 'sequence' | 'repeat' | 'shuffle'
 export interface Playlist {
@@ -15,7 +16,7 @@ export interface LibraryState {
   playlists: Playlist[]
   history: HistoryEntry[]
   // Keep the legacy auto-play value for older backups; search playback is always explicit.
-  settings: { volume: number; playMode: PlayMode; autoPlayFirst: boolean }
+  settings: { volume: number; playMode: PlayMode; autoPlayFirst: boolean; searchMode: SearchMode }
   queue: Song[]
 }
 export type LibraryStorage = Pick<Storage, 'getItem' | 'setItem'>
@@ -38,7 +39,7 @@ function defaultLibrary(): LibraryState {
       { id: 'playlist-late-night', name: '深夜耳机', description: '夜深了，听一会儿音乐', createdAt: Date.now(), songs: [] },
     ],
     history: [],
-    settings: { volume: 0.7, playMode: 'sequence', autoPlayFirst: true },
+    settings: { volume: 0.7, playMode: 'sequence', autoPlayFirst: true, searchMode: 'song' },
     queue: [],
   }
 }
@@ -152,6 +153,7 @@ function parseLibrary(value: unknown): LibraryState {
       volume: number(settings?.volume, base.settings.volume, 0, 1),
       playMode: settings?.playMode === 'repeat' || settings?.playMode === 'shuffle' ? settings.playMode : 'sequence',
       autoPlayFirst: typeof settings?.autoPlayFirst === 'boolean' ? settings.autoPlayFirst : true,
+      searchMode: settings?.searchMode === 'video' ? 'video' : 'song',
     },
     queue: parseSongs(entry.queue),
   }

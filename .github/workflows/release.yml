@@ -40,6 +40,10 @@ jobs:
         run: npm test
       - name: Build only the Windows x64 NSIS installer
         run: npm run dist:installer -- --x64 --publish never
+      - name: Verify native installer guards without installing on the runner
+        env:
+          YUYIN_REQUIRE_INSTALLER_TESTS: '1'
+        run: npm run test:installer
       - name: Publish one installer, then advance stable channel
         shell: pwsh
         run: |

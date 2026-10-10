@@ -2,6 +2,7 @@ import { BrowserWindow, type Session } from 'electron';
 import { EventEmitter } from 'node:events';
 import type { BilibiliAccountStatus, BilibiliFavoriteFolder, BilibiliFavoriteFoldersResult, BilibiliFavoriteItemsResult, BilibiliFavoriteSongsResult, SearchResult, Song } from './types';
 import { BilibiliAccountSession, BilibiliError, isAuthenticationCookie } from './account';
+import { bilibiliResultText as plainText, isSearchMode, normalizeSongName, titleMatchesSongName, type SearchMode } from '../src/shared/search-mode';
 export { BilibiliError } from './account';
 
 const SEARCH_ENDPOINT = 'https://api.bilibili.com/x/web-interface/search/type';
@@ -45,22 +46,6 @@ interface FavoriteResourceResponse {
     info?: Record<string, unknown>;
     medias?: Array<Record<string, unknown>>;
   };
-}
-
-function plainText(value: unknown): string {
-  if (typeof value !== 'string') return '';
-  const named: Record<string, string> = {
-    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
-  };
-  return value.replace(/<[^>]*>/g, '').replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (_match, entity: string) => {
-    if (!entity.startsWith('#')) return named[entity.toLowerCase()] ?? '';
-    const numeric = entity[1]?.toLowerCase() === 'x'
-      ? Number.parseInt(entity.slice(2), 16)
-      : Number.parseInt(entity.slice(1), 10);
-    return Number.isFinite(numeric) && numeric >= 0 && numeric <= 0x10ffff
-      ? String.fromCodePoint(numeric)
-      : '';
-  }).trim();
 }
 
 function durationSeconds(value: unknown): number {
@@ -189,6 +174,9 @@ export class BilibiliService extends EventEmitter {
 
   getAccount(): Promise<BilibiliAccountStatus> { return this.accountSession.getStatus(); }
   async requireLogin(): Promise<number> { return (await this.accountSession.requireLoggedIn()).revision; }
+  continueAsGuest(): BilibiliAccountStatus { return this.accountSession.continueAsGuest(); }
+  isGuestEnabled(): boolean { return this.accountSession.isGuestEnabled(); }
+  requirePlaybackAccess(): Promise<number> { return this.accountSession.requirePlaybackAccess(); }
   getSessionRevision(): number { return this.accountSession.getRevision(); }
   assertSessionRevision(revision: number): void { this.accountSession.assertRevision(revision); }
 
@@ -219,15 +207,16 @@ export class BilibiliService extends EventEmitter {
     return this.sessionReady;
   }
 
-  async search(query: string, page = 1): Promise<SearchResult> {
+  async search(query: string, page = 1, mode: SearchMode = 'video'): Promise<SearchResult> {
+    if (!isSearchMode(mode)) throw new BilibiliError('搜索模式不合法。', 'INVALID_SEARCH_MODE');
     const keyword = query.trim();
-    if (!keyword || keyword.length > 200) {
+    if (!keyword || keyword.length > 200 || (mode === 'song' && !normalizeSongName(keyword))) {
       throw new BilibiliError('请输入 1 到 200 个字符的歌曲或歌手名称。', 'INVALID_QUERY');
     }
     if (!Number.isSafeInteger(page) || page < 1 || page > 1000) {
       throw new BilibiliError('搜索页码无效。', 'INVALID_PAGE');
     }
-    const revision = await this.requireLogin();
+    const revision = await this.requirePlaybackAccess();
     await this.initializeSession();
     const url = new URL(SEARCH_ENDPOINT);
     url.search = new URLSearchParams({
@@ -270,12 +259,13 @@ export class BilibiliService extends EventEmitter {
       if (!payload.data || !Array.isArray(payload.data.result)) {
         throw new BilibiliError('Bilibili 搜索结果格式已变化，请稍后重试。', 'BILIBILI_INVALID_RESPONSE');
       }
-      const songs = payload.data.result.map(videoToSong).filter((song): song is Song => song !== null);
-      const total = Math.max(0, Number(payload.data.numResults) || songs.length);
+      const sourceSongs = payload.data.result.map(videoToSong).filter((song): song is Song => song !== null);
+      const songs = mode === 'song' ? sourceSongs.filter(song => titleMatchesSongName(song.title, keyword)) : sourceSongs;
+      const total = Math.max(0, Number(payload.data.numResults) || sourceSongs.length);
       const pageSize = Math.max(1, Number(payload.data.pagesize) || PAGE_SIZE);
       const pages = Number(payload.data.numPages) || Math.ceil(total / pageSize);
       this.assertSessionRevision(revision);
-      return { query: keyword, songs, page, pageSize, total, hasMore: page < pages };
+      return { query: keyword, mode, songs, page, pageSize, total, hasMore: page < pages };
     } catch (error) {
       if (error instanceof BilibiliError) throw error;
       const timedOut = controller.signal.aborted;

@@ -80,9 +80,9 @@
 | --- | --- | --- |
 | 应用骨架 | `.app-shell`、`.sidebar`、`.main-shell`、`.main-content` | 单独内容滚动、侧栏可滚动、底部播放器留白 |
 | 品牌与导航 | `.brand`、`.brand-icon`、`.nav-item`、`.sidebar-playlist` | `.selected`、hover、数量、省略长歌单名 |
-| 顶栏 | `.topbar`、`.search-box`、`.topbar-right` | 输入焦点、快捷键、窗口拖动与控件命中 |
+| 顶栏 | `.topbar`、`.search-box`、`.search-mode`、`.topbar-right` | 输入焦点、快捷键、模式按钮的 `aria-pressed`、窗口拖动与控件命中 |
 | 账号 | `.account-menu-anchor`、`.account-trigger`、`.account-avatar`、`.account-menu-position` | `.expanded`、头像失败降级、hover／键盘菜单 |
-| 登录 | `.login-shell`、`.login-titlebar`、`.login-layout`、`.login-card`、`.login-actions` | 验证中、未登录、过期、网络错误、重试与关闭 |
+| 登录 | `.login-shell`、`.login-titlebar`、`.login-layout`、`.login-card`、`.login-actions`、`.login-guest`、`.guest-login` | 验证中、未登录、游客、过期、网络错误、重试与关闭 |
 | 首页 | `.hero`、`.hero-content`、`.hero-art`、`.record`、`.song-cards`、`.playlist-cards` | 唱片与封面不覆盖按钮，卡片收藏与播放 |
 | 通用按钮 | `.icon-button`、`.button-primary`、`.button-secondary`、`.button-danger` | `.active`、disabled、hover、focus-visible |
 | 歌曲列表 | `.song-table-header`、`.song-row`、`.song-identity`、`.song-actions` | `.current`、hover、长标题、省略、点击／双击播放 |
@@ -98,6 +98,10 @@
 | 桌面歌词 | `.desktop-lyrics`、`.desktop-lyrics-toolbar`、`.desktop-lyrics-copy`、`.desktop-lyrics-caption` | `.toolbar-visible`／`.toolbar-hidden`、`.is-locked`、`.has-error`、`.is-placeholder` |
 
 主歌词的 `[data-active="true"]` 用于居中滚动，`aria-current` 表示当前句。Bilibili 来源的 `.lyric-line` 禁用颜色过渡，滚动为即时 `auto`；LRCLIB 保留平滑滚动。不要为了动画重新引入字幕延迟。校准中暂停自动跟随；普通点句跳转、校准点句只调整偏移，样式改动不得更改这一语义。
+
+PC 0.4.11 包含游客与搜索模式流程。登录页“暂不登录，先听歌”在检查账号期间也可使用；游客右上角 `.guest-login` 显示登录入口，真实登录后才显示 `.account-trigger` 与头像菜单。游客与真实账号切换复用主界面，不清空搜索或本地音乐库；账号收藏夹仍需真实登录。
+
+搜索框内 `.search-mode` 使用两个原生按钮组成 `role="group"`，以 `aria-pressed` 表示选择，保留 Tab／Enter 和焦点样式。歌名模式默认开启，输入标签为“搜索完整歌名”；视频模式为“搜索 Bilibili 视频”。选择写入 `library.json` 的 `settings.searchMode`，旧库缺失或非法值使用 `song`。切换模式废弃旧请求并按当前输入重新搜索，不自动播放。歌名只按完整输入在标题中连续匹配，忽略空白、标点、大小写与全半角；视频保留源站综合排序。歌名页显示已加载匹配数，不能把源接口总数写成匹配总数；过滤为空而源站还有下一页时保留“加载更多”。匹配逻辑在 `src/shared/search-mode.ts`，IPC 校验在 `electron/main.ts`，纯外观改动不得改变这些行为。
 
 ## 5. 布局与窗口约束
 
@@ -120,7 +124,7 @@
 
 ## 6. 原生拖动、锁定和工具栏
 
-Electron 拖动区域不是普通 DOM 拖拽。主窗 `.brand`、`.topbar`、`.login-titlebar` 设置 `-webkit-app-region: drag`；交互后代必须 `no-drag`。账号锚点及**全部后代**明确 `no-drag`，避免 SVG 路径点击变成拖窗。新增 select、range、链接、图标或按钮到拖动区时，对控件及后代设置 `no-drag`。
+Electron 拖动区域不是普通 DOM 拖拽。主窗 `.brand`、`.topbar`、`.login-titlebar` 设置 `-webkit-app-region: drag`；交互后代必须 `no-drag`。搜索框、游客登录入口、账号锚点及**全部后代**明确 `no-drag`，避免 SVG 路径点击变成拖窗。新增 select、range、链接、图标或按钮到拖动区时，对控件及后代设置 `no-drag`。
 
 桌面歌词的歌词、标题、空白和工具栏左侧 `.desktop-lyrics-handle` 可拖动；工具栏与全部后代默认 `no-drag`，仅手柄重新启用 `drag`。`.is-locked` 覆盖整个窗口及手柄为 `no-drag !important`。锁定禁止移动，同时保留字体、透明度、解锁、关闭等控件操作。
 

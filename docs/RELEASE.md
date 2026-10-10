@@ -2,6 +2,12 @@
 
 PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码位于本仓库；Android 源码位于 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。不要把其中一个工程嵌套进另一个仓库。
 
+## PC 0.4.11
+
+安装保护与游客／双模式搜索／选曲归零功能合并到同一个正常版本。发布标签为 `pc-v0.4.11`，最终文件仅为 `Yuyin-0.4.11-Setup.exe`；通过 Windows Actions 从该标签的干净源码构建、验证、发布，再推进稳定更新清单。不另发修复包，不替换历史 0.4.10 附件。
+
+最终 SHA-256、大小、构建提交与公开状态以 [0.4.11 发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.11) 为准。发布前生成的本地 0.4.11 文件仅为测试产物，其校验值不代表 Actions 最终文件。原生宏与本地产物提前退出检查已完成；完整旧版覆盖升级和跨用户权限尚未在独立 Windows 环境验收，详情见 [QA.md](QA.md) 与 [INSTALLATION.md](INSTALLATION.md)。
+
 ## PC 0.4.10
 
 正式版本：[pc-v0.4.10](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.10)，唯一安装文件为 `Yuyin-0.4.10-Setup.exe`。从这一版本开始，安装版支持检查、下载并由用户确认安装后续更新。旧版先手动覆盖安装一次；此后通过正式发布与稳定清单发现新版。校验值和实际构建提交写在发布说明中。

@@ -1,3 +1,6 @@
+import type { SearchMode } from '../src/shared/search-mode';
+export type { SearchMode } from '../src/shared/search-mode';
+
 /** A saved search result. Playback always uses the original Bilibili video page. */
 export interface Song {
   id: string;
@@ -15,9 +18,11 @@ export interface Song {
 
 export interface SearchResult {
   query: string;
+  mode?: SearchMode;
   songs: Song[];
   page: number;
   pageSize: number;
+  /** Source Bilibili total, not the number of title matches in song mode. */
   total: number;
   hasMore: boolean;
 }
@@ -30,7 +35,7 @@ export interface BilibiliAccount {
 
 export type BilibiliAccountStatus =
   | { loggedIn: true; account: BilibiliAccount }
-  | { loggedIn: false; account: null };
+  | { loggedIn: false; account: null; /** Explicit guest choice for this app run; never an account login. */ guest?: boolean };
 
 /** A Bilibili favorite folder visible to the current logged-in account. */
 export interface BilibiliFavoriteFolder {

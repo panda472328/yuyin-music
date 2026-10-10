@@ -55,7 +55,7 @@ test('operation permits reuse a verified login for at most 30 seconds, UI checks
   await session.getStatus(); assert.equal(calls, 3);
 });
 
-test('a logged-out check cannot grant or cache a playback permit', async () => {
+test('a logged-out check cannot grant or cache an account permit', async () => {
   let calls = 0;
   const session = new BilibiliAccountSession(async () => { calls += 1; return { code: -101 }; });
   await assert.rejects(session.requireLoggedIn(), error => error instanceof BilibiliError && error.code === 'BILIBILI_LOGIN_REQUIRED');
@@ -101,7 +101,7 @@ test('an official account switch invalidates old permits without requiring a loc
   assert.equal((await session.requireLoggedIn()).account.mid, 202);
 });
 
-test('server-side expiration invalidates old permits and rejects playback', async () => {
+test('server-side expiration invalidates old permits and rejects account access', async () => {
   let loggedIn = true;
   const session = new BilibiliAccountSession(async () => loggedIn ? nav() : { code: -101 });
   const old = await session.requireLoggedIn();
@@ -121,4 +121,66 @@ test('network failures throw while preserving the most recent confirmed account 
   await assert.rejects(session.getStatus(), /offline/);
   assert.deepEqual(confirmations, [true]);
   assert.equal((await session.requireLoggedIn()).account.mid, 101);
+});
+
+
+test('an explicit guest choice grants public playback without granting login or calling nav', async () => {
+  let calls = 0;
+  const confirmations: unknown[] = [];
+  const session = new BilibiliAccountSession(async () => { calls++; return { code: -101 }; }, status => confirmations.push(status));
+  await assert.rejects(session.requirePlaybackAccess(), error => error instanceof BilibiliError && error.code === 'BILIBILI_LOGIN_REQUIRED');
+  assert.equal(calls, 1);
+  assert.deepEqual(session.continueAsGuest(), { loggedIn: false, account: null, guest: true });
+  const revision = await session.requirePlaybackAccess();
+  session.assertRevision(revision);
+  assert.equal(calls, 1, 'Choosing guest never depends on the nav request or changes account cookies');
+  await assert.rejects(session.requireLoggedIn(), error => error instanceof BilibiliError && error.code === 'BILIBILI_LOGIN_REQUIRED');
+  assert.deepEqual(await session.getStatus(), { loggedIn: false, account: null, guest: true });
+  assert.deepEqual(confirmations.at(-1), { loggedIn: false, account: null, guest: true });
+});
+
+test('guest access works when account verification is offline and is not persisted into a new session', async () => {
+  let calls = 0;
+  const fetch = async () => { calls++; throw new Error('offline'); };
+  const guest = new BilibiliAccountSession(fetch);
+  guest.continueAsGuest();
+  assert.equal(await guest.requirePlaybackAccess(), 0);
+  assert.equal(calls, 0);
+  await assert.rejects(guest.getStatus(), /offline/);
+  assert.equal(await guest.requirePlaybackAccess(), 0);
+  const nextRun = new BilibiliAccountSession(fetch);
+  assert.equal(nextRun.isGuestEnabled(), false);
+  await assert.rejects(nextRun.requirePlaybackAccess(), /offline/);
+});
+
+test('guest login promotes real identity and account expiration keeps public access with revision protection', async () => {
+  let payload: unknown = { code: -101 };
+  const session = new BilibiliAccountSession(async () => payload);
+  session.continueAsGuest();
+  await session.getStatus();
+  const anonymous = await session.requirePlaybackAccess();
+  payload = nav(303);
+  const authenticated = await session.getStatus();
+  assert.deepEqual(authenticated, parseBilibiliAccountStatus(payload));
+  assert.equal((await session.requireLoggedIn()).account.mid, 303);
+  assert.throws(() => session.assertRevision(anonymous), error => error instanceof BilibiliError && error.code === 'BILIBILI_SESSION_CHANGED');
+  const signedIn = await session.requirePlaybackAccess();
+  payload = { code: -101 };
+  assert.deepEqual(await session.getStatus(), { loggedIn: false, account: null, guest: true });
+  assert.throws(() => session.assertRevision(signedIn), error => error instanceof BilibiliError && error.code === 'BILIBILI_SESSION_CHANGED');
+  session.assertRevision(await session.requirePlaybackAccess());
+  await assert.rejects(session.requireLoggedIn());
+});
+
+test('guest permits are invalidated by cookie changes and repeated logged-out checks do not change identity', async () => {
+  const session = new BilibiliAccountSession(async () => ({ code: -101 }));
+  session.continueAsGuest();
+  await session.getStatus();
+  const first = await session.requirePlaybackAccess();
+  await session.getStatus();
+  session.assertRevision(first);
+  session.invalidate();
+  assert.throws(() => session.assertRevision(first), error => error instanceof BilibiliError && error.code === 'BILIBILI_SESSION_CHANGED');
+  assert.equal(session.isGuestEnabled(), true);
+  session.assertRevision(await session.requirePlaybackAccess());
 });

@@ -4,6 +4,7 @@ import { buildLyricsQueries, selectLyricsMatch } from './lyrics'
 import type { DesktopLyricsContent, DesktopLyricsSettings, DesktopLyricsSnapshot } from '../electron/desktop-lyrics-types'
 import { DESKTOP_LYRICS_DEFAULT_SETTINGS, DESKTOP_LYRICS_DEFAULT_CONTENT } from '../electron/desktop-lyrics-types'
 import type { UpdateState } from './shared/update'
+import { bilibiliResultText, isSearchMode, normalizeSongName, titleMatchesSongName, type SearchMode } from './shared/search-mode'
 
 export interface MusicAPI {
   getUpdateState(): Promise<UpdateState>
@@ -12,7 +13,7 @@ export interface MusicAPI {
   installUpdate(): Promise<UpdateState>
   openUpdateRelease(): Promise<void>
   onUpdateState(callback: (state: UpdateState) => void): () => void
-  search(query: string, page?: number): Promise<SearchResult>
+  search(query: string, page?: number, mode?: SearchMode): Promise<SearchResult>
   play(song: Song): Promise<PlaybackStatus>
   pause(): Promise<PlaybackStatus>
   resume(): Promise<PlaybackStatus>
@@ -26,6 +27,7 @@ export interface MusicAPI {
   onDesktopLyricsSnapshot(callback: (snapshot: DesktopLyricsSnapshot) => void): () => void
   login(): Promise<void>
   getBilibiliAccount(): Promise<BilibiliAccountStatus>
+  continueAsGuest(): Promise<BilibiliAccountStatus>
   openBilibiliProfile(): Promise<void>
   onBilibiliSessionChanged(callback: () => void): () => void
   getBilibiliFavoriteFolders(): Promise<BilibiliFavoriteFoldersResult>
@@ -58,23 +60,28 @@ const previewAPI: MusicAPI = {
   async checkForUpdates() { return { ...previewUpdate, status: 'error', error: previewUpdate.installDisabledReason } },
   downloadUpdate: desktopRequired, installUpdate: desktopRequired, openUpdateRelease: desktopRequired,
   onUpdateState() { return () => {} },
-  async search(query, page = 1) {
-    const params = new URLSearchParams({ search_type: 'video', keyword: query, order: 'totalrank', page: String(page), page_size: '20' })
+  async search(query, page = 1, mode = 'video') {
+    if (!isSearchMode(mode)) throw new Error('搜索模式不合法。')
+    const keyword = query.trim()
+    if (!keyword || (mode === 'song' && !normalizeSongName(keyword))) throw new Error('请输入歌曲或视频名称。')
+    const params = new URLSearchParams({ search_type: 'video', keyword, order: 'totalrank', page: String(page), page_size: '20' })
     const response = await fetch(`/bili-api/x/web-interface/search/type?${params}`)
     if (!response.ok) throw new Error('Bilibili 暂时无法访问，请稍后重试。')
     const payload = await response.json()
     if (payload.code !== 0) throw new Error('Bilibili 需要验证，请在桌面客户端中打开 Bilibili 登录后重试。')
     const songs: Song[] = (payload.data?.result ?? []).map((item: any) => ({
       id: item.bvid, bvid: item.bvid,
-      title: String(item.title).replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"'),
+      title: bilibiliResultText(item.title) || item.bvid,
       artist: item.author, cover: item.pic.startsWith('//') ? `https:${item.pic}` : item.pic,
       duration: String(item.duration).split(':').reduce((total: number, part: string) => total * 60 + Number(part), 0),
       playCount: Number(item.play), source: 'bilibili', url: `https://www.bilibili.com/video/${item.bvid}/`
     }))
-    return { query, songs, page: payload.data.page, pageSize: 20, total: payload.data.numResults, hasMore: page < payload.data.numPages }
+    return { query: keyword, mode, songs: mode === 'song' ? songs.filter(song => titleMatchesSongName(song.title, keyword)) : songs,
+      page: payload.data.page, pageSize: 20, total: payload.data.numResults, hasMore: page < payload.data.numPages }
   },
   play: desktopRequired, pause: desktopRequired, resume: desktopRequired, seek: desktopRequired,
   getBilibiliAccount: desktopRequired,
+  async continueAsGuest() { return { loggedIn: false, account: null, guest: true } },
   openBilibiliProfile: desktopRequired,
   onBilibiliSessionChanged() { return () => {} },
   async getBilibiliFavoriteFolders() { throw new Error('请在余音桌面客户端中读取 Bilibili 收藏夹。') },

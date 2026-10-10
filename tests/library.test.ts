@@ -45,9 +45,43 @@ test('favorite-folder imports reject oversized merges without removing existing 
 test('new library has independent default playlists and settings', () => {
   const state = loadLibrary(memoryStorage())
   assert.deepEqual(state.playlists.map(item => item.name), ['我的歌单', '深夜耳机'])
-  assert.deepEqual(state.settings, { volume: 0.7, playMode: 'sequence', autoPlayFirst: true })
+  assert.deepEqual(state.settings, { volume: 0.7, playMode: 'sequence', autoPlayFirst: true, searchMode: 'song' })
   state.playlists[0].songs.push(song())
   assert.equal(loadLibrary(memoryStorage()).playlists[0].songs.length, 0)
+})
+
+test('legacy and invalid search modes default to song search without changing the music library', () => {
+  const legacy = {
+    version: 1, favorites: [song(1)], playlists: [], queue: [song(2)],
+    history: [{ song: song(3), playedAt: 123 }],
+    settings: { volume: 0.4, playMode: 'repeat', autoPlayFirst: false },
+  }
+  for (const settings of [legacy.settings, { ...legacy.settings, searchMode: 'unexpected' }, { ...legacy.settings, searchMode: null }]) {
+    const loaded = loadLibrary(memoryStorage(JSON.stringify({ ...legacy, settings })))
+    assert.equal(loaded.settings.searchMode, 'song')
+    assert.deepEqual(loaded.favorites, legacy.favorites)
+    assert.deepEqual(loaded.queue, legacy.queue)
+    assert.deepEqual(loaded.playlists, [])
+    assert.deepEqual(loaded.history, legacy.history)
+    assert.equal(loaded.settings.volume, 0.4)
+    assert.equal(loaded.settings.playMode, 'repeat')
+    assert.equal(loaded.settings.autoPlayFirst, false)
+  }
+})
+
+test('saved song and video search choices survive favorite edits and restart', () => {
+  const storage = memoryStorage()
+  let state = loadLibrary(storage)
+  for (const searchMode of ['video', 'song'] as const) {
+    state = { ...state, settings: { ...state.settings, searchMode } }
+    state = toggleFavorite(state, song(1))
+    assert.equal(saveLibrary(state, storage).ok, true)
+    const loaded = loadLibrary(storage)
+    assert.equal(loaded.settings.searchMode, searchMode)
+    assert.deepEqual(loaded.favorites, state.favorites)
+    assert.deepEqual(loaded.settings, state.settings)
+    state = loaded
+  }
 })
 
 test('favorites and playlist edits preserve the input library and avoid duplicates', () => {
@@ -90,7 +124,7 @@ test('library survives a save/load round trip including intentionally empty play
   state = recordHistory(toggleFavorite(state, song()), song(), 123)
   state.playlists = []
   state.queue = [song()]
-  state.settings = { volume: 0.35, playMode: 'shuffle', autoPlayFirst: false }
+  state.settings = { volume: 0.35, playMode: 'shuffle', autoPlayFirst: false, searchMode: 'video' }
   assert.deepEqual(saveLibrary(state, storage), { ok: true })
   assert.deepEqual(loadLibrary(storage), state)
 })
@@ -130,7 +164,7 @@ test('damaged entries are removed while valid songs, playlists and settings surv
   assert.equal(state.queue[0].url, song(1).url)
   assert.equal(state.queue[0].cover, '')
   assert.deepEqual(state.history.map(item => item.playedAt), [30, 20])
-  assert.deepEqual(state.settings, { volume: 1, playMode: 'shuffle', autoPlayFirst: false })
+  assert.deepEqual(state.settings, { volume: 1, playMode: 'shuffle', autoPlayFirst: false, searchMode: 'song' })
 })
 
 test('corrupt JSON and inaccessible storage fall back without throwing', () => {

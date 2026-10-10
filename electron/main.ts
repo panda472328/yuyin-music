@@ -3,6 +3,7 @@ import { isAbsolute, join } from 'node:path'
 import { BilibiliService, BilibiliError } from './bilibili'
 import { BackgroundPlayer } from './player'
 import type { BilibiliAccountStatus, Song } from './types'
+import { isSearchMode } from '../src/shared/search-mode'
 import { LyricsService } from './lyrics'
 import { BilibiliSubtitlesService } from './subtitles'
 import type { LyricsRequest } from './lyrics-types'
@@ -64,8 +65,8 @@ function registerIPC() {
     if (!release) throw new Error('请先检查新版本。')
     return shell.openExternal(release)
   })
-  const withLogin = async <T>(operation: () => Promise<T>): Promise<T> => {
-    const revision = await service.requireLogin()
+  const withPlaybackAccess = async <T>(operation: () => Promise<T>): Promise<T> => {
+    const revision = await service.requirePlaybackAccess()
     service.assertSessionRevision(revision)
     const result = await operation()
     service.assertSessionRevision(revision)
@@ -98,13 +99,14 @@ function registerIPC() {
   }
   ipcMain.on('library:read', event => handleLibrary(event, false))
   ipcMain.on('library:write', (event, data: unknown) => handleLibrary(event, true, data))
-  ipcMain.handle('music:search', async (event, query: unknown, page: unknown = 1) => {
+  ipcMain.handle('music:search', async (event, query: unknown, page: unknown = 1, mode: unknown = 'video') => {
     if (!isTrustedSender(event) || typeof query !== 'string' || query.trim().length < 1 || query.length > 80 || !numberInRange(page, 1, 200)) throw new BilibiliError('搜索参数不合法', 'INVALID_QUERY')
-    return withLogin(() => service.search(query.trim(), Math.floor(page)))
+    if (!isSearchMode(mode)) throw new BilibiliError('搜索模式不合法。', 'INVALID_SEARCH_MODE')
+    return withPlaybackAccess(() => service.search(query.trim(), Math.floor(page), mode))
   })
-  ipcMain.handle('music:play', async (event, song: unknown) => { if (!isTrustedSender(event) || !validSong(song)) throw new Error('歌曲信息不合法'); return withLogin(() => player.play(song)) })
+  ipcMain.handle('music:play', async (event, song: unknown) => { if (!isTrustedSender(event) || !validSong(song)) throw new Error('歌曲信息不合法'); return withPlaybackAccess(() => player.play(song)) })
   ipcMain.handle('music:pause', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return player.pause() })
-  ipcMain.handle('music:resume', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return withLogin(() => player.resume()) })
+  ipcMain.handle('music:resume', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return withPlaybackAccess(() => player.resume()) })
   ipcMain.handle('music:seek', (event, seconds: unknown) => { if (!isTrustedSender(event) || !numberInRange(seconds, 0, 24 * 60 * 60)) throw new Error('时间参数不合法'); return player.seek(seconds) })
   ipcMain.handle('music:volume', (event, volume: unknown) => { if (!isTrustedSender(event) || !numberInRange(volume, 0, 1)) throw new Error('音量参数不合法'); return player.setVolume(volume) })
   ipcMain.handle('music:status', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return player.getStatus() })
@@ -116,6 +118,7 @@ function registerIPC() {
   })
   ipcMain.handle('music:login', event => { if (!isTrustedSender(event)) throw new Error('未授权'); service.openLoginWindow(mainWindow ?? undefined) })
   ipcMain.handle('music:bilibili-account', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return service.getAccount() })
+  ipcMain.handle('music:guest', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return service.continueAsGuest() })
   ipcMain.handle('music:bilibili-profile', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return service.openProfile(mainWindow ?? undefined) })
   ipcMain.handle('music:bilibili-favorite-folders', async event => { if (!isTrustedSender(event)) throw new Error('未授权'); return service.listFavoriteFolders() })
   ipcMain.handle('music:bilibili-favorite-items', async (event, mediaId: unknown, page: unknown = 1) => {
@@ -126,7 +129,7 @@ function registerIPC() {
     if (!isTrustedSender(event) || !numberInRange(mediaId, 1, Number.MAX_SAFE_INTEGER)) throw new Error('收藏夹参数不合法')
     return service.listFavoriteSongs(Math.floor(mediaId))
   })
-  ipcMain.handle('music:source', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return withLogin(async () => { player.openSourceWindow() }) })
+  ipcMain.handle('music:source', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return withPlaybackAccess(async () => { player.openSourceWindow() }) })
   ipcMain.handle('library:export', async (event, json: unknown) => {
     if (!isTrustedSender(event) || typeof json !== 'string' || json.length > 2_000_000) return false
     const result = await dialog.showSaveDialog(mainWindow!, { title: '导出我的音乐库', defaultPath: '余音音乐库.json', filters: [{ name: 'JSON', extensions: ['json'] }] })
@@ -211,16 +214,16 @@ async function createWindow() {
     },
   })
   await desktopLyrics.setSessionAvailable(false)
-  const applySessionAvailability = (available: boolean) => {
+  const applySessionAvailability = (available: boolean, invalidatePlayback = false) => {
     // Even a paused song can have resume() awaiting a native snapshot. Advance the
     // player's generation on invalidation so that pending resume cannot start later.
-    if (!available && player.getStatus().song) void player.pause().catch(() => undefined)
+    if ((!available || invalidatePlayback) && player.getStatus().song) void player.pause().catch(() => undefined)
     void desktopLyrics.setSessionAvailable(available).catch(error => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('preferences:error', error instanceof Error ? error.message : '更新桌面歌词状态失败。')
     })
   }
-  service.on('account-status', (status: BilibiliAccountStatus) => applySessionAvailability(status.loggedIn))
-  service.on('session-invalidated', () => applySessionAvailability(false))
+  service.on('account-status', (status: BilibiliAccountStatus) => applySessionAvailability(status.loggedIn || status.guest === true))
+  service.on('session-invalidated', () => applySessionAvailability(service.isGuestEnabled(), true))
   service.on('session-changed', () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('bilibili:session-changed') })
   desktopLyrics.on('snapshot', snapshot => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('desktop-lyrics:snapshot', snapshot) })
   desktopLyrics.registerIPC()

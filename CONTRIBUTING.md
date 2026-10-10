@@ -1,6 +1,6 @@
 # 参与余音 PC 版
 
-本仓库是 Windows 桌面端，功能版本目前为 0.4.10。Android 的问题和修改请提交到 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。两个仓库使用独立版本、构建与数据，不把手机源码或 APK 放进 PC 仓库。
+本仓库是 Windows 桌面端，当前源码版本为 0.4.11，正式安装文件以 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 为准。Android 的问题和修改请提交到 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。两个仓库使用独立版本、构建与数据，不把手机源码或 APK 放进 PC 仓库。
 
 ## 开发流程
 
@@ -36,6 +36,8 @@ npm test
 ```
 
 纯视觉改动运行类型检查和生产构建，然后按样式标准完成相关页面与状态的视觉检查；无需为低风险颜色或间距调整编写复刻实现的测试。改变业务、存储或 IPC 时运行 `npm test`，并补充能验证实际风险的回归。已有人工记录和清单在 [docs/QA.md](docs/QA.md)，未执行项不能写为通过。
+
+修改安装行为时编辑仓库内 `build/installer.nsh`，不修改依赖中的 NSIS 模板。打包后运行 `npm run test:installer`，验证原生宏的占用与失败退出；安装注册项、快捷方式及旧版覆盖升级应在独立 Windows 环境验收。详见 [安装与重装](docs/INSTALLATION.md)。
 
 提交界面改动时附 1440×950 与 1080×680 下的相关截图，说明 hover、focus、disabled、loading、error 等状态。若改桌面歌词，补充浅／深背景、长歌词、显示／隐藏工具栏、锁定／解锁及实际命中检查；浏览器中的 CSS 断言不能证明 Windows 原生拖动可用。
 

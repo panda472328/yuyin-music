@@ -62,6 +62,7 @@ export function isAuthenticationCookie(cookie: { name: string; domain?: string }
 /** Only successful official checks are cached, and a cookie change invalidates pending checks immediately. */
 export class BilibiliAccountSession {
   private revision = 0;
+  private guestEnabled = false;
   private cached: { status: BilibiliAccountStatus; checkedAt: number } | null = null;
   private pending: { revision: number; result: Promise<BilibiliAccountStatus> } | null = null;
 
@@ -73,6 +74,24 @@ export class BilibiliAccountSession {
 
   invalidate(): void { this.revision += 1; this.cached = null; this.pending = null; }
   getRevision(): number { return this.revision; }
+  isGuestEnabled(): boolean { return this.guestEnabled; }
+
+  private withGuestAccess(status: BilibiliAccountStatus): BilibiliAccountStatus {
+    return !status.loggedIn && this.guestEnabled ? { ...status, guest: true } : status;
+  }
+
+  /** An explicit local choice grants public playback access, never account privileges. */
+  continueAsGuest(): BilibiliAccountStatus {
+    this.guestEnabled = true;
+    const status = this.withGuestAccess(this.cached?.status ?? { loggedIn: false, account: null });
+    this.onConfirmed(status);
+    return status;
+  }
+
+  async requirePlaybackAccess(): Promise<number> {
+    if (this.guestEnabled) return this.revision;
+    return (await this.requireLoggedIn()).revision;
+  }
 
   assertRevision(revision: number): void {
     if (revision !== this.revision) throw new BilibiliError('Bilibili 账号已发生变化，请重新验证后重试。', 'BILIBILI_SESSION_CHANGED');
@@ -83,7 +102,7 @@ export class BilibiliAccountSession {
     const revision = this.revision;
     const result = Promise.resolve().then(this.fetchPayload).then(payload => {
       this.assertRevision(revision);
-      const status = parseBilibiliAccountStatus(payload);
+      const status = this.withGuestAccess(parseBilibiliAccountStatus(payload));
       const previous = this.cached?.status;
       const identity = (value: BilibiliAccountStatus) => value.loggedIn ? value.account.mid : null;
       // The server may expire a session without a local cookie event. A new confirmed
@@ -103,7 +122,7 @@ export class BilibiliAccountSession {
     const status = this.cached?.status.loggedIn && age >= 0 && age < 30_000
       ? this.cached.status : await this.getStatus();
     this.assertRevision(revision);
-    if (!status.loggedIn) throw new BilibiliError('请先登录 Bilibili 账号，再使用播放器。', 'BILIBILI_LOGIN_REQUIRED', true);
+    if (!status.loggedIn) throw new BilibiliError('请先登录 Bilibili 账号，再使用账号相关功能。', 'BILIBILI_LOGIN_REQUIRED', true);
     return { account: { ...status.account }, revision };
   }
 }

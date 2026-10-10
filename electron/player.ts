@@ -35,6 +35,7 @@ interface PageSnapshot {
   playError?: string;
   blocked?: string;
   navigationMismatch?: boolean;
+  restarting?: boolean;
 }
 
 interface PlaybackWaiter {
@@ -49,14 +50,21 @@ interface PlaybackWaiter {
  * extracting media URLs. The capture handler keeps Bilibili's own auto-next from
  * competing with the application's queue after this video finishes.
  */
-function pageScript(command: PageCommand, bvid: string, volume: number, value?: number): string {
-  const parameters = JSON.stringify({ command, bvid, volume, value });
+function pageScript(command: PageCommand, bvid: string, volume: number, requestId: number, value?: number): string {
+  const parameters = JSON.stringify({ command, bvid, volume, requestId, value });
   return `(async () => {
     const args = ${parameters};
     const empty = { found: false, paused: true, ended: false, currentTime: 0, duration: 0, readyState: 0, playing: false, mediaError: 0 };
     if (!location.pathname.includes('/video/' + args.bvid)) return { ...empty, navigationMismatch: true };
     const key = '__biliMusicNativeMedia';
-    const memory = window[key] || (window[key] = { video: null, ended: false, error: 0, volume: args.volume, playing: false, lastTime: 0 });
+    const memory = window[key] || (window[key] = { video: null, ended: false, error: 0, volume: args.volume, playing: false, lastTime: 0, requestId: -1 });
+    // A play(song) request has its own ID even when the same BV is selected again.
+    // Pause/resume keep that ID, so they retain the current listening position.
+    if (args.requestId < memory.requestId) return empty;
+    if (args.requestId !== memory.requestId) {
+      memory.requestId = args.requestId;
+      memory.startup = { active: true, positioned: false, correcting: false, expiresAt: 0, lastTime: 0, lastAt: Date.now() };
+    }
     if (!memory.captureInstalled) {
       window.addEventListener('ended', (event) => {
         if (event.target !== memory.video) return;
@@ -64,6 +72,12 @@ function pageScript(command: PageCommand, bvid: string, volume: number, value?: 
         memory.video.pause();
         event.stopImmediatePropagation();
       }, true);
+      // An explicit interaction with the source player takes over its timeline.
+      for (const name of ['pointerdown', 'keydown']) {
+        window.addEventListener(name, (event) => {
+          if (event.isTrusted && memory.startup.positioned) memory.startup.active = false;
+        }, true);
+      }
       memory.captureInstalled = true;
     }
     const video = document.querySelector('.bpx-player-video-wrap video')
@@ -80,21 +94,67 @@ function pageScript(command: PageCommand, bvid: string, volume: number, value?: 
       memory.error = 0;
       memory.playing = false;
       memory.lastTime = video.currentTime;
+      if (memory.startup.active) memory.startup.positioned = false;
       video.volume = memory.volume;
+      const keepBeginning = (event) => {
+        const startup = memory.startup;
+        if (memory.video !== video || !startup.active || startup.correcting) return;
+        const now = Date.now();
+        if (startup.expiresAt && now >= startup.expiresAt) {
+          startup.active = false;
+          return;
+        }
+        const elapsed = Math.max(0, now - startup.lastAt) / 1000;
+        const rate = Number.isFinite(video.playbackRate) ? Math.max(1, video.playbackRate) : 1;
+        // Bilibili may restore its saved progress after metadata or playback is
+        // ready. Reject those initial seeks, while allowing natural playback.
+        const jumped = video.currentTime > startup.lastTime + elapsed * rate + 0.75;
+        if (!startup.positioned || (event?.type === 'seeking' && video.currentTime > 0.05) || jumped) {
+          try {
+            startup.correcting = true;
+            video.currentTime = 0;
+            startup.positioned = Number.isFinite(video.currentTime) && video.currentTime <= 0.05;
+            memory.ended = false;
+            memory.lastTime = video.currentTime;
+          } catch {
+            // Some media elements reject seeks until their metadata arrives.
+            startup.positioned = false;
+          } finally { startup.correcting = false; }
+        }
+        startup.lastTime = video.currentTime;
+        startup.lastAt = now;
+      };
+      memory.keepBeginning = keepBeginning;
+      for (const event of ['loadedmetadata', 'canplay', 'seeking', 'seeked', 'timeupdate']) {
+        video.addEventListener(event, keepBeginning);
+      }
       video.addEventListener('error', () => { if (memory.video === video) memory.error = video.error?.code || 0; });
-      video.addEventListener('playing', () => { if (memory.video === video) memory.playing = true; });
+      video.addEventListener('playing', () => {
+        if (memory.video !== video) return;
+        keepBeginning();
+        memory.playing = true;
+        if (memory.startup.active && memory.startup.positioned && video.readyState >= 2 && !memory.startup.expiresAt) memory.startup.expiresAt = Date.now() + 8000;
+      });
       for (const event of ['pause', 'waiting', 'stalled', 'ended']) {
         video.addEventListener(event, () => { if (memory.video === video) memory.playing = false; });
       }
     }
+    memory.keepBeginning();
     if (args.command === 'volume') {
       memory.volume = args.value;
       video.volume = args.value;
     }
-    if (args.command === 'pause') video.pause();
+    if (args.command === 'pause') {
+      if (memory.startup.positioned && (memory.playing || !video.paused)) memory.startup.active = false;
+      video.pause();
+    }
     if (args.command === 'seek') {
       const maximum = Number.isFinite(video.duration) ? video.duration : args.value;
-      video.currentTime = Math.max(0, Math.min(args.value, maximum));
+      // Cancel before assigning: the native seeking event must honor this seek.
+      const wasActive = memory.startup.active;
+      memory.startup.active = false;
+      try { video.currentTime = Math.max(0, Math.min(args.value, maximum)); }
+      catch (error) { memory.startup.active = wasActive; throw error; }
       memory.ended = false;
     }
     let playError;
@@ -109,11 +169,15 @@ function pageScript(command: PageCommand, bvid: string, volume: number, value?: 
           video.play(),
           new Promise((_, reject) => { playTimer = setTimeout(() => reject(new Error('视频仍在缓冲，请稍后重试。')), 8000); })
         ]);
+        if (memory.requestId !== args.requestId || memory.video !== video) return empty;
+        memory.keepBeginning();
         memory.playing = !video.paused;
       } catch (error) { playError = error?.message || String(error); }
       finally { clearTimeout(playTimer); }
     }
+    if (memory.requestId !== args.requestId || memory.video !== video) return empty;
     if (!video.paused && video.currentTime > memory.lastTime + 0.01) memory.playing = true;
+    if (memory.startup.active && memory.startup.positioned && video.readyState >= 2 && memory.playing && !memory.startup.expiresAt) memory.startup.expiresAt = Date.now() + 8000;
     memory.lastTime = video.currentTime;
     return {
       found: true,
@@ -123,6 +187,7 @@ function pageScript(command: PageCommand, bvid: string, volume: number, value?: 
       duration: Number.isFinite(video.duration) ? video.duration : 0,
       readyState: video.readyState,
       playing: memory.playing,
+      restarting: memory.startup.active && (!memory.startup.positioned || video.seeking),
       mediaError: video.error?.code || memory.error,
       playError,
     };
@@ -133,6 +198,8 @@ function pageScript(command: PageCommand, bvid: string, volume: number, value?: 
 export class BackgroundPlayer extends EventEmitter {
   private window: BrowserWindow | null = null;
   private generation = 0;
+  // Stable across pause/resume; each song selection starts a fresh source timeline.
+  private playbackRequest = 0;
   // Seeking does not start a new playback request or invalidate its waiter.
   // It does invalidate media snapshots captured before the new position.
   private positionRevision = 0;
@@ -252,7 +319,7 @@ export class BackgroundPlayer extends EventEmitter {
     // executeJavaScript otherwise waits behind a navigation and can hold pause
     // or the polling lock indefinitely while an unreachable page is loading.
     if (window.webContents.isLoadingMainFrame()) return null;
-    const script = pageScript(command, song.bvid, this.status.volume, value);
+    const script = pageScript(command, song.bvid, this.status.volume, this.playbackRequest, value);
     return await window.webContents.executeJavaScript(script, command === 'play') as PageSnapshot;
   }
 
@@ -318,9 +385,10 @@ export class BackgroundPlayer extends EventEmitter {
       this.fail(new PlaybackError(`Bilibili ${causes[snapshot.mediaError] || '媒体播放失败'}，请在源视频页面检查。`, 'MEDIA_ERROR'), generation);
       return;
     }
-    this.status.currentTime = snapshot.currentTime;
+    this.status.currentTime = snapshot.restarting ? 0 : snapshot.currentTime;
     if (snapshot.duration > 0) this.status.duration = snapshot.duration;
-    if (snapshot.ended) {
+    // Native ended can briefly remain true until the startup seek completes.
+    if (snapshot.ended && !snapshot.restarting) {
       if (this.status.state === 'ended') return;
       this.desiredPlayback = false;
       const song = { ...this.status.song };
@@ -330,7 +398,7 @@ export class BackgroundPlayer extends EventEmitter {
       this.emit('ended', song);
       return;
     }
-    if (this.desiredPlayback && !snapshot.paused && snapshot.readyState >= 2 && snapshot.playing) {
+    if (this.desiredPlayback && !snapshot.restarting && !snapshot.paused && snapshot.readyState >= 2 && snapshot.playing) {
       this.stalledSince = null;
       if (this.window && !this.window.isDestroyed()) this.window.webContents.setAudioMuted(false);
       this.status = { ...this.status, state: 'playing', error: null, errorCode: undefined };
@@ -395,6 +463,7 @@ export class BackgroundPlayer extends EventEmitter {
     }
     const window = this.createWindow();
     const generation = ++this.generation;
+    ++this.playbackRequest;
     window.webContents.setAudioMuted(true);
     this.missingSince = null;
     this.stalledSince = null;

@@ -49,17 +49,24 @@ h1, h2, h3, p { margin: 0; }
 .topbar { flex-shrink: 0; height: 91px; display: flex; align-items: center; gap: 22px; padding: 25px 41px 14px; -webkit-app-region: drag; }
 .navigation-arrows { display: flex; gap: 4px; }
 .navigation-arrows .icon-button { width: 26px; color: #8e968a; }
-.search-box { display: flex; align-items: center; gap: 11px; background: #eef1ea; border: 1px solid transparent; border-radius: 22px; padding: 11px 15px; width: min(410px, 47%); color: #9aa393; }
+.search-box, .search-box * { -webkit-app-region: no-drag; }
+.search-box { display: flex; align-items: center; gap: 11px; background: #eef1ea; border: 1px solid transparent; border-radius: 22px; padding: 7px 15px 7px 7px; width: min(530px, 60%); min-width: 0; color: #9aa393; }
 .search-box:focus-within { border-color: #c2d0b7; background: #f9faf7; }
 .search-box input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 11px; color: var(--ink); outline: none; }
 .search-box input::placeholder { color: #a1a99b; }
 .search-box input:focus-visible { outline: none; }
 .search-box kbd { font-size: 9px; font-family: inherit; border: 1px solid #d9dfd2; border-radius: 4px; padding: 2px 4px; white-space: nowrap; }
 .search-box button { padding: 0; color: #87917f; }
+.search-mode { display: flex; flex-shrink: 0; gap: 2px; }
+.search-mode button { padding: 7px 8px; border-radius: 6px; font-size: 11px; line-height: 1.4; white-space: nowrap; }
+.search-mode button:hover { color: var(--green); }
+.search-mode button[aria-pressed="true"] { background: var(--surface); color: var(--green); font-weight: 600; }
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 19px; padding-right: 4px; }
 .local-badge { display: flex; gap: 6px; align-items: center; font-size: 10px; color: #99a18f; letter-spacing: .3px; }
 .local-badge span { width: 5px; height: 5px; background: #a4b88e; border-radius: 50%; }
 .profile { height: 33px; width: 33px; border-radius: 50%; background: #e8edde; color: #83916f; border: 3px solid #fff; font-size: 12px; box-shadow: 0 1px 3px #dfe4d8; }
+.guest-login, .guest-login * { -webkit-app-region: no-drag; }
+.guest-login { white-space: nowrap; }
 .account-menu-anchor, .account-menu-anchor * { -webkit-app-region: no-drag; }
 .account-menu-anchor { position: relative; z-index: 45; }
 .account-trigger { display: flex; align-items: center; gap: 7px; padding: 3px; color: #8b987d; border-radius: 22px; }
@@ -105,6 +112,7 @@ h1, h2, h3, p { margin: 0; }
 .login-actions button { width: 100%; font-size: 12px; padding: 13px; }
 .login-actions .button-primary svg:last-child { margin-left: auto; }
 .login-actions .button-primary svg:first-child { margin-right: auto; }
+.login-card .login-guest { display: flex; width: 100%; justify-content: center; margin-top: 12px; color: var(--green); }
 .login-watch { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 15px; color: #8ca473; font-size: 10px; }
 .login-watch span { width: 5px; height: 5px; background: #9ab982; border-radius: 50%; animation: login-pulse 1.7s ease-in-out infinite; }
 .login-error { margin-top: 14px; border-radius: 7px; background: #f8eee4; color: #a47d55; padding: 10px 12px; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }

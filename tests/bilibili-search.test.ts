@@ -98,7 +98,7 @@ test('the second page retains official order and uses the official pagination me
   assert.equal(calls.filter(call => call.url.pathname === '/x/web-interface/nav').length, 1);
 });
 
-test('a logged-out session cannot request search results', async t => {
+test('a logged-out session without guest opt-in cannot request search results', async t => {
   const { service, searchCalls, calls } = fixture(t, { loggedIn: false });
   await assert.rejects(service.search('测试歌曲'), error =>
     error instanceof BilibiliError && error.code === 'BILIBILI_LOGIN_REQUIRED' && error.requiresVerification);
@@ -119,4 +119,88 @@ test('a cookie identity change during search rejects results from the old login'
   cookies.emit('changed', {}, { name: 'SESSDATA', domain: '.bilibili.com' });
   resolve(payload([first, popular]));
   await rejection;
+});
+
+
+test('an explicit guest can search with official ranking while account-only favorite folders remain protected', async t => {
+  const { service, searchCalls, calls } = fixture(t, { loggedIn: false });
+  assert.deepEqual(service.continueAsGuest(), { loggedIn: false, account: null, guest: true });
+  const result = await service.search('游客歌曲');
+  assert.deepEqual(result.songs.map(song => song.bvid), [first.bvid, popular.bvid]);
+  assert.equal(searchCalls()[0].url.searchParams.get('order'), 'totalrank');
+  assert.equal(calls.filter(call => call.url.pathname === '/x/web-interface/nav').length, 0);
+  for (const accountOperation of [() => service.listFavoriteFolders(), () => service.listFavoriteItems(1),
+    () => service.listFavoriteSongs(1), () => service.openProfile()]) {
+    await assert.rejects(accountOperation(), error => error instanceof BilibiliError && error.code === 'BILIBILI_LOGIN_REQUIRED');
+  }
+  assert.deepEqual(await service.getAccount(), { loggedIn: false, account: null, guest: true });
+});
+
+test('guest search rejects an old response after an identity cookie change while future public requests remain available', async t => {
+  let resolve!: (value: unknown) => void;
+  let started!: () => void;
+  const pending = new Promise<unknown>(done => { resolve = done; });
+  const fetching = new Promise<void>(done => { started = done; });
+  let delay = true;
+  const { service, cookies } = fixture(t, { loggedIn: false, search: () => {
+    if (delay) { started(); return pending; }
+    return payload([first]);
+  } });
+  service.continueAsGuest();
+  const search = service.search('游客歌曲');
+  const rejection = assert.rejects(search, error => error instanceof BilibiliError && error.code === 'BILIBILI_SESSION_CHANGED');
+  await fetching;
+  cookies.emit('changed', {}, { name: 'SESSDATA', domain: '.bilibili.com' });
+  resolve(payload([first, popular]));
+  await rejection;
+  delay = false;
+  assert.equal((await service.search('新请求')).songs[0].bvid, first.bvid);
+});
+
+
+test('song mode uses the original official keyword but keeps only complete title matches in source order', async t => {
+  const { service, searchCalls } = fixture(t, { search: () => payload([
+    { ...first, title: '【现场】光 年，之 外', tid: 1, description: '跨分区演唱' },
+    { ...popular, title: '听见夏天', description: '光年之外', author: '光年之外' },
+    { ...video('BV0000000003', 3000), title: '光年中途之外' },
+    { ...video('BV0000000004', 40), title: '《光年之外》纯音乐', tid: 999 },
+  ], 3) });
+  const result = await service.search('  光年之外  ', 1, 'song');
+  assert.equal(result.mode, 'song');
+  assert.equal(result.query, '光年之外');
+  assert.deepEqual(result.songs.map(song => song.bvid), [first.bvid, 'BV0000000004']);
+  assert.equal(searchCalls()[0].url.searchParams.get('keyword'), '光年之外');
+  assert.equal(searchCalls()[0].url.searchParams.get('order'), 'totalrank');
+  assert.equal(searchCalls()[0].url.searchParams.has('tids'), false, 'Song matching must not remove cross-category videos');
+  assert.equal(result.total, 60, 'Total remains the source count, not the title match count');
+  assert.equal(result.hasMore, true);
+});
+
+test('song mode leaves pagination available after an empty filtered page and does not infer split artist words', async t => {
+  const { service, searchCalls } = fixture(t, { search: url => payload([
+    { ...first, title: url.searchParams.get('page') === '1' ? '晴天' : '《晴天》周杰伦 现场版' },
+  ], 2) });
+  const firstPage = await service.search('晴天 周杰伦', 1, 'song');
+  const secondPage = await service.search('晴天 周杰伦', 2, 'song');
+  assert.deepEqual(firstPage.songs, []);
+  assert.equal(firstPage.hasMore, true);
+  assert.equal(firstPage.total, 40);
+  assert.deepEqual(secondPage.songs.map(song => song.bvid), [first.bvid]);
+  assert.equal(secondPage.page, 2);
+  assert.equal(secondPage.hasMore, false);
+  assert.equal(searchCalls()[1].url.searchParams.get('keyword'), '晴天 周杰伦');
+});
+
+test('video mode preserves unrelated title results and invalid modes never start a request', async t => {
+  const { service, calls } = fixture(t, { search: () => payload([
+    { ...first, title: '描述中匹配', description: '光年之外' },
+    { ...popular, title: '另一个标题' },
+  ]) });
+  const result = await service.search('光年之外', 1, 'video');
+  assert.equal(result.mode, 'video');
+  assert.deepEqual(result.songs.map(song => song.bvid), [first.bvid, popular.bvid]);
+  const requests = calls.length;
+  await assert.rejects(service.search('光年之外', 1, 'invalid' as never), error => error instanceof BilibiliError && error.code === 'INVALID_SEARCH_MODE');
+  await assert.rejects(service.search('， ！', 1, 'song'), error => error instanceof BilibiliError && error.code === 'INVALID_QUERY');
+  assert.equal(calls.length, requests);
 });
