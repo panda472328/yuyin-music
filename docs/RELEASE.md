@@ -15,7 +15,7 @@ PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码�
 | 正式发布时间（UTC） | `2026-10-10T09:55:56Z` |
 | 稳定清单更新提交 | `e6e3bd96783283b7305e026ce48b9f0755d08bb2` |
 
-[原始标签构建](https://github.com/panda472328/yuyin-music/actions/runs/38041004910) 通过测试和打包，上传原始附件后在最终发布步骤失败。[恢复任务](https://github.com/panda472328/yuyin-music/actions/runs/38043092213) 复用原始 Release 和附件，在 Windows runner 完整下载并复核 SHA-256、大小后公开并推进 main 稳定清单；没有重新构建、上传或移动标签。原始工作流不能整体记为成功。
+[原始标签构建](https://github.com/panda472328/yuyin-music/actions/runs/38041004910) 通过测试和打包，上传原始附件后在最终发布步骤失败。[恢复任务](https://github.com/panda472328/yuyin-music/actions/runs/38043092213) 复用原始 Release 和附件，在 Windows runner 完整下载并复核 SHA-256、大小后公开并推进 main 稳定清单；没有重新构建、上传或移动标签。[来源校正任务](https://github.com/panda472328/yuyin-music/actions/runs/38044820075) 再次下载并校验同一附件，只修正公开正文中的构建提交来源；构建和稳定推进 job 按预期跳过。原始工作流不能整体记为成功。
 
 发布前生成的本地 0.4.11 文件仅为测试产物，其校验值不代表 Actions 最终文件。本机公开元数据核对和云端完整下载校验已经完成；完整首次安装、旧版覆盖升级和跨用户权限尚未在独立 Windows 环境验收，详情见 [QA.md](QA.md) 与 [INSTALLATION.md](INSTALLATION.md)。
 

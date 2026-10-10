@@ -3,7 +3,7 @@
 ## 0.4.12 正式发布与稳定通道（2026-10-10）
 
 - 安装包由原标签提交 `fe77e18c33213aed781f0f975262ced188a22c24` 构建。[原始 Actions 38041004910](https://github.com/panda472328/yuyin-music/actions/runs/38041004910) 的依赖安装、Electron 运行时下载、发布保护测试、应用测试、Windows x64 安装包构建与原生安装保护测试通过；最终发布步骤在草稿标签查询返回 404 时失败，不能将这次工作流整体记为成功。
-- 发布脚本补充分页查找草稿并按 Release ID 回读，恢复任务从 main 使用最新发布工具，验证原标签版本和已有唯一附件，完整下载并校验大小与 SHA-256 后公开。[恢复 Actions 38043092213](https://github.com/panda472328/yuyin-music/actions/runs/38043092213) 的 `recover-existing-release` 在 Windows runner 成功；安装构建 job 跳过，没有重新构建或上传文件。
+- 发布脚本补充分页查找草稿并按 Release ID 回读，恢复任务从 main 使用最新发布工具，验证原标签版本和已有唯一附件，完整下载并校验大小与 SHA-256 后公开。[恢复 Actions 38043092213](https://github.com/panda472328/yuyin-music/actions/runs/38043092213) 的 `recover-existing-release` 在 Windows runner 成功；安装构建 job 跳过，没有重新构建或上传文件。[来源校正 Actions 38044820075](https://github.com/panda472328/yuyin-music/actions/runs/38044820075) 再次下载并校验同一附件，只把公开正文中的构建提交从恢复提交改为原标签提交；构建和稳定推进 job 均按预期跳过。
 - [正式 Release](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.12) ID 为 `408835383`，唯一附件 ID 为 `627533277`，文件名 `Yuyin-0.4.12-Setup.exe`，大小 `113804727` 字节，SHA-256 为 `bf283a54a8b1edc5b11f93a97cc99dca320a6d89460797d01f24a093f7d4f595`。公开时间为 `2026-10-10T09:55:56Z`（北京时间 17:55:56），`draft=false`、`prerelease=false`，最终地址为固定版本下载地址。原标签、Release 和附件身份保持不变。
 - main 的稳定清单由机器人提交 `e6e3bd96783283b7305e026ce48b9f0755d08bb2` 推进到 0.4.12。匿名 Raw 与 Contents API 返回的版本、固定下载地址、大小、SHA-256 和实际发布时间一致。带更新功能的安装版可在正常访问 GitHub 的网络中检查到这一版本，由用户选择下载与安装。
 - 完整下载校验发生在 GitHub Windows Actions runner；本机匿名读取公开元数据不等于本机下载或安装验收。之前不完整的本机文件仅保留为 `.partial`，不计为下载验证通过。完整首次安装、从 0.4.9／0.4.10 覆盖升级、真实 UAC／跨用户权限与受影响电脑复测仍未完成；线上 Bilibili 出声与原生鼠标限制沿用下方记录。PC EXE 仍未签名。匿名证据仅保留在 `.qa/publication/pc-v0.4.12/`。
