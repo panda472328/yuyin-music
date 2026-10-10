@@ -49,7 +49,7 @@ jobs:
       - name: Install the locked Electron runtime
         run: node node_modules/electron/install.js
       - name: Test release channel guards
-        run: node --test scripts/release.test.mjs scripts/check-release-lock.test.mjs
+        run: node --test scripts/release.test.mjs scripts/release-cli.test.mjs scripts/check-release-lock.test.mjs
       - name: Run application tests
         run: npm test
       - name: Build only the Windows x64 NSIS installer
@@ -81,7 +81,7 @@ jobs:
         with:
           node-version: '24'
       - name: Test current release recovery guards without installing dependencies
-        run: node --test scripts/release.test.mjs scripts/check-release-lock.test.mjs
+        run: node --test scripts/release.test.mjs scripts/release-cli.test.mjs scripts/check-release-lock.test.mjs
       - name: Validate existing tag, source versions and uploaded installer
         id: existing
         shell: pwsh
@@ -157,7 +157,7 @@ jobs:
           RELEASE_FILENAME: ${{ steps.existing.outputs.filename }}
           EXPECTED_SIZE: ${{ steps.existing.outputs.size }}
           EXPECTED_SHA256: ${{ steps.existing.outputs.sha256 }}
-          GITHUB_SHA: ${{ steps.existing.outputs.build_commit }}
+          YUYIN_BUILD_COMMIT: ${{ steps.existing.outputs.build_commit }}
         run: |
           $ErrorActionPreference = 'Stop'
           $artifactDirectory = Join-Path $env:RUNNER_TEMP 'yuyin-existing-release'
@@ -168,7 +168,7 @@ jobs:
           if ((Get-Item -LiteralPath $artifact).Length -ne [long]$env:EXPECTED_SIZE) { throw 'Downloaded installer size differs from the existing asset.' }
           $actualSha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actualSha256 -cne $env:EXPECTED_SHA256) { throw 'Downloaded installer SHA-256 differs from the existing asset.' }
-          node scripts/release.mjs --publish --existing-only --tag "$env:RELEASE_TAG" --artifact "$artifact"
+          node scripts/release.mjs --publish --existing-only --tag "$env:RELEASE_TAG" --artifact "$artifact" --build-commit "$env:YUYIN_BUILD_COMMIT" --correct-build-source
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   advance-existing-release:

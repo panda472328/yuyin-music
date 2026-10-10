@@ -4,9 +4,20 @@ PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码�
 
 ## PC 0.4.12
 
-安装保护与游客／双模式搜索／选曲归零功能合并到同一个正常版本。发布标签为 `pc-v0.4.12`，最终文件仅为 `Yuyin-0.4.12-Setup.exe`；通过 Windows Actions 从该标签的干净源码构建、验证、发布，再推进稳定更新清单。不另发修复包，不替换历史 0.4.10 附件。
+安装保护与游客／双模式搜索／选曲归零功能合并到同一个正常版本。[正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.12) 已公开，最终文件仅为 [Yuyin-0.4.12-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.4.12/Yuyin-0.4.12-Setup.exe)。没有另发修复包或替换历史 0.4.10 附件。
 
-最终 SHA-256、大小、构建提交与公开状态以 [0.4.12 发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.12) 为准。发布前生成的本地 0.4.11 文件仅为测试产物，其校验值不代表 Actions 最终文件。原生宏与本地产物提前退出检查已完成；完整旧版覆盖升级和跨用户权限尚未在独立 Windows 环境验收，详情见 [QA.md](QA.md) 与 [INSTALLATION.md](INSTALLATION.md)。
+| 项目 | 值 |
+| --- | --- |
+| 安装包实际构建及标签提交 | `fe77e18c33213aed781f0f975262ced188a22c24` |
+| 安装包 SHA-256 | `bf283a54a8b1edc5b11f93a97cc99dca320a6d89460797d01f24a093f7d4f595` |
+| 安装包字节数 | `113804727` |
+| Release／唯一附件 ID | `408835383`／`627533277` |
+| 正式发布时间（UTC） | `2026-10-10T09:55:56Z` |
+| 稳定清单更新提交 | `e6e3bd96783283b7305e026ce48b9f0755d08bb2` |
+
+[原始标签构建](https://github.com/panda472328/yuyin-music/actions/runs/38041004910) 通过测试和打包，上传原始附件后在最终发布步骤失败。[恢复任务](https://github.com/panda472328/yuyin-music/actions/runs/38043092213) 复用原始 Release 和附件，在 Windows runner 完整下载并复核 SHA-256、大小后公开并推进 main 稳定清单；没有重新构建、上传或移动标签。原始工作流不能整体记为成功。
+
+发布前生成的本地 0.4.11 文件仅为测试产物，其校验值不代表 Actions 最终文件。本机公开元数据核对和云端完整下载校验已经完成；完整首次安装、旧版覆盖升级和跨用户权限尚未在独立 Windows 环境验收，详情见 [QA.md](QA.md) 与 [INSTALLATION.md](INSTALLATION.md)。
 
 ## PC 0.4.11（未发布）
 

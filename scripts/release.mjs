@@ -7,8 +7,8 @@ import { publishRelease } from './release-publisher.mjs'
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const argv = process.argv.slice(2)
-const flags = new Set(['--dry-run', '--publish', '--validate-version', '--existing-only'])
-const options = new Set(['--tag', '--artifact', '--notes', '--output', '--current-manifest'])
+const flags = new Set(['--dry-run', '--publish', '--validate-version', '--existing-only', '--correct-build-source'])
+const options = new Set(['--tag', '--artifact', '--notes', '--output', '--current-manifest', '--build-commit'])
 const args = {}
 for (let index = 0; index < argv.length; index++) {
   const name = argv[index]
@@ -22,6 +22,9 @@ for (let index = 0; index < argv.length; index++) {
 }
 if (['--dry-run', '--publish', '--validate-version'].filter(flag => args[flag]).length !== 1) throw new Error('选择 --dry-run、--publish 或 --validate-version。默认不执行发布。')
 if (args['--existing-only'] && !args['--publish']) throw new Error('--existing-only 仅用于恢复已有文件的正式发布。')
+if (args['--correct-build-source'] && (!args['--publish'] || !args['--existing-only'])) throw new Error('--correct-build-source 仅用于恢复已有 Release。')
+if ((args['--build-commit'] || process.env.YUYIN_BUILD_COMMIT) && !args['--publish']) throw new Error('--build-commit 仅用于正式发布。')
+if (args['--correct-build-source'] && !(args['--build-commit'] || process.env.YUYIN_BUILD_COMMIT)) throw new Error('来源校正必须提供 --build-commit 或 YUYIN_BUILD_COMMIT。')
 const config = releaseConfig(root, args['--tag'])
 if (args['--validate-version']) {
   console.log(`版本校验通过：${config.tag}${config.versionCode ? ` (${config.versionCode})` : ''}`)
@@ -54,11 +57,18 @@ if (args['--validate-version']) {
         throw new Error(`GitHub 操作失败：${parameters.slice(0, 2).join(' ')}。请检查 Actions 日志、权限和网络，不重建或替换已公开的安装文件。`)
       }
     }
-    function api(route, body) {
-      return JSON.parse(gh(['api', `repos/${config.repository}/${route}`, ...(body ? ['--method', 'PUT', '--input', '-'] : [])], body ? JSON.stringify(body) : undefined))
+    function api(route, body, method = body ? 'PUT' : 'GET') {
+      return JSON.parse(gh(['api', `repos/${config.repository}/${route}`, ...(body ? ['--method', method, '--input', '-'] : [])], body ? JSON.stringify(body) : undefined))
     }
-    const commit = process.env.GITHUB_SHA || execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
-    const result = await publishRelease({ config, manifest, artifact, notes, commit, api, gh, existingOnly: Boolean(args['--existing-only']) })
+    const requestedCommit = args['--build-commit'] || process.env.YUYIN_BUILD_COMMIT
+    let commit = requestedCommit || process.env.GITHUB_SHA || execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
+    if (requestedCommit) {
+      if (!/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(requestedCommit)) throw new Error('--build-commit 必须是完整的 Git 提交哈希。')
+      const tagCommit = execFileSync('git', ['rev-parse', '--verify', `refs/tags/${config.tag}^{commit}`], { cwd: root, encoding: 'utf8' }).trim()
+      if (tagCommit !== requestedCommit) throw new Error('--build-commit 必须与本地发布标签解析到的提交一致。')
+      commit = tagCommit
+    }
+    const result = await publishRelease({ config, manifest, artifact, notes, commit, api, gh, existingOnly: Boolean(args['--existing-only']), correctBuildSource: Boolean(args['--correct-build-source']) })
     console.log(result.updated ? `稳定通道已更新：${config.releaseNotesUrl}` : '稳定通道已包含相同安装文件，无需重复写入。')
     if (output) { fs.mkdirSync(path.dirname(output), { recursive: true }); fs.writeFileSync(output, `${JSON.stringify(result.manifest, null, 2)}\n`) }
   }

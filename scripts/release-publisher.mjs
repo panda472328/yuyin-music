@@ -4,7 +4,9 @@ import os from 'node:os'
 import { assertAdvance, assertReleaseAsset, fileDigest, validateManifest } from './release-utils.mjs'
 
 /** Injecting the GitHub client lets tests exercise publication order without any remote writes. */
-export async function publishRelease({ config, manifest, artifact, notes, commit, api, gh, existingOnly = false }) {
+export async function publishRelease({ config, manifest, artifact, notes, commit, api, gh, existingOnly = false, correctBuildSource = false }) {
+  if (!/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(commit)) throw new Error('实际构建提交必须是完整的 Git 提交哈希。')
+  if (correctBuildSource && !existingOnly) throw new Error('来源校正只允许恢复已有 Release。')
   function releaseId(release) {
     if (!Number.isSafeInteger(release?.id) || release.id < 1 || release.tag_name !== config.tag) throw new Error('Release ID 或标签无效。')
     return release.id
@@ -34,6 +36,28 @@ export async function publishRelease({ config, manifest, artifact, notes, commit
     const release = api(`releases/${id}`)
     if (releaseId(release) !== id) throw new Error('Release 回读 ID 不匹配。')
     return release
+  }
+  function correctSource(release) {
+    if (release.draft || !release.published_at) throw new Error('来源校正只允许已公开的 Release。')
+    if (typeof release.body !== 'string') throw new Error('Release 正文缺失，拒绝盲目校正来源。')
+    const marker = /^实际构建提交：`([^`\r\n]*)`(?=\r?$)/gm
+    const matches = [...release.body.matchAll(marker)]
+    if (matches.length !== 1 || !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(matches[0][1])) throw new Error('Release 正文必须恰好包含一条有效的实际构建提交记录。')
+    const body = release.body.replace(marker, `实际构建提交：\`${commit}\``)
+    if (body === release.body) return release
+    api(`releases/${release.id}`, { body }, 'PATCH')
+    const updated = readRelease(release.id)
+    for (const key of ['tag_name', 'draft', 'prerelease', 'name', 'published_at', 'created_at', 'target_commitish']) {
+      if (key in release && updated[key] !== release[key]) throw new Error(`来源校正意外改变 Release 的 ${key}。`)
+    }
+    assertReleaseAsset(updated, config, manifest)
+    const beforeAsset = release.assets?.[0]
+    const afterAsset = updated.assets?.[0]
+    for (const key of ['id', 'name', 'size', 'digest', 'state', 'browser_download_url']) {
+      if (key in beforeAsset && afterAsset?.[key] !== beforeAsset[key]) throw new Error(`来源校正意外改变附件的 ${key}。`)
+    }
+    if (updated.body !== body) throw new Error('来源校正正文回读不一致。')
+    return updated
   }
   function assertAsset(release) {
     if (!release.draft) return assertReleaseAsset(release, config, manifest)
@@ -73,14 +97,22 @@ export async function publishRelease({ config, manifest, artifact, notes, commit
       release = readRelease(releaseId(release))
     }
     assertAsset(release)
+    const originalAsset = { ...release.assets[0] }
     gh(['release', 'download', config.tag, '--repo', config.repository, '--pattern', config.filename, '--dir', temporary])
     if (await fileDigest(path.join(temporary, config.filename)) !== manifest.artifact.sha256) throw new Error('GitHub 下载文件的 SHA-256 与构建产物不一致。')
+    // Re-read after the download so source correction cannot overwrite a concurrent notes edit.
+    release = readRelease(releaseId(release))
+    assertAsset(release)
+    for (const key of ['id', 'name', 'size', 'digest', 'state']) {
+      if (key in originalAsset && release.assets[0]?.[key] !== originalAsset[key]) throw new Error(`下载期间安装附件的 ${key} 改变；拒绝恢复发布。`)
+    }
     if (release.draft) {
       gh(['release', 'edit', config.tag, '--repo', config.repository, '--notes-file', bodyFile, '--draft=false'])
       release = readRelease(releaseId(release))
     }
     assertReleaseAsset(release, config, manifest)
     if (release.draft || !release.published_at) throw new Error('Release 尚未公开，禁止更新客户端通道。')
+    if (correctBuildSource) release = correctSource(release)
     manifest.publishedAt = new Date(release.published_at).toISOString()
     validateManifest(manifest, config)
     // A publisher may have advanced main while the artifact was uploading.

@@ -115,13 +115,14 @@ async function publisherFixture(t, options = {}) {
   const releaseId = 987
   const asset = draft => ({ name: config.filename,
     browser_download_url: draft && options.draftUrl ? options.draftUrl === true ? `https://github.com/${config.repository}/releases/download/untagged-draft123/${config.filename}` : options.draftUrl : config.url,
-    size: bytes.length, state: 'uploaded' })
-  let release = options.published ? { id: releaseId, tag_name: config.tag, draft: false, prerelease: false, published_at: '2026-10-08T01:00:00Z', assets: [asset(false)] }
+    id: 1234, digest: `sha256:${candidate.artifact.sha256}`, size: bytes.length, state: 'uploaded' })
+  const defaultBody = `新版\n\n实际构建提交：\`${'b'.repeat(40)}\`\n\n完整许可。`
+  let release = options.published ? { id: releaseId, tag_name: config.tag, draft: false, prerelease: false, name: '余音 PC 1.2.3', created_at: '2026-10-08T00:30:00Z', published_at: '2026-10-08T01:00:00Z', target_commitish: 'controlled-branch', body: options.body ?? defaultBody, assets: [asset(false)] }
     : options.draft ? { id: releaseId, tag_name: config.tag, draft: true, prerelease: false, assets: [asset(true)] } : null
   if (release && options.emptyDraft) release.assets = []
   const events = []
   const apiRoutes = []
-  const api = (route, body) => {
+  const api = (route, body, method = body ? 'PUT' : 'GET') => {
     apiRoutes.push(route)
     if (route === 'contents/updates/stable.json?ref=main') return { sha, encoding: 'base64', content: Buffer.from(JSON.stringify(current)).toString('base64') }
     if (route.startsWith('releases/tags/')) {
@@ -132,6 +133,13 @@ async function publisherFixture(t, options = {}) {
       const page = Number(route.split('page=').at(-1))
       if (options.secondPage && page === 1) return Array.from({ length: 100 }, (_, index) => ({ id: 1000 + index, tag_name: `pc-v0.0.${index}`, draft: false }))
       return page === (options.secondPage ? 2 : 1) && release ? [structuredClone(release)] : []
+    }
+    if (route === `releases/${releaseId}` && method === 'PATCH') {
+      assert.deepEqual(Object.keys(body), ['body'])
+      release.body = body.body
+      events.push('correct-source')
+      options.afterPatch?.(release)
+      return structuredClone(release)
     }
     if (route === `releases/${releaseId}`) return structuredClone(release)
     if (route === 'contents/updates/stable.json' && body) {
@@ -161,6 +169,7 @@ async function publisherFixture(t, options = {}) {
       events.push('download')
       const directory = args[args.indexOf('--dir') + 1]
       fs.writeFileSync(path.join(directory, config.filename), options.corruptDownload ? Buffer.from('MZ corrupted release publication fixture!') : bytes)
+      options.afterDownload?.(release)
     } else if (operation === 'edit' && args.includes('--draft=false')) {
       events.push('publish')
       release.draft = false
@@ -170,7 +179,7 @@ async function publisherFixture(t, options = {}) {
     } else throw new Error(`unexpected gh operation ${operation}`)
     return ''
   }
-  return { events, apiRoutes, get current() { return current }, get release() { return release }, publish: () => publishRelease({ config, manifest: candidate, artifact, notes: '新版', commit: 'controlled-commit', api, gh, existingOnly: Boolean(options.existingOnly) }) }
+  return { events, apiRoutes, get current() { return current }, get release() { return release }, publish: () => publishRelease({ config, manifest: candidate, artifact, notes: '新版', commit: 'b'.padEnd(40, '0'), api, gh, existingOnly: Boolean(options.existingOnly), correctBuildSource: Boolean(options.correctBuildSource) }) }
 }
 
 test('正式发布必须上传、下载复核、公开后，才以最新 SHA 更新客户端清单', async t => {
@@ -195,7 +204,7 @@ test('草稿标签恒为 404 时分页查找，并按 ID 回读上传与公开�
   assert.equal((await fixture.publish()).updated, true)
   assert.deepEqual(fixture.events, ['create', 'upload', 'download', 'publish', 'manifest-write'])
   assert.ok(fixture.apiRoutes.includes('releases?per_page=100&page=2'))
-  assert.equal(fixture.apiRoutes.filter(route => route === 'releases/987').length, 2)
+  assert.equal(fixture.apiRoutes.filter(route => route === 'releases/987').length, 3)
   assert.equal(fixture.release.assets[0].browser_download_url, fixture.current.artifact.url)
 })
 
@@ -243,6 +252,103 @@ test('公开版本重试只复核原始安装文件，不替换附件或重复�
   const fixture = await publisherFixture(t, { published: true, sameVersion: true })
   const result = await fixture.publish()
   assert.equal(result.updated, false)
+  assert.deepEqual(fixture.events, ['download'])
+})
+
+test('公开版本默认不校正来源，保留 CRLF 正文且不发 PATCH', async t => {
+  const body = '新版说明。\r\n\r\n实际构建提交：`' + 'b'.repeat(40) + '`\r\n\r\n完整许可。\r\n'
+  const fixture = await publisherFixture(t, { published: true, sameVersion: true, body })
+  const result = await fixture.publish()
+  assert.equal(result.updated, false)
+  assert.deepEqual(fixture.events, ['download'])
+  assert.equal(fixture.release.body, body)
+  assert.equal(fixture.apiRoutes.filter(route => route === 'releases/987').length, 1)
+})
+
+test('来源校正只能在恢复模式启用', async t => {
+  const fixture = await publisherFixture(t, { published: true, sameVersion: true, correctBuildSource: true })
+  await assert.rejects(fixture.publish, /恢复已有 Release/)
+  assert.deepEqual(fixture.events, [])
+})
+
+test('来源校正只改唯一构建提交行，并保留公开 Release 的其他字段', async t => {
+  const fixture = await publisherFixture(t, { published: true, sameVersion: true, existingOnly: true, correctBuildSource: true })
+  const beforeRelease = structuredClone(fixture.release)
+  const beforeManifest = structuredClone(fixture.current)
+  const result = await fixture.publish()
+  assert.equal(result.updated, false)
+  assert.deepEqual(fixture.events, ['download', 'correct-source'])
+  beforeRelease.body = beforeRelease.body.replace('b'.repeat(40), 'b'.padEnd(40, '0'))
+  assert.deepEqual(fixture.release, beforeRelease)
+  assert.deepEqual(fixture.current, beforeManifest)
+})
+
+test('来源已经正确时只复核文件，不 PATCH 或重复写入清单', async t => {
+  const body = '新版说明。\n\n实际构建提交：`' + 'b'.padEnd(40, '0') + '`\n\n完整许可。'
+  const fixture = await publisherFixture(t, { published: true, sameVersion: true, existingOnly: true, correctBuildSource: true, body })
+  const before = structuredClone(fixture.release)
+  assert.equal((await fixture.publish()).updated, false)
+  assert.deepEqual(fixture.events, ['download'])
+  assert.deepEqual(fixture.release, before)
+})
+
+test('来源校正保留 CRLF 和下载期间更新的其他说明', async t => {
+  const body = '下载期间维护者更新的说明。\r\n\r\n实际构建提交：`' + 'a'.repeat(40) + '`\r\n\r\n额外说明和许可。\r\n'
+  const fixture = await publisherFixture(t, { published: true, sameVersion: true, existingOnly: true, correctBuildSource: true, afterDownload: release => { release.body = body } })
+  const before = structuredClone(fixture.release)
+  assert.equal((await fixture.publish()).updated, false)
+  assert.deepEqual(fixture.events, ['download', 'correct-source'])
+  before.body = body.replace('a'.repeat(40), 'b'.padEnd(40, '0'))
+  assert.deepEqual(fixture.release, before)
+})
+
+test('下载期间同字节附件被替换时不校正来源或推进清单', async t => {
+  const fixture = await publisherFixture(t, { published: true, existingOnly: true, correctBuildSource: true, afterDownload: release => { release.assets[0].id++ } })
+  const beforeManifest = structuredClone(fixture.current)
+  await assert.rejects(fixture.publish, /下载期间安装附件的 id 改变/)
+  assert.deepEqual(fixture.events, ['download'])
+  assert.deepEqual(fixture.current, beforeManifest)
+})
+
+test('来源校正 PATCH 回读正文、受保护字段或附件改变时停止清单推进', async t => {
+  const changes = [
+    release => { release.body += '\n未预期变更' },
+    release => { release.tag_name = 'pc-v1.2.4' },
+    release => { release.draft = true },
+    release => { release.prerelease = true },
+    release => { release.name = '未预期标题' },
+    release => { release.published_at = '2026-10-09T01:00:00Z' },
+    release => { release.created_at = '2026-10-09T00:30:00Z' },
+    release => { release.target_commitish = 'changed-branch' },
+    release => { release.assets[0].id++ },
+    release => { release.assets[0].digest = `sha256:${'a'.repeat(64)}` },
+    release => { release.assets[0].name = 'other.exe' },
+    release => { release.assets[0].size++ },
+    release => { release.assets[0].state = 'new' },
+    release => { release.assets[0].browser_download_url += '?changed' },
+    release => { release.assets.push(structuredClone(release.assets[0])) }
+  ]
+  for (const afterPatch of changes) {
+    const fixture = await publisherFixture(t, { published: true, existingOnly: true, correctBuildSource: true, afterPatch })
+    const beforeManifest = structuredClone(fixture.current)
+    await assert.rejects(fixture.publish)
+    assert.deepEqual(fixture.events, ['download', 'correct-source'])
+    assert.deepEqual(fixture.current, beforeManifest)
+  }
+})
+
+test('来源校正缺失、重复或非法记录时拒绝修改正文', async t => {
+  for (const body of ['没有来源记录。', '实际构建提交：`not-a-commit`', '实际构建提交：`' + 'a'.repeat(40) + '`\n实际构建提交：`' + 'b'.repeat(40) + '`']) {
+    const fixture = await publisherFixture(t, { published: true, sameVersion: true, existingOnly: true, correctBuildSource: true, body })
+    await assert.rejects(fixture.publish, /必须恰好包含一条有效/)
+    assert.deepEqual(fixture.events, ['download'])
+    assert.equal(fixture.release.body, body)
+  }
+})
+
+test('来源校正必须在下载哈希复核后执行', async t => {
+  const fixture = await publisherFixture(t, { published: true, sameVersion: true, existingOnly: true, correctBuildSource: true, corruptDownload: true })
+  await assert.rejects(fixture.publish, /SHA-256/)
   assert.deepEqual(fixture.events, ['download'])
 })
 

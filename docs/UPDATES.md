@@ -32,7 +32,9 @@ GitHub Raw、Release 下载在用户网络中不可达时，应用会显示失�
 
 若上传后清单写入失败，Release 可能已公开，但客户端尚未收到更新。先处理权限／网络问题。重新运行流程时，若已公开附件与本轮构建不一致，脚本会拒绝替换；维护者应使用原始已发布文件执行发布重试，或递增版本重新发布。公开版本及附件保持不可变。
 
-已有草稿或公开版本的恢复使用工作流的 `workflow_dispatch`，填写与 main 源码版本一致的 `pc-vX.Y.Z` 标签。修复发布脚本后，可同时更新 `.github/workflows/release.yml`，该文件推送至 main 时也会自动尝试恢复当前版本已有的 Release；普通源码提交不会触发发布。恢复任务从 main 读取最新发布脚本，校验原标签的 package／lock 版本和唯一附件，下载原文件并核对 SHA-256，再使用 `--existing-only` 公开草稿或推进清单。它不构建、不上传文件，也不移动标签；不存在 Release 或安装附件时停止。安装包构建提交继续记录原标签提交，不能使用恢复提交代替。
+已有草稿或公开版本的恢复使用工作流的 `workflow_dispatch`，填写与 main 源码版本一致的 `pc-vX.Y.Z` 标签。修复发布脚本后，可同时更新 `.github/workflows/release.yml`，该文件推送至 main 时也会自动尝试恢复当前版本已有的 Release；普通源码提交不会触发发布。恢复任务从 main 读取最新发布脚本，校验原标签的 package／lock 版本和唯一附件，下载原文件并核对 SHA-256，再使用 `--existing-only` 公开草稿或推进清单。它不构建、不上传文件，也不移动标签；不存在 Release 或安装附件时停止。安装包构建提交继续记录原标签提交，不能使用恢复提交代替。工作流通过非保留环境变量 `YUYIN_BUILD_COMMIT` 传入原标签提交，并在命令中显式使用 `--build-commit`；脚本会要求它是完整哈希且与标签解析到的提交一致，不能用恢复运行的 `GITHUB_SHA` 冒充构建来源。
+
+如果只需修正已公开 Release 正文中错误的构建来源，必须同时使用 `--existing-only --correct-build-source --build-commit <标签提交>`（或设置 `YUYIN_BUILD_COMMIT`）。校正前会重新下载并核对唯一安装文件的 SHA-256；正文必须恰好包含一条有效的“实际构建提交”记录。校正只替换这一行，保留 CRLF、标题、其他正文、发布时间、标签和附件；缺失、重复、非法记录或任一回读字段改变都会停止，`--correct-build-source` 默认关闭。
 
 ## 从 GitHub 页面发布已有安装包
 
@@ -49,7 +51,7 @@ GitHub Raw、Release 下载在用户网络中不可达时，应用会显示失�
 现有产物可以生成预览清单，不连接 GitHub、不修改稳定通道：
 
 ```sh
-node --test scripts/release.test.mjs
+node --test scripts/release.test.mjs scripts/release-cli.test.mjs scripts/check-release-lock.test.mjs
 node scripts/release.mjs --validate-version --tag pc-v0.4.9
 node scripts/release.mjs --dry-run --tag pc-v0.4.9 --artifact release/Yuyin-0.4.9-Setup.exe --output .qa/update-manifest-preview.json
 ```
