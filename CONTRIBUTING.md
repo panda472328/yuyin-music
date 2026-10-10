@@ -1,6 +1,6 @@
 # 参与余音 PC 版
 
-本仓库是 Windows 桌面端，当前源码版本为 0.4.12，正式安装文件以 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 为准。Android 的问题和修改请提交到 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。两个仓库使用独立版本、构建与数据，不把手机源码或 APK 放进 PC 仓库。
+本仓库是 Windows 桌面端，当前源码版本为 0.4.13，正式安装文件以 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 为准。Android 的问题和修改请提交到 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。两个仓库使用独立版本、构建与数据，不把手机源码或 APK 放进 PC 仓库。
 
 ## 开发流程
 

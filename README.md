@@ -2,7 +2,7 @@
 
 一个基于 Electron、React 和 TypeScript 的 Windows 音乐播放器。米白与鼠尾草绿的独立听歌界面，音源来自后台浏览器中的 Bilibili 原视频。
 
-当前 PC 功能版本为 **0.4.12**，包含安装保护、游客入口、双模式搜索和选曲从头播放，详见 [版本记录](CHANGELOG.md)。最终安装文件和公开状态以 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 为准。Android 版在[独立仓库](https://github.com/panda472328/yuyin-music-mobile)维护，两端具有统一视觉风格，分别构建、存储数据和发布版本。
+当前 PC 功能版本为 **0.4.13**，包含安装保护、游客入口、双模式搜索和选曲从头播放；本版修复搜索模式切换与账号头像菜单操作，详见 [版本记录](CHANGELOG.md)。最终安装文件和公开状态以 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 为准。Android 版在[独立仓库](https://github.com/panda472328/yuyin-music-mobile)维护，两端具有统一视觉风格，分别构建、存储数据和发布版本。
 
 ## 下载与安装
 
@@ -10,9 +10,9 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| `Yuyin-0.4.12-Setup.exe` | Windows x64 安装版，中文向导，可选择安装目录 |
+| `Yuyin-0.4.13-Setup.exe` | Windows x64 安装版，中文向导，可选择安装目录 |
 
-发布页只提供一个最终安装文件 `Yuyin-0.4.12-Setup.exe`。安装修复与本轮功能一起合并到正式版本，不另发补丁或修复包。SHA-256 和构建来源直接写在发布说明中，许可文本见 [第三方声明](THIRD_PARTY_NOTICES.md)。GitHub 自动生成的 Source code ZIP / TAR 是源码下载入口。
+发布页只提供一个最终安装文件 `Yuyin-0.4.13-Setup.exe`。安装修复与本轮功能一起合并到正式版本，不另发补丁或修复包。SHA-256 和构建来源直接写在发布说明中，许可文本见 [第三方声明](THIRD_PARTY_NOTICES.md)。GitHub 自动生成的 Source code ZIP / TAR 是源码下载入口。
 
 安装前先正常关闭正在运行的余音。安装版默认安装到当前用户，提供桌面、开始菜单快捷方式和卸载入口；使用发布包无需安装 Node.js。当前 Windows 发布包没有数字签名，系统可能显示未知发布者提示。具体文件和校验值以该版本发布页为准。
 
@@ -119,7 +119,7 @@ npm run dist
 
 ## 验证范围
 
-0.4.12 的 TypeScript 检查、生产构建、149 项业务测试、6 类播放器竞态和 5 组归零回归通过。隔离 Electron 中完成游客、搜索模式及保存检查，两种窗口尺寸已检查；13 项原生 NSIS 保护测试与本地安装器占用时提前退出检查通过。完整首次安装、旧版覆盖升级与真实跨用户 UAC 尚未在独立 Windows 环境验收。受控响应检查与真实 Bilibili 播放分别记录，不能相互替代；歌词时间高亮检查不代表已对真实歌声做听觉比对。
+0.4.13 的 TypeScript 检查、生产构建、149 项业务测试、6 类播放器竞态、5 组归零回归和 55 项发布保护测试通过。隔离 Electron 中已完成既有游客、搜索模式及保存检查，两种窗口尺寸已检查；13 项原生 NSIS 保护测试与本地安装器占用时提前退出检查通过。完整首次安装、旧版覆盖升级与真实跨用户 UAC 尚未在独立 Windows 环境验收。受控响应检查与真实 Bilibili 播放分别记录，不能相互替代；歌词时间高亮检查不代表已对真实歌声做听觉比对。
 
 详细结果及未执行项见 [docs/QA.md](docs/QA.md)。Bilibili 页面与接口会变化，其他电脑和账号的可用性需要实际验证。
 

@@ -1,6 +1,6 @@
 # 余音 PC 样式标准
 
-本标准帮助维护者与 agent 快速定位、修改和验证外观。基线是 PC 0.4.10 的米白／鼠尾草绿视觉；Android 0.1.1 采用相同品牌，但位于独立仓库。下文区分现有实现与新增主题时需要补齐的工作，不假定已存在运行时主题切换。
+本标准帮助维护者与 agent 快速定位、修改和验证外观。基线是 PC 0.4.13 的米白／鼠尾草绿视觉；Android 0.1.1 采用相同品牌，但位于独立仓库。下文区分现有实现与新增主题时需要补齐的工作，不假定已存在运行时主题切换。
 
 ## 1. 修改入口与范围
 
@@ -81,7 +81,7 @@
 | 应用骨架 | `.app-shell`、`.sidebar`、`.main-shell`、`.main-content` | 单独内容滚动、侧栏可滚动、底部播放器留白 |
 | 品牌与导航 | `.brand`、`.brand-icon`、`.nav-item`、`.sidebar-playlist` | `.selected`、hover、数量、省略长歌单名 |
 | 顶栏 | `.topbar`、`.search-box`、`.search-mode`、`.topbar-right` | 输入焦点、快捷键、模式按钮的 `aria-pressed`、窗口拖动与控件命中 |
-| 账号 | `.account-menu-anchor`、`.account-trigger`、`.account-avatar`、`.account-menu-position` | `.expanded`、头像失败降级、hover／键盘菜单 |
+| 账号 | `.account-menu-anchor`、`.account-trigger`、`.account-avatar`、`.account-menu-position` | `.expanded`、头像失败降级、hover／键盘菜单、从头像移入菜单的关闭缓冲 |
 | 登录 | `.login-shell`、`.login-titlebar`、`.login-layout`、`.login-card`、`.login-actions`、`.login-guest`、`.guest-login` | 验证中、未登录、游客、过期、网络错误、重试与关闭 |
 | 首页 | `.hero`、`.hero-content`、`.hero-art`、`.record`、`.song-cards`、`.playlist-cards` | 唱片与封面不覆盖按钮，卡片收藏与播放 |
 | 通用按钮 | `.icon-button`、`.button-primary`、`.button-secondary`、`.button-danger` | `.active`、disabled、hover、focus-visible |
@@ -99,9 +99,11 @@
 
 主歌词的 `[data-active="true"]` 用于居中滚动，`aria-current` 表示当前句。Bilibili 来源的 `.lyric-line` 禁用颜色过渡，滚动为即时 `auto`；LRCLIB 保留平滑滚动。不要为了动画重新引入字幕延迟。校准中暂停自动跟随；普通点句跳转、校准点句只调整偏移，样式改动不得更改这一语义。
 
-PC 0.4.12 包含游客与搜索模式流程。登录页“暂不登录，先听歌”在检查账号期间也可使用；游客右上角 `.guest-login` 显示登录入口，真实登录后才显示 `.account-trigger` 与头像菜单。游客与真实账号切换复用主界面，不清空搜索或本地音乐库；账号收藏夹仍需真实登录。
+PC 0.4.13 包含游客与搜索模式流程。登录页“暂不登录，先听歌”在检查账号期间也可使用；游客右上角 `.guest-login` 显示登录入口，真实登录后才显示 `.account-trigger` 与头像菜单。游客与真实账号切换复用主界面，不清空搜索或本地音乐库；账号收藏夹仍需真实登录。
 
-搜索框内 `.search-mode` 使用两个原生按钮组成 `role="group"`，以 `aria-pressed` 表示选择，保留 Tab／Enter 和焦点样式。歌名模式默认开启，输入标签为“搜索完整歌名”；视频模式为“搜索 Bilibili 视频”。选择写入 `library.json` 的 `settings.searchMode`，旧库缺失或非法值使用 `song`。切换模式废弃旧请求并按当前输入重新搜索，不自动播放。歌名只按完整输入在标题中连续匹配，忽略空白、标点、大小写与全半角；视频保留源站综合排序。歌名页显示已加载匹配数，不能把源接口总数写成匹配总数；过滤为空而源站还有下一页时保留“加载更多”。匹配逻辑在 `src/shared/search-mode.ts`，IPC 校验在 `electron/main.ts`，纯外观改动不得改变这些行为。
+搜索框内 `.search-mode` 使用两个原生按钮组成 `role="group"`，以 `aria-pressed` 表示选择，保留 Tab／Enter 和焦点样式。歌名模式默认开启，输入标签为“搜索完整歌名”；视频模式为“搜索 Bilibili 视频”。选择写入 `library.json` 的 `settings.searchMode`，旧库缺失或非法值使用 `song`。切换模式时保留输入框原文、立刻按该原文重新搜索，并用请求序号和当前模式拒绝旧模式的晚到响应；不能为了搜索把输入替换为 `trim()` 后的关键词，也不能让快速输入后立即切换沿用旧模式。切换不自动播放。歌名只按完整输入在标题中连续匹配，忽略空白、标点、大小写与全半角；视频保留源站综合排序。歌名页显示已加载匹配数，不能把源接口总数写成匹配总数；过滤为空而源站还有下一页时保留“加载更多”。匹配逻辑在 `src/shared/search-mode.ts`，IPC 校验在 `electron/main.ts`，纯外观改动不得改变这些行为。
+
+账号菜单的锚点和下拉层都必须保持 `no-drag`。指针从头像移到下拉层时使用约 700ms 的关闭缓冲；重新进入头像或菜单、菜单项获得焦点、点击、Escape 和外部点击都要正确取消或结束该计时器。不要通过永久显示菜单、扩大到遮挡标题栏的透明点击区或删除键盘关闭行为来规避间隙问题。
 
 ## 5. 布局与窗口约束
 

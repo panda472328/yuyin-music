@@ -6,6 +6,7 @@ import type { useBilibiliAccount } from './useBilibiliAccount'
 import { UpdateSettings } from './Updates'
 
 type AccountState = ReturnType<typeof useBilibiliAccount>
+const ACCOUNT_MENU_CLOSE_DELAY_MS = 700
 
 export function BilibiliLoginGate({ session }: { session: AccountState }) {
   const checking = session.phase === 'unverified' && session.checking
@@ -42,15 +43,41 @@ export function BilibiliAccountMenu({ account, checking, error, openingLogin, on
   const anchor = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const hoverSuppressed = useRef(false)
+  const closeTimer = useRef<number | null>(null)
   useEffect(() => setImageFailed(false), [account.avatar])
+  useEffect(() => () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current)
+  }, [])
   useEffect(() => {
     if (!open) return
-    const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node)) setOpen(false) }
+    const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node)) close() }
     document.addEventListener('pointerdown', outside)
     return () => document.removeEventListener('pointerdown', outside)
   }, [open])
 
-  function close() { setOpen(false) }
+  function cancelScheduledClose() {
+    if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null }
+  }
+  function close() { cancelScheduledClose(); setOpen(false) }
+  function menuHasFocus() {
+    const menu = anchor.current?.querySelector<HTMLElement>('[role="menu"]')
+    return Boolean(menu?.contains(document.activeElement))
+  }
+  function scheduleClose() {
+    cancelScheduledClose()
+    // Keep the delayed hover menu alive while a menu item is focused. The
+    // avatar trigger itself must not block closing after the pointer leaves.
+    if (menuHasFocus()) return
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null
+      if (!menuHasFocus()) setOpen(false)
+    }, ACCOUNT_MENU_CLOSE_DELAY_MS)
+  }
+  function openFromPointer() {
+    cancelScheduledClose()
+    hoverSuppressed.current = false
+    setOpen(true)
+  }
   function choose(action: () => void) { close(); action() }
   function keyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape') {
@@ -71,8 +98,8 @@ export function BilibiliAccountMenu({ account, checking, error, openingLogin, on
     })
   }
 
-  return <div className="account-menu-anchor" ref={anchor} onMouseEnter={() => { hoverSuppressed.current = false; setOpen(true) }} onMouseLeave={() => { hoverSuppressed.current = false; if (!anchor.current?.contains(document.activeElement)) close() }} onFocus={() => { if (!hoverSuppressed.current) setOpen(true) }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) close() }} onKeyDown={keyDown}>
-    <button ref={trigger} className={`account-trigger ${open ? 'expanded' : ''}`} type="button" aria-label={`Bilibili 账号：${account.username}`} aria-haspopup="menu" aria-expanded={open} aria-controls="bilibili-account-menu" title={account.username} onClick={() => { hoverSuppressed.current = false; setOpen(true) }}><span className="account-avatar">{account.avatar && !imageFailed ? <img src={account.avatar} alt={`${account.username}的 Bilibili 头像`} referrerPolicy="no-referrer" onError={() => setImageFailed(true)} /> : <span>{Array.from(account.username.trim())[0] || '哔'}</span>}</span><ChevronDown size={12} /></button>
-    {open && <div className="account-menu-position"><section className="account-menu" role="menu" id="bilibili-account-menu" aria-label="Bilibili 账号菜单"><div className="account-menu-header"><strong>{account.username}</strong><span><Check size={12} />已登录 Bilibili</span></div><button role="menuitem" onClick={() => choose(() => { void api.openBilibiliProfile().catch(failure => onError(failure instanceof Error ? failure.message : String(failure))) })}><UserRound size={16} /><span>个人空间</span><ExternalLink size={12} /></button><button role="menuitem" onClick={() => choose(onFavorites)}><ArrowDownToLine size={16} /><span>Bilibili 收藏夹</span></button><button role="menuitem" onClick={() => choose(onSettings)}><Settings2 size={16} /><span>听歌设置</span></button><div className="account-menu-divider" /><button role="menuitem" disabled={openingLogin} onClick={() => choose(() => { void onLogin() })}><ExternalLink size={16} /><span>{openingLogin ? '正在打开' : '切换 / 管理账号'}</span></button><button role="menuitem" disabled={checking} onClick={() => choose(onRefresh)}><RefreshCw size={15} className={checking ? 'spin' : ''} /><span>{checking ? '正在检查账号' : '刷新账号状态'}</span></button>{error && <div className="account-menu-error" role="alert">暂时无法验证账号，请稍后重试。</div>}</section></div>}
+  return <div className="account-menu-anchor" ref={anchor} onPointerEnter={openFromPointer} onPointerLeave={() => { hoverSuppressed.current = false; scheduleClose() }} onFocus={() => { cancelScheduledClose(); if (!hoverSuppressed.current) setOpen(true) }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) close() }} onKeyDown={keyDown}>
+    <button ref={trigger} className={`account-trigger ${open ? 'expanded' : ''}`} type="button" aria-label={`Bilibili 账号：${account.username}`} aria-haspopup="menu" aria-expanded={open} aria-controls="bilibili-account-menu" title={account.username} onClick={() => { cancelScheduledClose(); hoverSuppressed.current = false; setOpen(true) }}><span className="account-avatar">{account.avatar && !imageFailed ? <img src={account.avatar} alt={`${account.username}的 Bilibili 头像`} referrerPolicy="no-referrer" onError={() => setImageFailed(true)} /> : <span>{Array.from(account.username.trim())[0] || '哔'}</span>}</span><ChevronDown size={12} /></button>
+    {open && <div className="account-menu-position" onPointerEnter={cancelScheduledClose} onPointerLeave={scheduleClose}><section className="account-menu" role="menu" id="bilibili-account-menu" aria-label="Bilibili 账号菜单"><div className="account-menu-header"><strong>{account.username}</strong><span><Check size={12} />已登录 Bilibili</span></div><button role="menuitem" onClick={() => choose(() => { void api.openBilibiliProfile().catch(failure => onError(failure instanceof Error ? failure.message : String(failure))) })}><UserRound size={16} /><span>个人空间</span><ExternalLink size={12} /></button><button role="menuitem" onClick={() => choose(onFavorites)}><ArrowDownToLine size={16} /><span>Bilibili 收藏夹</span></button><button role="menuitem" onClick={() => choose(onSettings)}><Settings2 size={16} /><span>听歌设置</span></button><div className="account-menu-divider" /><button role="menuitem" disabled={openingLogin} onClick={() => choose(() => { void onLogin() })}><ExternalLink size={16} /><span>{openingLogin ? '正在打开' : '切换 / 管理账号'}</span></button><button role="menuitem" disabled={checking} onClick={() => choose(onRefresh)}><RefreshCw size={15} className={checking ? 'spin' : ''} /><span>{checking ? '正在检查账号' : '刷新账号状态'}</span></button>{error && <div className="account-menu-error" role="alert">暂时无法验证账号，请稍后重试。</div>}</section></div>}
   </div>
 }

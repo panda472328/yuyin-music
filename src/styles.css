@@ -50,9 +50,9 @@ h1, h2, h3, p { margin: 0; }
 .navigation-arrows { display: flex; gap: 4px; }
 .navigation-arrows .icon-button { width: 26px; color: #8e968a; }
 .search-box, .search-box * { -webkit-app-region: no-drag; }
-.search-box { display: flex; align-items: center; gap: 11px; background: #eef1ea; border: 1px solid transparent; border-radius: 22px; padding: 7px 15px 7px 7px; width: min(530px, 60%); min-width: 0; color: #9aa393; }
+.search-box { display: flex; flex: 1 1 360px; align-items: center; gap: 11px; width: auto; min-width: 300px; max-width: 530px; background: #eef1ea; border: 1px solid transparent; border-radius: 22px; padding: 7px 15px 7px 7px; color: #9aa393; }
 .search-box:focus-within { border-color: #c2d0b7; background: #f9faf7; }
-.search-box input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 11px; color: var(--ink); outline: none; }
+.search-box input { flex: 1 1 120px; min-width: 120px; border: 0; background: transparent; font-size: 11px; color: var(--ink); outline: none; }
 .search-box input::placeholder { color: #a1a99b; }
 .search-box input:focus-visible { outline: none; }
 .search-box kbd { font-size: 9px; font-family: inherit; border: 1px solid #d9dfd2; border-radius: 4px; padding: 2px 4px; white-space: nowrap; }
@@ -73,7 +73,7 @@ h1, h2, h3, p { margin: 0; }
 .account-trigger:hover, .account-trigger.expanded { background: #edf2e7; }
 .account-avatar { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff; background: #e5ecda; color: #6d8457; font-size: 12px; overflow: hidden; box-shadow: 0 1px 4px #687b4320; }
 .account-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.account-menu-position { position: absolute; right: 0; top: 100%; padding-top: 8px; width: 232px; }
+.account-menu-position { position: absolute; right: 0; top: 100%; padding-top: 10px; width: 232px; }
 .account-menu { background: #fffefa; border: 1px solid #e3e9d9; box-shadow: 0 12px 34px #37432a1c; border-radius: 12px; padding: 7px; }
 .account-menu-header { padding: 11px 10px 13px; border-bottom: 1px solid #edf0e5; margin-bottom: 5px; }
 .account-menu-header strong { display: block; font-size: 12px; color: #4c5e3e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

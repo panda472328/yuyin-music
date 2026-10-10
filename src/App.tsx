@@ -80,6 +80,12 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
   const libraryRef = useRef(library)
   const statusRef = useRef(status)
   const searchSequence = useRef(0)
+  // Keep the text and mode that started a request available synchronously. A
+  // mode click can happen before React has committed the last input event.
+  const searchInputRef = useRef(searchInput)
+  const searchModeRef = useRef<SearchMode>(searchMode)
+  const searchResultRef = useRef<SearchResult | null>(searchResult)
+  const searchQueryRef = useRef(searchQuery)
   const recordedSong = useRef<string | null>(null)
   const playRef = useRef<(song: Song) => Promise<void>>(async () => {})
   const nextRef = useRef<(direction?: number) => void>(() => {})
@@ -88,10 +94,15 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
   const removedQueuePosition = useRef<number | null>(null)
   const mounted = useRef(true)
   libraryRef.current = library; statusRef.current = status
+  searchInputRef.current = searchInput; searchModeRef.current = searchMode
+  searchResultRef.current = searchResult; searchQueryRef.current = searchQuery
 
   const notify = (message: string) => setToast(message)
   const navigate = (target: Page) => { setPreviousPage(page); setPage(target); setLibraryFilter(''); setMenuSong(null) }
   const favorite = (song: Song) => library.favorites.some(item => item.bvid === song.bvid)
+  const changeSearchInput = (value: string) => { searchInputRef.current = value; setSearchInput(value) }
+  const replaceSearchResult = (value: SearchResult | null) => { searchResultRef.current = value; setSearchResult(value) }
+  const replaceSearchQuery = (value: string) => { searchQueryRef.current = value; setSearchQuery(value) }
   const changeUISettings = (patch: Partial<Omit<UISettings, 'version'>>) => {
     if (initialUI.error) { notify(`${initialUI.error} 请解决后重新打开播放器。`); return false }
     const updated = { ...uiSettingsRef.current, ...patch }
@@ -180,26 +191,34 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
     } catch (error) { notify(errorText(error)) }
   }
   function changeSearchMode(mode: SearchMode) {
-    if (mode === libraryRef.current.settings.searchMode) return
+    if (mode === searchModeRef.current) return
     if (!changeLibrary(current => ({ ...current, settings: { ...current.settings, searchMode: mode } }))) return
+    // changeLibrary persists before painting. Update the request guard now so an
+    // old response cannot repaint the previous mode in that short interval.
+    searchModeRef.current = mode
     searchSequence.current++
-    setSearchResult(null); setSearchLoading(false); setSearchError('')
-    if (searchInput.trim()) void search(searchInput, 1, mode)
-    else setSearchQuery('')
+    replaceSearchResult(null); setSearchLoading(false); setSearchError('')
+    const query = searchInputRef.current
+    if (query.trim()) void search(query, 1, mode)
+    else replaceSearchQuery('')
   }
-  async function search(query: string, nextPage = 1, mode = libraryRef.current.settings.searchMode) {
+  async function search(query: string, nextPage = 1, mode = searchModeRef.current) {
     const trimmed = query.trim(); if (!trimmed) { searchRef.current?.focus(); return }
-    if (nextPage > 1 && (searchResult?.mode !== mode || searchQuery !== trimmed)) return
+    if (nextPage > 1 && (searchResultRef.current?.mode !== mode || searchQueryRef.current !== trimmed)) return
     const sequence = ++searchSequence.current
-    if (nextPage === 1) { navigate('search'); setSearchQuery(trimmed); setSearchResult(null); setSearchInput(trimmed) }
+    if (nextPage === 1) { navigate('search'); replaceSearchQuery(trimmed); replaceSearchResult(null) }
     setSearchLoading(true); setSearchError('')
     try {
       const response = await api.search(trimmed, nextPage, mode)
       const result = { ...response, mode, songs: response.songs.map(song => ({ ...song, searchQuery: trimmed })) }
-      if (sequence !== searchSequence.current || mode !== libraryRef.current.settings.searchMode) return
-      setSearchResult(current => nextPage === 1 ? result : current?.mode === mode ? { ...result, songs: [...current.songs, ...result.songs].filter((song, index, all) => all.findIndex(item => item.bvid === song.bvid) === index) } : current)
-    } catch (error) { if (sequence === searchSequence.current) setSearchError(errorText(error)) }
-    finally { if (sequence === searchSequence.current) setSearchLoading(false) }
+      if (sequence !== searchSequence.current || mode !== searchModeRef.current) return
+      const current = searchResultRef.current
+      const next = nextPage === 1 ? result : current?.mode === mode && searchQueryRef.current === trimmed
+        ? { ...result, songs: [...current.songs, ...result.songs].filter((song, index, all) => all.findIndex(item => item.bvid === song.bvid) === index) }
+        : current
+      replaceSearchResult(next)
+    } catch (error) { if (sequence === searchSequence.current && mode === searchModeRef.current) setSearchError(errorText(error)) }
+    finally { if (sequence === searchSequence.current && mode === searchModeRef.current) setSearchLoading(false) }
   }
   function cycleMode() {
     const modes = ['sequence', 'shuffle', 'repeat'] as const
@@ -352,7 +371,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
 
     <div className="main-shell">
       <header className="topbar"><div className="navigation-arrows"><IconButton label="返回" onClick={() => { const old = page; setPage(previousPage); setPreviousPage(old) }}><ArrowLeft size={19} /></IconButton><IconButton label="发现音乐" onClick={() => navigate('discover')}><ArrowRight size={19} /></IconButton></div>
-        <form className="search-box" onSubmit={event => { event.preventDefault(); void search(searchInput) }}><div className="search-mode" role="group" aria-label="搜索模式"><button type="button" aria-pressed={searchMode === 'song'} onClick={() => changeSearchMode('song')}>歌名搜索</button><button type="button" aria-pressed={searchMode === 'video'} onClick={() => changeSearchMode('video')}>视频搜索</button></div><Search size={16} /><input ref={searchRef} aria-label={searchMode === 'song' ? '搜索完整歌名' : '搜索 Bilibili 视频'} maxLength={80} placeholder={searchMode === 'song' ? '输入完整歌名' : '搜索视频、歌手'} value={searchInput} onChange={event => setSearchInput(event.target.value)} /><kbd>Ctrl K</kbd>{searchInput && <button type="button" aria-label="清空搜索" onClick={() => setSearchInput('')}><X size={14} /></button>}</form>
+        <form className="search-box" onSubmit={event => { event.preventDefault(); void search(searchInputRef.current) }}><div className="search-mode" role="group" aria-label="搜索模式"><button type="button" aria-pressed={searchMode === 'song'} onClick={() => changeSearchMode('song')}>歌名搜索</button><button type="button" aria-pressed={searchMode === 'video'} onClick={() => changeSearchMode('video')}>视频搜索</button></div><Search size={16} /><input ref={searchRef} aria-label={searchMode === 'song' ? '搜索完整歌名' : '搜索 Bilibili 视频'} maxLength={80} placeholder={searchMode === 'song' ? '输入完整歌名' : '搜索视频、歌手'} value={searchInput} onChange={event => changeSearchInput(event.target.value)} /><kbd>Ctrl K</kbd>{searchInput && <button type="button" aria-label="清空搜索" onClick={() => changeSearchInput('')}><X size={14} /></button>}</form>
         <div className="topbar-right"><span className="local-badge"><span />本地音乐空间</span>{accountSession?.account ? <BilibiliAccountMenu account={accountSession.account} checking={accountSession.checking} error={accountSession.error} openingLogin={accountSession.openingLogin} onRefresh={accountSession.refresh} onLogin={accountSession.openLogin} onFavorites={() => openModal({ type: 'bilibili' })} onSettings={() => navigate('settings')} onError={notify} /> : accountSession ? <button className="button-secondary guest-login" type="button" aria-label="登录 Bilibili" onClick={() => void accountSession.openLogin()} disabled={accountSession.openingLogin}>{accountSession.openingLogin ? <LoaderCircle size={15} className="spin" /> : <ExternalLink size={15} />}{accountSession.openingLogin ? '正在打开登录' : accountSession.watchingLogin ? '继续 Bilibili 登录' : '登录 Bilibili'}</button> : <button className="profile" title="设置" onClick={() => navigate('settings')}>余</button>}</div>
       </header>
 
