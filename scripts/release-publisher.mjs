@@ -4,7 +4,7 @@ import os from 'node:os'
 import { assertAdvance, assertReleaseAsset, fileDigest, validateManifest } from './release-utils.mjs'
 
 /** Injecting the GitHub client lets tests exercise publication order without any remote writes. */
-export async function publishRelease({ config, manifest, artifact, notes, commit, api, gh }) {
+export async function publishRelease({ config, manifest, artifact, notes, commit, api, gh, existingOnly = false }) {
   function releaseId(release) {
     if (!Number.isSafeInteger(release?.id) || release.id < 1 || release.tag_name !== config.tag) throw new Error('Release ID 或标签无效。')
     return release.id
@@ -55,6 +55,7 @@ export async function publishRelease({ config, manifest, artifact, notes, commit
   }
   assertAdvance(stable().manifest, manifest, config)
   let release = findRelease()
+  if (existingOnly && (!release || release.assets?.length !== 1)) throw new Error('恢复发布只允许复用已有 Release 的唯一安装附件。')
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'yuyin-release-'))
   try {
     const bodyFile = path.join(temporary, 'release-notes.md')

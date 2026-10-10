@@ -7,7 +7,7 @@ import { publishRelease } from './release-publisher.mjs'
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const argv = process.argv.slice(2)
-const flags = new Set(['--dry-run', '--publish', '--validate-version'])
+const flags = new Set(['--dry-run', '--publish', '--validate-version', '--existing-only'])
 const options = new Set(['--tag', '--artifact', '--notes', '--output', '--current-manifest'])
 const args = {}
 for (let index = 0; index < argv.length; index++) {
@@ -21,6 +21,7 @@ for (let index = 0; index < argv.length; index++) {
   }
 }
 if (['--dry-run', '--publish', '--validate-version'].filter(flag => args[flag]).length !== 1) throw new Error('选择 --dry-run、--publish 或 --validate-version。默认不执行发布。')
+if (args['--existing-only'] && !args['--publish']) throw new Error('--existing-only 仅用于恢复已有文件的正式发布。')
 const config = releaseConfig(root, args['--tag'])
 if (args['--validate-version']) {
   console.log(`版本校验通过：${config.tag}${config.versionCode ? ` (${config.versionCode})` : ''}`)
@@ -57,7 +58,7 @@ if (args['--validate-version']) {
       return JSON.parse(gh(['api', `repos/${config.repository}/${route}`, ...(body ? ['--method', 'PUT', '--input', '-'] : [])], body ? JSON.stringify(body) : undefined))
     }
     const commit = process.env.GITHUB_SHA || execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
-    const result = await publishRelease({ config, manifest, artifact, notes, commit, api, gh })
+    const result = await publishRelease({ config, manifest, artifact, notes, commit, api, gh, existingOnly: Boolean(args['--existing-only']) })
     console.log(result.updated ? `稳定通道已更新：${config.releaseNotesUrl}` : '稳定通道已包含相同安装文件，无需重复写入。')
     if (output) { fs.mkdirSync(path.dirname(output), { recursive: true }); fs.writeFileSync(output, `${JSON.stringify(result.manifest, null, 2)}\n`) }
   }

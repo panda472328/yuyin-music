@@ -32,6 +32,8 @@ GitHub Raw、Release 下载在用户网络中不可达时，应用会显示失�
 
 若上传后清单写入失败，Release 可能已公开，但客户端尚未收到更新。先处理权限／网络问题。重新运行流程时，若已公开附件与本轮构建不一致，脚本会拒绝替换；维护者应使用原始已发布文件执行发布重试，或递增版本重新发布。公开版本及附件保持不可变。
 
+已有草稿或公开版本的恢复使用工作流的 `workflow_dispatch`，填写与 main 源码版本一致的 `pc-vX.Y.Z` 标签。修复发布脚本后，可同时更新 `.github/workflows/release.yml`，该文件推送至 main 时也会自动尝试恢复当前版本已有的 Release；普通源码提交不会触发发布。恢复任务从 main 读取最新发布脚本，校验原标签的 package／lock 版本和唯一附件，下载原文件并核对 SHA-256，再使用 `--existing-only` 公开草稿或推进清单。它不构建、不上传文件，也不移动标签；不存在 Release 或安装附件时停止。安装包构建提交继续记录原标签提交，不能使用恢复提交代替。
+
 ## 从 GitHub 页面发布已有安装包
 
 本机已经构建并验收的安装包，也可在对应 `pc-vX.Y.Z` 标签下准备草稿，只上传 `Yuyin-X.Y.Z-Setup.exe`，再点击 Publish release。必须是正式发布，不能标为 prerelease。发布标签的源码须包含当前工作流、发布脚本及匹配的版本来源。
@@ -59,6 +61,8 @@ node scripts/release.mjs --dry-run --tag pc-v0.4.9 --artifact release/Yuyin-0.4.
 ```sh
 node scripts/release.mjs --publish --tag pc-vX.Y.Z --artifact release/Yuyin-X.Y.Z-Setup.exe
 ```
+
+只恢复已上传文件时附加 `--existing-only`；该模式拒绝不存在的 Release 和缺失安装附件，禁止创建 Release 或上传文件。草稿按标签查询为 404 时，会分页查找同标签并按 Release ID 回读。草稿阶段允许 GitHub 同仓库的临时 `untagged-*` 下载地址，正式公开后仍要求固定版本地址。
 
 不要用重新构建的不同文件覆盖同版本正式附件。脚本会拒绝错平台、错标签、非唯一安装附件、版本回退、同版本替换和无效校验值；清单写入使用 GitHub 文件 SHA 防止并发覆盖。
 

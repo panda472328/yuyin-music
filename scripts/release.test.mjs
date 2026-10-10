@@ -118,6 +118,7 @@ async function publisherFixture(t, options = {}) {
     size: bytes.length, state: 'uploaded' })
   let release = options.published ? { id: releaseId, tag_name: config.tag, draft: false, prerelease: false, published_at: '2026-10-08T01:00:00Z', assets: [asset(false)] }
     : options.draft ? { id: releaseId, tag_name: config.tag, draft: true, prerelease: false, assets: [asset(true)] } : null
+  if (release && options.emptyDraft) release.assets = []
   const events = []
   const apiRoutes = []
   const api = (route, body) => {
@@ -169,7 +170,7 @@ async function publisherFixture(t, options = {}) {
     } else throw new Error(`unexpected gh operation ${operation}`)
     return ''
   }
-  return { events, apiRoutes, get current() { return current }, get release() { return release }, publish: () => publishRelease({ config, manifest: candidate, artifact, notes: '新版', commit: 'controlled-commit', api, gh }) }
+  return { events, apiRoutes, get current() { return current }, get release() { return release }, publish: () => publishRelease({ config, manifest: candidate, artifact, notes: '新版', commit: 'controlled-commit', api, gh, existingOnly: Boolean(options.existingOnly) }) }
 }
 
 test('正式发布必须上传、下载复核、公开后，才以最新 SHA 更新客户端清单', async t => {
@@ -211,6 +212,18 @@ test('草稿下载校验失败后重试沿用已上传文件，不重复创建�
 
 test('已有唯一原始安装文件的草稿直接下载复核后公开', async t => {
   const fixture = await publisherFixture(t, { draft: true, draftTag404: true, draftUrl: true, secondPage: true })
+  assert.equal((await fixture.publish()).updated, true)
+  assert.deepEqual(fixture.events, ['download', 'publish', 'manifest-write'])
+})
+
+test('恢复模式拒绝不存在或空草稿，只复用原有唯一安装文件', async t => {
+  for (const options of [{ existingOnly: true }, { existingOnly: true, draft: true, emptyDraft: true }]) {
+    const fixture = await publisherFixture(t, options)
+    await assert.rejects(fixture.publish, /恢复发布/)
+    assert.deepEqual(fixture.events, [])
+    assert.equal(fixture.current.version, '1.2.2')
+  }
+  const fixture = await publisherFixture(t, { existingOnly: true, draft: true, draftTag404: true, draftUrl: true })
   assert.equal((await fixture.publish()).updated, true)
   assert.deepEqual(fixture.events, ['download', 'publish', 'manifest-write'])
 })

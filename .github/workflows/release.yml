@@ -6,6 +6,15 @@ on:
   push:
     tags:
       - 'pc-v*'
+    branches: [main]
+    paths:
+      - .github/workflows/release.yml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing PC release tag to recover (pc-vX.Y.Z)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,7 +25,7 @@ concurrency:
 
 jobs:
   release:
-    if: github.event_name == 'push' && github.repository == 'panda472328/yuyin-music'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/pc-v') && github.repository == 'panda472328/yuyin-music'
     runs-on: windows-latest
     timeout-minutes: 45
     env:
@@ -54,6 +63,112 @@ jobs:
         run: |
           $releaseVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
           node scripts/release.mjs --publish --tag "$env:RELEASE_TAG" --artifact "release/Yuyin-$releaseVersion-Setup.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  recover-existing-release:
+    if: github.repository == 'panda472328/yuyin-music' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REQUESTED_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Test current release recovery guards without installing dependencies
+        run: node --test scripts/release.test.mjs scripts/check-release-lock.test.mjs
+      - name: Validate existing tag, source versions and uploaded installer
+        id: existing
+        shell: pwsh
+        run: |
+          @'
+          import fs from 'node:fs'
+          import { execFileSync } from 'node:child_process'
+          import { releaseConfig } from './scripts/release-utils.mjs'
+
+          const repository = 'panda472328/yuyin-music'
+          if (process.env.GITHUB_REPOSITORY !== repository) throw new Error('Unexpected repository.')
+          const mainPackage = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+          const tag = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'
+            ? process.env.REQUESTED_TAG : `pc-v${mainPackage.version}`
+          if (!/^pc-v(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/.test(tag ?? '')) {
+            throw new Error('Use a canonical stable PC tag: pc-vX.Y.Z.')
+          }
+          const config = releaseConfig(process.cwd(), tag)
+          const git = args => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+          const buildCommit = git(['rev-parse', '--verify', `refs/tags/${tag}^{commit}`])
+          if (!/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(buildCommit)) throw new Error('Invalid tag commit.')
+          const tagPackage = JSON.parse(git(['show', `${buildCommit}:package.json`]))
+          const tagLock = JSON.parse(git(['show', `${buildCommit}:package-lock.json`]))
+          if (tagPackage.name !== mainPackage.name || tagPackage.version !== config.version ||
+              tagLock.version !== config.version || tagLock.packages?.['']?.version !== config.version) {
+            throw new Error('Tag source and main package/lock versions must agree; do not move the tag or rebuild.')
+          }
+          const api = route => JSON.parse(execFileSync(process.platform === 'win32' ? 'gh.exe' : 'gh',
+            ['api', '--method', 'GET', `repos/${repository}/${route}`],
+            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 }))
+          let found
+          let complete = false
+          for (let page = 1; page <= 100; page++) {
+            const releases = api(`releases?per_page=100&page=${page}`)
+            if (!Array.isArray(releases)) throw new Error('Invalid releases response.')
+            for (const release of releases) {
+              if (release.tag_name !== tag) continue
+              if (found) throw new Error('Multiple releases use this tag.')
+              found = release
+            }
+            if (releases.length < 100) { complete = true; break }
+          }
+          if (!complete) throw new Error('Release pagination limit exceeded.')
+          if (!Number.isSafeInteger(found?.id) || found.id < 1) throw new Error('Existing release was not found; recovery never creates one.')
+          const release = api(`releases/${found.id}`)
+          if (release.id !== found.id || release.tag_name !== tag || release.prerelease !== false ||
+              typeof release.draft !== 'boolean' || !Array.isArray(release.assets) || release.assets.length !== 1) {
+            throw new Error('Release identity, stable status or unique installer check failed.')
+          }
+          const asset = release.assets[0]
+          if (!Number.isSafeInteger(asset.id) || asset.id < 1 || asset.name !== config.filename ||
+              asset.state !== 'uploaded' || !Number.isSafeInteger(asset.size) || asset.size < 2 ||
+              asset.size > config.maxSize || !/^sha256:[a-f0-9]{64}$/.test(asset.digest ?? '')) {
+            throw new Error('Existing installer name, size, state or SHA-256 digest is invalid.')
+          }
+          const temporaryPrefix = `https://github.com/${repository}/releases/download/untagged-`
+          const temporaryParts = typeof asset.browser_download_url === 'string' && asset.browser_download_url.startsWith(temporaryPrefix)
+            ? asset.browser_download_url.slice(temporaryPrefix.length).split('/') : []
+          const temporaryUrl = release.draft && temporaryParts.length === 2 &&
+            /^[A-Za-z0-9_-]+$/.test(temporaryParts[0]) && temporaryParts[1] === config.filename
+          if (asset.browser_download_url !== config.url && !temporaryUrl) throw new Error('Installer download URL is outside this release.')
+          for (const [key, value] of Object.entries({ tag, filename: config.filename, build_commit: buildCommit,
+            size: asset.size, sha256: asset.digest.slice('sha256:'.length), release_id: release.id })) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`)
+          }
+          console.log(`Verified existing ${tag} at ${buildCommit}, release ${release.id}, installer ${asset.id}.`)
+          '@ | node --input-type=module -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Download original installer, verify digest and recover publication
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.existing.outputs.tag }}
+          RELEASE_FILENAME: ${{ steps.existing.outputs.filename }}
+          EXPECTED_SIZE: ${{ steps.existing.outputs.size }}
+          EXPECTED_SHA256: ${{ steps.existing.outputs.sha256 }}
+          GITHUB_SHA: ${{ steps.existing.outputs.build_commit }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $artifactDirectory = Join-Path $env:RUNNER_TEMP 'yuyin-existing-release'
+          New-Item -ItemType Directory -Path $artifactDirectory -ErrorAction Stop | Out-Null
+          gh release download "$env:RELEASE_TAG" --repo "$env:GITHUB_REPOSITORY" --pattern "$env:RELEASE_FILENAME" --dir "$artifactDirectory"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $artifact = Join-Path $artifactDirectory $env:RELEASE_FILENAME
+          if ((Get-Item -LiteralPath $artifact).Length -ne [long]$env:EXPECTED_SIZE) { throw 'Downloaded installer size differs from the existing asset.' }
+          $actualSha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualSha256 -cne $env:EXPECTED_SHA256) { throw 'Downloaded installer SHA-256 differs from the existing asset.' }
+          node scripts/release.mjs --publish --existing-only --tag "$env:RELEASE_TAG" --artifact "$artifact"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   advance-existing-release:
