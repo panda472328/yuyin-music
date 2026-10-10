@@ -112,14 +112,27 @@ async function publisherFixture(t, options = {}) {
   const candidate = await createManifest(config, artifact, '新版', '2026-10-08T00:00:00.000Z')
   let current = options.sameVersion ? structuredClone(candidate) : manifest(config, '1.2.2')
   let sha = 'before-write'
-  let release = options.published ? { tag_name: config.tag, draft: false, prerelease: false, published_at: '2026-10-08T01:00:00Z', assets: [{ name: config.filename, browser_download_url: config.url, size: bytes.length, state: 'uploaded' }] } : null
+  const releaseId = 987
+  const asset = draft => ({ name: config.filename,
+    browser_download_url: draft && options.draftUrl ? options.draftUrl === true ? `https://github.com/${config.repository}/releases/download/untagged-draft123/${config.filename}` : options.draftUrl : config.url,
+    size: bytes.length, state: 'uploaded' })
+  let release = options.published ? { id: releaseId, tag_name: config.tag, draft: false, prerelease: false, published_at: '2026-10-08T01:00:00Z', assets: [asset(false)] }
+    : options.draft ? { id: releaseId, tag_name: config.tag, draft: true, prerelease: false, assets: [asset(true)] } : null
   const events = []
+  const apiRoutes = []
   const api = (route, body) => {
+    apiRoutes.push(route)
     if (route === 'contents/updates/stable.json?ref=main') return { sha, encoding: 'base64', content: Buffer.from(JSON.stringify(current)).toString('base64') }
     if (route.startsWith('releases/tags/')) {
-      if (!release) { const error = new Error('404'); error.notFound = true; throw error }
+      if (!release || release.draft && options.draftTag404) { const error = new Error('404'); error.notFound = true; throw error }
       return structuredClone(release)
     }
+    if (route.startsWith('releases?per_page=100&page=')) {
+      const page = Number(route.split('page=').at(-1))
+      if (options.secondPage && page === 1) return Array.from({ length: 100 }, (_, index) => ({ id: 1000 + index, tag_name: `pc-v0.0.${index}`, draft: false }))
+      return page === (options.secondPage ? 2 : 1) && release ? [structuredClone(release)] : []
+    }
+    if (route === `releases/${releaseId}`) return structuredClone(release)
     if (route === 'contents/updates/stable.json' && body) {
       assert.equal(release.draft, false, 'must publish before advancing clients')
       assert.equal(body.sha, sha, 'must use the latest GitHub content SHA')
@@ -138,10 +151,11 @@ async function publisherFixture(t, options = {}) {
     if (operation === 'create') {
       events.push('create')
       assert.ok(args.includes('--draft'))
-      release = { tag_name: config.tag, draft: true, prerelease: false, assets: [] }
+      release = { id: releaseId, tag_name: config.tag, draft: true, prerelease: false, assets: [] }
     } else if (operation === 'upload') {
       events.push('upload')
-      release.assets = [{ name: config.filename, browser_download_url: config.url, size: bytes.length, state: 'uploaded' }]
+      assert.equal(args.includes('--clobber'), false, 'never replace an already uploaded installer')
+      release.assets = [asset(true)]
     } else if (operation === 'download') {
       events.push('download')
       const directory = args[args.indexOf('--dir') + 1]
@@ -150,11 +164,12 @@ async function publisherFixture(t, options = {}) {
       events.push('publish')
       release.draft = false
       release.published_at = '2026-10-08T01:00:00Z'
+      if (!options.keepDraftUrlAfterPublish) release.assets[0].browser_download_url = config.url
       if (options.newerDuringPublish) { current = manifest(config, '1.3.0'); sha = 'advanced-by-other-publisher' }
     } else throw new Error(`unexpected gh operation ${operation}`)
     return ''
   }
-  return { events, get current() { return current }, get release() { return release }, publish: () => publishRelease({ config, manifest: candidate, artifact, notes: '新版', commit: 'controlled-commit', api, gh }) }
+  return { events, apiRoutes, get current() { return current }, get release() { return release }, publish: () => publishRelease({ config, manifest: candidate, artifact, notes: '新版', commit: 'controlled-commit', api, gh }) }
 }
 
 test('正式发布必须上传、下载复核、公开后，才以最新 SHA 更新客户端清单', async t => {
@@ -172,6 +187,43 @@ test('远程下载损坏时保持草稿，不推进客户端清单', async t => 
   assert.equal(fixture.release.draft, true)
   assert.equal(fixture.current.version, '1.2.2')
   assert.deepEqual(fixture.events, ['create', 'upload', 'download'])
+})
+
+test('草稿标签恒为 404 时分页查找，并按 ID 回读上传与公开结果', async t => {
+  const fixture = await publisherFixture(t, { draftTag404: true, secondPage: true, draftUrl: true })
+  assert.equal((await fixture.publish()).updated, true)
+  assert.deepEqual(fixture.events, ['create', 'upload', 'download', 'publish', 'manifest-write'])
+  assert.ok(fixture.apiRoutes.includes('releases?per_page=100&page=2'))
+  assert.equal(fixture.apiRoutes.filter(route => route === 'releases/987').length, 2)
+  assert.equal(fixture.release.assets[0].browser_download_url, fixture.current.artifact.url)
+})
+
+test('草稿下载校验失败后重试沿用已上传文件，不重复创建或覆盖附件', async t => {
+  const options = { draftTag404: true, draftUrl: true, corruptDownload: true }
+  const fixture = await publisherFixture(t, options)
+  await assert.rejects(fixture.publish, /SHA-256/)
+  assert.equal(fixture.release.draft, true)
+  assert.equal(fixture.current.version, '1.2.2')
+  options.corruptDownload = false
+  assert.equal((await fixture.publish()).updated, true)
+  assert.deepEqual(fixture.events, ['create', 'upload', 'download', 'download', 'publish', 'manifest-write'])
+})
+
+test('已有唯一原始安装文件的草稿直接下载复核后公开', async t => {
+  const fixture = await publisherFixture(t, { draft: true, draftTag404: true, draftUrl: true, secondPage: true })
+  assert.equal((await fixture.publish()).updated, true)
+  assert.deepEqual(fixture.events, ['download', 'publish', 'manifest-write'])
+})
+
+test('草稿临时附件地址不能跨仓库或伪装文件，公开后不能保留临时地址', async t => {
+  for (const draftUrl of ['https://github.com/other/project/releases/download/untagged-draft123/Yuyin-1.2.3-Setup.exe', 'https://github.com/panda472328/yuyin-music/releases/download/untagged-draft123/other.exe']) {
+    const fixture = await publisherFixture(t, { draft: true, draftTag404: true, draftUrl })
+    await assert.rejects(fixture.publish, /草稿附件地址/)
+    assert.deepEqual(fixture.events, [])
+  }
+  const fixture = await publisherFixture(t, { draft: true, draftTag404: true, draftUrl: true, keepDraftUrlAfterPublish: true })
+  await assert.rejects(fixture.publish, /附件名称、地址/)
+  assert.equal(fixture.current.version, '1.2.2')
 })
 
 test('公开版本重试只复核原始安装文件，不替换附件或重复写清单', async t => {
