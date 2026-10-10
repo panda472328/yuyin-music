@@ -23,19 +23,24 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
+          registry-url: https://registry.npmjs.org
       - name: Validate platform and version
         run: node scripts/release.mjs --validate-version --tag "$env:RELEASE_TAG"
+      - name: Validate locked dependency metadata before installation
+        run: node scripts/check-release-lock.mjs
       - name: Install locked dependencies
-        run: npm ci
+        run: npm ci --registry=https://registry.npmjs.org
+      - name: Install the locked Electron runtime
+        run: node node_modules/electron/install.js
       - name: Test release channel guards
-        run: node --test scripts/release.test.mjs
+        run: node --test scripts/release.test.mjs scripts/check-release-lock.test.mjs
       - name: Run application tests
         run: npm test
       - name: Build only the Windows x64 NSIS installer
@@ -59,10 +64,10 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ github.event.release.tag_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - name: Validate released tag against its source versions

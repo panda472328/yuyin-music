@@ -2,11 +2,15 @@
 
 PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码位于本仓库；Android 源码位于 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。不要把其中一个工程嵌套进另一个仓库。
 
-## PC 0.4.11
+## PC 0.4.12
 
-安装保护与游客／双模式搜索／选曲归零功能合并到同一个正常版本。发布标签为 `pc-v0.4.11`，最终文件仅为 `Yuyin-0.4.11-Setup.exe`；通过 Windows Actions 从该标签的干净源码构建、验证、发布，再推进稳定更新清单。不另发修复包，不替换历史 0.4.10 附件。
+安装保护与游客／双模式搜索／选曲归零功能合并到同一个正常版本。发布标签为 `pc-v0.4.12`，最终文件仅为 `Yuyin-0.4.12-Setup.exe`；通过 Windows Actions 从该标签的干净源码构建、验证、发布，再推进稳定更新清单。不另发修复包，不替换历史 0.4.10 附件。
 
-最终 SHA-256、大小、构建提交与公开状态以 [0.4.11 发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.11) 为准。发布前生成的本地 0.4.11 文件仅为测试产物，其校验值不代表 Actions 最终文件。原生宏与本地产物提前退出检查已完成；完整旧版覆盖升级和跨用户权限尚未在独立 Windows 环境验收，详情见 [QA.md](QA.md) 与 [INSTALLATION.md](INSTALLATION.md)。
+最终 SHA-256、大小、构建提交与公开状态以 [0.4.12 发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.12) 为准。发布前生成的本地 0.4.11 文件仅为测试产物，其校验值不代表 Actions 最终文件。原生宏与本地产物提前退出检查已完成；完整旧版覆盖升级和跨用户权限尚未在独立 Windows 环境验收，详情见 [QA.md](QA.md) 与 [INSTALLATION.md](INSTALLATION.md)。
+
+## PC 0.4.11（未发布）
+
+标签 `pc-v0.4.11` 保留在提交 `eefecff5cb1319386e49516e244cf07739dee279`，不移动或复用。[首次 Actions 构建](https://github.com/panda472328/yuyin-music/actions/runs/38038571637) 在安装依赖时因锁文件中的非法版本 `0.4.03` 失败，没有创建正式 Release 或公开安装文件，也没有推进稳定清单。锁文件从官方源重建，Electron 保持 44.6.0，相关功能改由 0.4.12 正式发布。
 
 ## PC 0.4.10
 

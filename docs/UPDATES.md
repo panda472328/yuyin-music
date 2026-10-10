@@ -19,15 +19,15 @@ GitHub Raw、Release 下载在用户网络中不可达时，应用会显示失�
 ## 每次发布
 
 1. 在 PC 仓库更新 `package.json`、`package-lock.json` 中的版本，补充同版本 `CHANGELOG.md` 章节；使用无前导零的 `X.Y.Z` 正式版本。不要移动或重用公开标签。
-2. 完成 `npm run typecheck`、`npm test`、`npm run build` 及有关原生／界面验收。发布流程会重新运行业务测试、发布保护测试和生产打包；CI 不会替代真实安装、升级和设备验收。
-3. 提交、推送源码，为该提交建立并推送 `pc-vX.Y.Z` 标签。例如下一版本为 0.4.11 时：
+2. 运行无依赖的 `node scripts/check-release-lock.mjs`，核对版本及官方 npm 下载地址，再用 `npm ci --registry=https://registry.npmjs.org` 安装锁定依赖。完成 `npm run typecheck`、`npm test`、`npm run build` 及有关原生／界面验收。发布流程会重新运行业务测试、发布保护测试和生产打包；CI 不会替代真实安装、升级和设备验收。
+3. 提交、推送源码，为该提交建立并推送 `pc-vX.Y.Z` 标签。例如发布 0.4.12 时：
 
    ```sh
-   git tag pc-v0.4.11
-   git push origin pc-v0.4.11
+   git tag pc-v0.4.12
+   git push origin pc-v0.4.12
    ```
 
-4. Actions 在 Windows x64 上只构建 NSIS 安装器 `Yuyin-X.Y.Z-Setup.exe`。它先创建草稿、只上传一个安装文件，核对 GitHub 附件大小并重新下载校验 SHA-256；随后公开 Release，最后更新 main 的清单。`latest.yml`、`.blockmap`、便携包、许可压缩包和本地校验文件不会作为发布附件。
+4. Actions 在 `npm ci` 后显式执行 `node node_modules/electron/install.js`，安装锁定版本的官方运行时（Electron 44.6.0 不再通过 npm postinstall 自动下载）。在 Windows x64 上只构建 NSIS 安装器 `Yuyin-X.Y.Z-Setup.exe`。它先创建草稿、只上传一个安装文件，核对 GitHub 附件大小并重新下载校验 SHA-256；随后公开 Release，最后更新 main 的清单。`latest.yml`、`.blockmap`、便携包、许可压缩包和本地校验文件不会作为发布附件。
 5. 检查 Actions 成功、发布页、清单，以及在隔离用户数据目录中的旧版升级体验。不要让客户端清单指向草稿、缺失附件或还未验收的文件。
 
 若上传后清单写入失败，Release 可能已公开，但客户端尚未收到更新。先处理权限／网络问题。重新运行流程时，若已公开附件与本轮构建不一致，脚本会拒绝替换；维护者应使用原始已发布文件执行发布重试，或递增版本重新发布。公开版本及附件保持不可变。

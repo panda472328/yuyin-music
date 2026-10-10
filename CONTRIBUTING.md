@@ -1,11 +1,11 @@
 # 参与余音 PC 版
 
-本仓库是 Windows 桌面端，当前源码版本为 0.4.11，正式安装文件以 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 为准。Android 的问题和修改请提交到 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。两个仓库使用独立版本、构建与数据，不把手机源码或 APK 放进 PC 仓库。
+本仓库是 Windows 桌面端，当前源码版本为 0.4.12，正式安装文件以 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 为准。Android 的问题和修改请提交到 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。两个仓库使用独立版本、构建与数据，不把手机源码或 APK 放进 PC 仓库。
 
 ## 开发流程
 
 1. Fork／克隆项目，在清晰命名的分支开发，例如 `style/lyrics-spacing` 或 `fix/library-save`。
-2. 安装 Node.js 22.12 或更新版，在仓库根目录运行 `npm ci`。
+2. 安装 Node.js 22.12 或更新版，在仓库根目录运行 `npm ci --registry=https://registry.npmjs.org`，再运行 `node node_modules/electron/install.js` 下载锁定版本的官方运行时；Electron 44.6.0 不再通过 npm postinstall 自动下载。
 3. 阅读 [AGENTS.md](AGENTS.md)。涉及界面时先看 [STYLE-GUIDE.md](docs/STYLE-GUIDE.md)，定位选择器与最终 CSS 覆盖。
 4. 保持改动聚焦，复用现有组件、类型和样式语义。依赖或配置变化须同步 `package-lock.json`，不要手工改生成文件来代替源代码。
 5. 运行与改动相符的验证，提交 Pull Request，说明问题、行为变化、测试结果和未验证范围。

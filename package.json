@@ -1,6 +1,6 @@
 {
   "name": "yuyin-music",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "private": true,
   "description": "余音 · 基于 Bilibili 的桌面音乐播放器",
   "main": "out/main/index.js",

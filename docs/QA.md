@@ -1,5 +1,13 @@
 # 验收记录与操作清单
 
+## 0.4.12 发布准备：依赖锁与构建流程（2026-10-10）
+
+- 0.4.11 的 [Actions 构建](https://github.com/panda472328/yuyin-music/actions/runs/38038571637) 在 `npm ci` 遇到 `Invalid Version: 0.4.03`，没有生成正式 Release 或推进客户端清单。保留原标签，正常安装版改以 0.4.12 发布。
+- 从官方 npm 源与空缓存重新生成锁文件，435 个下载地址均使用 `registry.npmjs.org`，修正非法版本及四处非法依赖范围；Electron 保持 44.6.0。隔离 `npm ci --ignore-scripts` 与本仓库完整 `npm ci --registry=https://registry.npmjs.org` 均通过。发布前增加不依赖已安装包的锁文件检查，完整依赖语法与一致性仍由 `npm ci` 校验。
+- Electron 44.6.0 的官方 npm 包没有 postinstall，完整 `npm ci` 不会自动下载运行时；工作流补充显式 `node node_modules/electron/install.js`，使干净 runner 获得打包配置要求的 `node_modules/electron/dist`。
+- 更新后的依赖和 0.4.12 源码通过 `npm run typecheck`、`npm test`（149 项业务测试、6 类播放竞态与 5 组归零回归）、`npm run build`、19 项发布／锁文件检查及标签版本一致性校验。强制原生安装保护测试 13 项全部通过、无跳过，证据：`.qa/installer-guards-mKpTvv/evidence.json`。
+- 本次依赖与发布流程修复没有改动应用交互。此前 0.4.11 的隔离功能与安装器测试作为功能变更的验证记录保留在下方；完整首次安装、旧版覆盖升级、真实 UAC／跨用户权限及故障用户电脑复测仍未完成。Windows Actions 的最终安装文件、公开状态和稳定通道将在发布成功后补记。
+
 ## 0.4.11 正式发布准备（2026-10-10）
 
 - 当前源码再次通过 `npm run typecheck`、`npm test`（149 项业务、6 类播放竞态与 5 组归零回归）、`npm run build`、14 项发布保护检查及版本／锁文件一致性校验。
