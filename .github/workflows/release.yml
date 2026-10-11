@@ -72,8 +72,29 @@ jobs:
           node scripts/release.mjs --publish --tag "$env:RELEASE_TAG" --artifact "release/Yuyin-$releaseVersion-Setup.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-  recover-existing-release:
+  diagnose-failed-publication:
     if: github.repository == 'panda472328/yuyin-music' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    runs-on: windows-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REQUESTED_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Diagnose the latest failed publication without changing GitHub
+        continue-on-error: true
+        run: node scripts/diagnose-release-failure.mjs
+
+  recover-existing-release:
+    needs: diagnose-failed-publication
+    if: always() && github.repository == 'panda472328/yuyin-music' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     runs-on: windows-latest
     timeout-minutes: 20
     env:
