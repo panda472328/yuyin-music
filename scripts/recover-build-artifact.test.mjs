@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { deflateRawSync } from 'node:zlib'
-import { assertArtifactIdentity, assertRunIdentity, recoverBuildArtifact, recoveryIdentity as id, verifiedInstallerBytes, verifyArchive } from './recover-build-artifact.mjs'
+import { assertArtifactIdentity, assertRunIdentity, recoverBuildArtifact, recoveryIdentity as id, reportRecoveryFailure, verifiedInstallerBytes, verifyArchive } from './recover-build-artifact.mjs'
 
 const steps = [
   ...['Build only the Windows x64 NSIS installer', 'Verify native installer guards without installing on the runner', 'Back up the verified installer before publication'].map(name => ({ name, conclusion: 'success' })),
@@ -49,6 +49,37 @@ function zip(entries = [{ name: id.filename, bytes: Buffer.from('MZ controlled f
 }
 
 function expected(bytes) { return { archiveSize: bytes.length, archiveSha256: createHash('sha256').update(bytes).digest('hex'), filename: id.filename } }
+
+function zip64Archive(classic) {
+  const eocd = classic.length - 22
+  const record = Buffer.alloc(56)
+  record.writeUInt32LE(0x06064b50, 0); record.writeBigUInt64LE(44n, 4)
+  record.writeUInt16LE(45, 12); record.writeUInt16LE(45, 14)
+  record.writeBigUInt64LE(1n, 24); record.writeBigUInt64LE(1n, 32)
+  record.writeBigUInt64LE(BigInt(classic.readUInt32LE(eocd + 12)), 40)
+  record.writeBigUInt64LE(BigInt(classic.readUInt32LE(eocd + 16)), 48)
+  const locator = Buffer.alloc(20); locator.writeUInt32LE(0x07064b50, 0)
+  locator.writeBigUInt64LE(BigInt(eocd), 8); locator.writeUInt32LE(1, 16)
+  const trailer = Buffer.from(classic.subarray(eocd))
+  trailer.writeUInt16LE(0xffff, 8); trailer.writeUInt16LE(0xffff, 10)
+  trailer.writeUInt32LE(0xffffffff, 12); trailer.writeUInt32LE(0xffffffff, 16)
+  return Buffer.concat([classic.subarray(0, eocd), record, locator, trailer])
+}
+
+test('ZIP64 EOCD与locator兼容但仍拒绝跨磁盘、偏移和计数不一致', () => {
+  const original = Buffer.from('MZ controlled ZIP64 installer')
+  const bytes = zip64Archive(zip([{ name: id.filename, bytes: original, method: 8 }]))
+  assert.deepEqual(verifiedInstallerBytes(bytes, expected(bytes)), original)
+  for (const mutate of [
+    b => b.writeUInt32LE(2, b.length - 22 - 4),
+    b => b.writeBigUInt64LE(0n, b.length - 22 - 12),
+    b => b.writeBigUInt64LE(2n, b.length - 22 - 20 - 56 + 32),
+    b => b.writeBigUInt64LE(1n, b.length - 22 - 20 - 56 + 48),
+  ]) {
+    const changed = Buffer.from(bytes); mutate(changed)
+    assert.throws(() => verifiedInstallerBytes(changed, expected(changed)), /ZIP64|ZIP/)
+  }
+})
 
 test('原构建身份拒绝不同标签、提交、仓库、attempt、workflow 与失败步骤', () => {
   assert.doesNotThrow(() => assertRunIdentity(run, [{ name: 'release', steps }]))
@@ -149,4 +180,15 @@ test('无 Actions 临时认证、标签不同或原构建检查失败时下载�
 test('正式 archive 验证不允许通过测试注入的伪ZIP或不同摘要', async t => {
   const f = await fixture(t); const archive = path.join(f.root, 'fake.zip'); await fs.writeFile(archive, 'PK fake')
   await assert.rejects(() => verifyArchive(archive, f.root), /大小/)
+})
+
+test('恢复失败annotation脱敏凭据和全部URL，并转义Actions控制字符', () => {
+  const outputs = []
+  reportRecoveryFailure({ stderr: 'Error: token-secret https://signed.example/path-secret?sig=query-secret\n::error::injected%\nAuthorization: Bearer bearer-secret' },
+    { GH_TOKEN: 'token-secret' }, line => outputs.push(line))
+  assert.equal(outputs.length, 1)
+  assert.match(outputs[0], /^::error title=Original build recovery stopped::/)
+  for (const secret of ['token-secret', 'signed.example', 'path-secret', 'query-secret', 'bearer-secret']) assert.equal(outputs[0].includes(secret), false)
+  assert.equal(outputs[0].includes('\n'), false)
+  assert.match(outputs[0], /%0A::error::injected%25/)
 })

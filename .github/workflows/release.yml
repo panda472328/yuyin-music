@@ -114,7 +114,7 @@ jobs:
         with:
           node-version: '24'
       - name: Test current release recovery guards without installing dependencies
-        run: node --test scripts/release.test.mjs scripts/release-cli.test.mjs scripts/check-release-lock.test.mjs scripts/recover-build-artifact.test.mjs
+        run: node --test scripts/release.test.mjs scripts/release-cli.test.mjs scripts/check-release-lock.test.mjs scripts/recover-build-artifact.test.mjs scripts/diagnose-release-failure.test.mjs
       - name: Validate existing tag, source versions and uploaded installer
         id: existing
         shell: pwsh

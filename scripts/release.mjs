@@ -5,6 +5,21 @@ import { execFileSync } from 'node:child_process'
 import { assertAdvance, changelogNotes, createManifest, releaseConfig } from './release-utils.mjs'
 import { publishRelease } from './release-publisher.mjs'
 
+function sanitizeFailure(value) {
+  let detail = String(value).replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+  for (const secret of [process.env.GH_TOKEN, process.env.GITHUB_TOKEN]) {
+    if (secret) detail = detail.replaceAll(secret, '[REDACTED]')
+  }
+  return detail
+    .replace(/^.*\b(?:proxy-)?authorization\b.*$/gim, '[REDACTED authentication header]')
+    .replace(/^.*\b(?:GH_TOKEN|GITHUB_TOKEN|ACCESS_TOKEN|REFRESH_TOKEN|CLIENT_SECRET|PASSWORD)\b\s*[:=].*$/gim, '[REDACTED credential]')
+    .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
+    .replace(/\b(?:gh[pousr]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+)\b/g, '[REDACTED]')
+    .replace(/https?:\/\/[^\s<>"']+/gi, '[REDACTED URL]')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, '')
+}
+
+try {
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const argv = process.argv.slice(2)
 const flags = new Set(['--dry-run', '--publish', '--validate-version', '--existing-only', '--correct-build-source'])
@@ -55,21 +70,7 @@ if (args['--validate-version']) {
       catch (error) {
         if (/\b404\b/.test(String(error.stderr))) { const missing = new Error('GitHub 资源不存在。'); missing.notFound = true; throw missing }
         // Preserve useful HTTP/CLI diagnostics without echoing authentication or signed download URLs.
-        let detail = String(error.stderr ?? '').replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
-        for (const secret of [process.env.GH_TOKEN, process.env.GITHUB_TOKEN]) {
-          if (secret) detail = detail.replaceAll(secret, '[REDACTED]')
-        }
-        detail = detail
-          .replace(/^.*\b(?:proxy-)?authorization\b.*$/gim, '[REDACTED authentication header]')
-          .replace(/\b(?:gh[pousr]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+)\b/g, '[REDACTED]')
-          .replace(/https?:\/\/[^\s<>"']+/gi, value => {
-            try {
-              const url = new URL(value)
-              return `${url.protocol}//${url.host}${url.pathname}${url.search ? '?[REDACTED]' : ''}${url.hash ? '#[REDACTED]' : ''}`
-            } catch { return '[REDACTED URL]' }
-          })
-          .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, '')
-          .trim().slice(0, 1200)
+        const detail = sanitizeFailure(error.stderr ?? '').trim().slice(0, 1200)
         const status = Number.isInteger(error.status) ? error.status : '未知'
         throw new Error(`GitHub 操作失败：${parameters.slice(0, 2).join(' ')}（退出码：${status}）。${detail || '没有收到错误详情。'} 请检查 Actions 日志、权限和网络，不重建或替换已公开的安装文件。`)
       }
@@ -89,4 +90,13 @@ if (args['--validate-version']) {
     console.log(result.updated ? `稳定通道已更新：${config.releaseNotesUrl}` : '稳定通道已包含相同安装文件，无需重复写入。')
     if (output) { fs.mkdirSync(path.dirname(output), { recursive: true }); fs.writeFileSync(output, `${JSON.stringify(result.manifest, null, 2)}\n`) }
   }
+}
+} catch (error) {
+  const detail = sanitizeFailure(error?.message ?? error).trim().slice(0, 2400) || '没有收到错误详情。'
+  console.error(`Error: ${process.env.GITHUB_ACTIONS === 'true' ? detail.replace(/\r/g, '').replace(/\n/g, '\nError: ') : detail}`)
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    const escaped = detail.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')
+    console.log(`::error title=Release publication failed::${escaped}`)
+  }
+  process.exitCode = 1
 }

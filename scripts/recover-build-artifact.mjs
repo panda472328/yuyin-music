@@ -69,16 +69,40 @@ function zipEntries(buffer) {
   let eocd = -1
   for (let i = buffer.length - 22; i >= Math.max(0, buffer.length - 65557); i--) if (buffer.readUInt32LE(i) === 0x06054b50) { eocd = i; break }
   if (eocd < 0) throw new Error('artifact 不是有效 ZIP。')
-  const count = buffer.readUInt16LE(eocd + 10)
-  const centralSize = buffer.readUInt32LE(eocd + 12)
-  const centralOffset = buffer.readUInt32LE(eocd + 16)
-  if (buffer.readUInt16LE(eocd + 4) || buffer.readUInt16LE(eocd + 6) || count !== 1 ||
-      buffer.readUInt16LE(eocd + 8) !== count || eocd + 22 + buffer.readUInt16LE(eocd + 20) !== buffer.length ||
-      centralOffset + centralSize !== eocd) throw new Error('ZIP 必须是单磁盘、单文件的原始 artifact。')
+  let count = buffer.readUInt16LE(eocd + 10)
+  let centralSize = buffer.readUInt32LE(eocd + 12)
+  let centralOffset = buffer.readUInt32LE(eocd + 16)
+  let centralEnd = eocd
+  if (buffer.readUInt16LE(eocd + 4) || buffer.readUInt16LE(eocd + 6) ||
+      eocd + 22 + buffer.readUInt16LE(eocd + 20) !== buffer.length) throw new Error('ZIP 必须是单磁盘、单文件的原始 artifact。')
+  const locator = eocd - 20
+  if (locator >= 0 && buffer.readUInt32LE(locator) === 0x07064b50) {
+    const safe64 = offset => {
+      const value = buffer.readBigUInt64LE(offset)
+      if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('ZIP64 数值超出安全范围。')
+      return Number(value)
+    }
+    const zip64 = safe64(locator + 8)
+    if (buffer.readUInt32LE(locator + 4) !== 0 || buffer.readUInt32LE(locator + 16) !== 1 ||
+        zip64 + 56 > locator || buffer.readUInt32LE(zip64) !== 0x06064b50 ||
+        zip64 + 12 + safe64(zip64 + 4) !== locator || safe64(zip64 + 4) < 44 ||
+        buffer.readUInt32LE(zip64 + 16) || buffer.readUInt32LE(zip64 + 20)) throw new Error('ZIP64 尾部边界或磁盘信息无效。')
+    const zipCount = safe64(zip64 + 32)
+    const zipSize = safe64(zip64 + 40)
+    const zipOffset = safe64(zip64 + 48)
+    if (safe64(zip64 + 24) !== zipCount || zipCount !== 1 ||
+        ![zipCount, 0xffff].includes(count) || ![zipCount, 0xffff].includes(buffer.readUInt16LE(eocd + 8)) ||
+        ![zipSize, 0xffffffff].includes(centralSize) || ![zipOffset, 0xffffffff].includes(centralOffset)) {
+      throw new Error('ZIP64 与普通尾部目录信息不一致。')
+    }
+    count = zipCount; centralSize = zipSize; centralOffset = zipOffset; centralEnd = zip64
+  }
+  if (count !== 1 || (centralEnd === eocd && buffer.readUInt16LE(eocd + 8) !== count) ||
+      centralOffset + centralSize !== centralEnd) throw new Error('ZIP 必须是单磁盘、单文件的原始 artifact。')
   const entries = []
   let offset = centralOffset
   for (let i = 0; i < count; i++) {
-    if (offset + 46 > eocd) throw new Error('ZIP 中央目录越界。')
+    if (offset + 46 > centralEnd) throw new Error('ZIP 中央目录越界。')
     if (buffer.readUInt32LE(offset) !== 0x02014b50) throw new Error('ZIP 中央目录条目无效。')
     const flags = buffer.readUInt16LE(offset + 8)
     const method = buffer.readUInt16LE(offset + 10)
@@ -90,7 +114,7 @@ function zipEntries(buffer) {
     const commentSize = buffer.readUInt16LE(offset + 32)
     const localOffset = buffer.readUInt32LE(offset + 42)
     const externalAttributes = buffer.readUInt32LE(offset + 38)
-    if (offset + 46 + nameSize + extraSize + commentSize > eocd) throw new Error('ZIP 条目名称越界。')
+    if (buffer.readUInt16LE(offset + 34) || offset + 46 + nameSize + extraSize + commentSize > centralEnd) throw new Error('ZIP 条目名称或磁盘信息越界。')
     const name = buffer.subarray(offset + 46, offset + 46 + nameSize).toString('utf8')
     if (!name || name.includes('\\') || name.includes('/') || name.includes(':') || name.includes('\0')) throw new Error('ZIP 条目必须是根目录文件。')
     const unixType = (externalAttributes >>> 16) & 0xf000
@@ -196,11 +220,16 @@ export async function recoverBuildArtifact({ root = process.cwd(), env = process
   }
 }
 
+export function reportRecoveryFailure(error, env = process.env, write = console.error) {
+  const detail = sanitizeDiagnostic(error.stderr ?? error.message, [env.GH_TOKEN, env.GITHUB_TOKEN]).trim().slice(0, 1200) || '原构建恢复失败。'
+  const escaped = detail.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')
+  write('::error title=Original build recovery stopped::' + escaped)
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.length !== 2) { console.error('恢复脚本不接受参数或来源覆盖。'); process.exitCode = 1 }
   else recoverBuildArtifact().catch(error => {
-    const detail = sanitizeDiagnostic(error.stderr ?? error.message, [process.env.GH_TOKEN, process.env.GITHUB_TOKEN]).trim().slice(0, 1200)
-    console.error(detail || '原构建恢复失败。')
+    reportRecoveryFailure(error)
     process.exitCode = 1
   })
 }

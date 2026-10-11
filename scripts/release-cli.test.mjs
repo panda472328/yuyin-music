@@ -238,11 +238,38 @@ test('CLI GitHub 失败保留退出码与 HTTP 原因，脱敏认证和签名下
   assert.notEqual(result.status, 0)
   assert.match(result.stderr, /退出码：7/)
   assert.match(result.stderr, /Resource not accessible by integration \(HTTP 403\)/)
-  assert.match(result.stderr, /release-assets\.githubusercontent\.com\/asset\?\[REDACTED\]/)
+  assert.match(result.stderr, /\[REDACTED URL\]/)
   assert.match(result.stderr, /\[REDACTED authentication header\]/)
   for (const secret of secrets) assert.equal(result.stderr.includes(secret), false, `Must remove ${secret}`)
   assert.equal(result.stderr.includes('\u001b'), false)
   assert.equal(result.requests.length, 1, 'Stop at the failed read, before any remote mutation')
+  assert.equal(fs.existsSync(result.output), false)
+  assert.deepEqual(f.state(), { release: f.release, manifest: f.currentManifest })
+})
+
+test('Actions 失败注解保留脱敏原因并转义换行与百分号', t => {
+  const f = fixture(t)
+  const result = f.run([...correctionArgs, '--build-commit', f.tagCommit], {
+    GITHUB_ACTIONS: 'true', GITHUB_TOKEN: 'controlled-secondary-token', YUYIN_CLI_FAILURE_STATUS: '7',
+    YUYIN_CLI_FAILURE_STDERR: 'Error: first%line\r\n::error::injected\nAuthorization: Bearer controlled-bearer-secret\nGH_TOKEN=controlled-fixture-token GITHUB_TOKEN=controlled-secondary-token\nhttps://release-assets.githubusercontent.com/a?sig=controlled-signature',
+  })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stdout, /::error title=Release publication failed::/)
+  assert.match(result.stdout, /first%25line%0D%0A::error::injected%0A/)
+  assert.match(result.stdout, /退出码：7/)
+  const annotations = result.stdout.trim().split(/\r?\n/).filter(line => line.startsWith('::error'))
+  assert.equal(annotations.length, 1)
+  assert.equal(/^::/m.test(result.stderr), false, 'Untrusted failure text must not become another workflow command')
+  for (const secret of ['controlled-fixture-token', 'controlled-secondary-token']) {
+    assert.equal(result.stdout.includes(secret), false)
+    assert.equal(result.stderr.includes(secret), false)
+  }
+  assert.equal(result.stdout.includes('controlled-bearer-secret'), false)
+  assert.equal(result.stdout.includes('controlled-signature'), false)
+  assert.equal(result.stdout.includes('release-assets.githubusercontent.com'), false)
+  assert.equal(result.stderr.includes('controlled-bearer-secret'), false)
+  assert.equal(result.stderr.includes('controlled-signature'), false)
+  assert.equal(result.requests.length, 1)
   assert.equal(fs.existsSync(result.output), false)
   assert.deepEqual(f.state(), { release: f.release, manifest: f.currentManifest })
 })
