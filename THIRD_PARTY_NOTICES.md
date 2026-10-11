@@ -4,6 +4,8 @@
 
 ## Windows 运行时与安装包
 
+PC 0.5.0 使用 Microsoft.Web.WebView2 SDK 1.0.4258.31、.NET 8 与 WPF，以及下表中的 React／Lucide／NSIS。WebView2 SDK 适用微软 SDK 许可；.NET 运行时和 WPF 使用其 MIT 许可及 THIRD-PARTY-NOTICES。构建从实际 NuGet 依赖复制原始许可到安装目录 `licenses/`。系统 WebView2 Evergreen Runtime 和微软引导安装器适用微软条款；运行时不随应用重新分发。历史 Electron 和 Chromium 声明继续保留供旧版参考，不表示新版携带这些组件。
+
 以下是 PC 0.4.12 使用的主要发行组件，与 0.4.9 的组件版本一致。版本以该版本的 `package-lock.json` 和正式 Electron 运行时为准。
 
 | 组件 | 版本 | 许可与原始文本 | 上游项目 |
@@ -21,6 +23,14 @@
 Electron 发行目录中包含 `LICENSE.electron.txt` 和 `LICENSES.chromium.html`。后者约 20 MB，收录 Chromium 及相关运行时组件的完整许可。本仓库的 [Electron 44.6.0 完整运行时许可压缩包](docs/runtime-licenses/Electron-44.6.0.zip) 原样保存这两份文件，其他组件的完整许可位于 `licenses/`。发行页仅保留最终安装器，通过发布说明链接本文件和上述原文。重新分发程序时应一并保留对应版本的完整许可证和声明；不能用此表代替原发行包的完整声明。
 
 NSIS 的 COPYING 同时列出了其压缩组件的许可和 LZMA 链接例外。这里提供原始完整文本，不将项目原创代码改为 CPL，也不删改 NSIS 原作者的许可条件。上游源码入口见表中链接。
+
+## WebView2 版本的运行组件
+
+余音 0.5.0 的默认 Windows 安装包使用 .NET 8/WPF 和 Microsoft.Web.WebView2 SDK 1.0.4258.31，不包含 Electron、Chromium 或 Fixed Version WebView2 内核。默认自包含发行目录携带 .NET 运行时，发布脚本从实际 NuGet 依赖复制其原始 LICENSE、NOTICE 和 THIRD-PARTY-NOTICES 到发行目录的 `licenses/`；.NET 的 MIT 与第三方声明、Microsoft WebView2 SDK 的微软软件许可条款继续适用，不能由本项目 MIT 许可替代。构建版本以实际 `.csproj` 和 NuGet 解析结果为准。
+
+桌面歌词的组合控件还使用 Microsoft.Windows.SDK.NET.Ref 10.0.17763.56 中的 Windows API 投影与 WinRT.Runtime。其 NuGet 元数据链接微软 Windows SDK 许可；[原始 SDK 许可](licenses/Microsoft-Windows-SDK-LICENSE.rtf) 来自 [Microsoft 官方许可地址](https://aka.ms/WinSDKLicenseURL)，随发行文件保留。
+
+安装器携带微软官方 Evergreen Bootstrapper（联网安装工具），构建时验证其 Microsoft Authenticode 签名；它不是 WebView2 内核。已安装的系统共享 Runtime 由微软更新，缺失时首次安装可能另行下载 Runtime；软件和运行时仍受微软相应许可条款约束。来源：[WebView2 官方下载](https://developer.microsoft.com/microsoft-edge/webview2/#download-section)、[WebView2 SDK NuGet](https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31)、[.NET 许可](https://github.com/dotnet/runtime/blob/main/LICENSE.TXT)。
 
 ## 构建与验证工具
 

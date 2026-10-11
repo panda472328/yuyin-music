@@ -16,6 +16,11 @@ export default defineConfig({
         target: 'https://api.bilibili.com', changeOrigin: true,
         rewrite: path => path.replace(/^\/bili-api/, ''),
         headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.bilibili.com/' }
+      },
+      '/bili-suggest': {
+        target: 'https://s.search.bilibili.com', changeOrigin: true,
+        rewrite: path => path.replace(/^\/bili-suggest/, ''),
+        headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.bilibili.com/' }
       }
     }
   }

@@ -2,10 +2,11 @@ import { BrowserWindow, type Session } from 'electron';
 import { EventEmitter } from 'node:events';
 import type { BilibiliAccountStatus, BilibiliFavoriteFolder, BilibiliFavoriteFoldersResult, BilibiliFavoriteItemsResult, BilibiliFavoriteSongsResult, SearchResult, Song } from './types';
 import { BilibiliAccountSession, BilibiliError, isAuthenticationCookie } from './account';
-import { bilibiliResultText as plainText, isSearchMode, normalizeSongName, titleMatchesSongName, type SearchMode } from '../src/shared/search-mode';
+import { bilibiliResultText as plainText, isSearchMode, normalizeSongName, parseSearchSuggestions, rankSongTitleResults, type SearchMode } from '../src/shared/search-mode';
 export { BilibiliError } from './account';
 
 const SEARCH_ENDPOINT = 'https://api.bilibili.com/x/web-interface/search/type';
+const SUGGEST_ENDPOINT = 'https://s.search.bilibili.com/main/suggest';
 const NAV_ENDPOINT = 'https://api.bilibili.com/x/web-interface/nav';
 const FAVORITE_FOLDER_ENDPOINT = 'https://api.bilibili.com/x/v3/fav/folder/created/list-all';
 const FAVORITE_RESOURCE_ENDPOINT = 'https://api.bilibili.com/x/v3/fav/resource/list';
@@ -240,12 +241,16 @@ export class BilibiliService extends EventEmitter {
           restricted,
         );
       }
-      let payload: SearchResponse;
+      let raw: unknown;
       try {
-        payload = await response.json() as SearchResponse;
+        raw = await response.json();
       } catch {
         throw new BilibiliError('Bilibili 返回了验证页面，请打开 Bilibili 完成验证后重试。', 'BILIBILI_VERIFICATION_REQUIRED', true);
       }
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        throw new BilibiliError('Bilibili 搜索结果格式已变化，请稍后重试。', 'BILIBILI_INVALID_RESPONSE');
+      }
+      const payload = raw as SearchResponse;
       if (payload.code !== 0) {
         const restricted = [-101, -111, -352, -403, -412, -509].includes(payload.code ?? 0);
         throw new BilibiliError(
@@ -260,7 +265,7 @@ export class BilibiliService extends EventEmitter {
         throw new BilibiliError('Bilibili 搜索结果格式已变化，请稍后重试。', 'BILIBILI_INVALID_RESPONSE');
       }
       const sourceSongs = payload.data.result.map(videoToSong).filter((song): song is Song => song !== null);
-      const songs = mode === 'song' ? sourceSongs.filter(song => titleMatchesSongName(song.title, keyword)) : sourceSongs;
+      const songs = mode === 'song' ? rankSongTitleResults(sourceSongs, keyword) : sourceSongs;
       const total = Math.max(0, Number(payload.data.numResults) || sourceSongs.length);
       const pageSize = Math.max(1, Number(payload.data.pagesize) || PAGE_SIZE);
       const pages = Number(payload.data.numPages) || Math.ceil(total / pageSize);
@@ -276,6 +281,53 @@ export class BilibiliService extends EventEmitter {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  async searchSuggestions(query: string): Promise<string[]> {
+    const keyword = query.trim();
+    if (!keyword) return [];
+    if (keyword.length > 200) throw new BilibiliError('搜索词过长。', 'INVALID_QUERY');
+    const revision = await this.requirePlaybackAccess();
+    await this.initializeSession();
+    const url = new URL(SUGGEST_ENDPOINT);
+    url.search = new URLSearchParams({ term: keyword }).toString();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8_000);
+    try {
+      const response = await this.session.fetch(url.toString(), {
+        credentials: 'include', signal: controller.signal,
+        headers: { Accept: 'application/json', Referer: BILIBILI_HOME },
+      });
+      if (!response.ok) {
+        const restricted = [401, 403, 412, 429].includes(response.status);
+        throw new BilibiliError(`Bilibili 搜索建议返回 HTTP ${response.status}，请稍后重试。`,
+          restricted ? 'BILIBILI_VERIFICATION_REQUIRED' : 'BILIBILI_HTTP_ERROR', restricted);
+      }
+      let payload: unknown;
+      try { payload = await response.json(); }
+      catch { throw new BilibiliError('Bilibili 搜索建议响应格式异常。', 'BILIBILI_INVALID_RESPONSE'); }
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new BilibiliError('Bilibili 搜索建议响应格式异常。', 'BILIBILI_INVALID_RESPONSE');
+      }
+      const code = (payload as { code?: unknown }).code;
+      if (code !== undefined && code !== 0) {
+        const numericCode = typeof code === 'number' ? code : 0;
+        const restricted = [-101, -111, -352, -403, -412, -509].includes(numericCode);
+        throw new BilibiliError(
+          restricted ? `Bilibili 搜索建议需要登录或验证（${code}），请打开源站后重试。` : 'Bilibili 搜索建议暂时不可用。',
+          restricted ? 'BILIBILI_VERIFICATION_REQUIRED' : 'BILIBILI_API_ERROR', restricted,
+        );
+      }
+      let suggestions: string[];
+      try { suggestions = parseSearchSuggestions(payload); }
+      catch { throw new BilibiliError('Bilibili 搜索建议响应格式异常。', 'BILIBILI_INVALID_RESPONSE'); }
+      this.assertSessionRevision(revision);
+      return suggestions;
+    } catch (error) {
+      if (error instanceof BilibiliError) throw error;
+      throw new BilibiliError(controller.signal.aborted ? 'Bilibili 搜索建议超时，请稍后重试。'
+        : '无法连接 Bilibili 搜索建议服务，请检查网络后重试。', controller.signal.aborted ? 'SEARCH_TIMEOUT' : 'NETWORK_ERROR');
+    } finally { clearTimeout(timeout); }
   }
 
   private async fetchJson<T>(url: string, timeoutMs = 15_000): Promise<T> {

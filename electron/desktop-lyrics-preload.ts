@@ -14,6 +14,8 @@ const desktopLyricsAPI: DesktopLyricsAPI = {
     ipcRenderer.on('desktop-lyrics:pointer-presence', listener)
     return () => ipcRenderer.removeListener('desktop-lyrics:pointer-presence', listener)
   },
+  // Electron uses CSS app regions. The WPF host consumes these rectangles.
+  setDragRegions() {},
   close: () => ipcRenderer.invoke('desktop-lyrics:close'),
 }
 

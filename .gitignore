@@ -3,6 +3,9 @@ out/
 dist/
 release/
 .qa/
+.tools/
+**/bin/
+**/obj/
 *.log
 /NVIDIA Corporation/
 .env

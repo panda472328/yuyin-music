@@ -2,6 +2,10 @@
 
 PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码位于本仓库；Android 源码位于 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。不要把其中一个工程嵌套进另一个仓库。
 
+## PC 0.5.0（WebView2，待发布）
+
+默认 `npm run dist:installer` 构建 React renderer、自包含 .NET WPF 宿主和单个 `Yuyin-0.5.0-Setup.exe`。只使用系统 WebView2，不分发 Electron／Chromium。运行时缺失时使用微软官方联网引导安装器。当前尚未建立 `pc-v0.5.0` 标签或公开 Release；只有桌面歌词原生验收、最终重建和 SHA-256 复核完成后，才建立标签、上传唯一附件并推进稳定清单。`electron/` 及历史发行许可保留在源码中供参考，不进入新包。
+
 ## PC 0.4.12
 
 安装保护与游客／双模式搜索／选曲归零功能合并到同一个正常版本。[正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.4.12) 已公开，最终文件仅为 [Yuyin-0.4.12-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.4.12/Yuyin-0.4.12-Setup.exe)。没有另发修复包或替换历史 0.4.10 附件。

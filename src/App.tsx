@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpFromLine, AudioLines, Check, ChevronDown, ChevronRight, Clock3, Disc3, ExternalLink, Headphones, Heart, ListMusic, LoaderCircle, MoreHorizontal, Music2, Pause, Play, Plus, Repeat, Repeat1, Search, Settings2, Shuffle, SkipBack, SkipForward, Sparkles, Trash2, Volume1, Volume2, VolumeX, X } from 'lucide-react'
 import type { PlaybackStatus, SearchResult, Song } from '../electron/types'
-import type { SearchMode } from './shared/search-mode'
+import { rankSongTitleResults, type SearchMode } from './shared/search-mode'
 import { api, isDesktop } from './api'
 import { addToPlaylist, createPlaylist, deletePlaylist, getNextIndex, importBilibiliPlaylist, initializeLibrary, loadLibrary, recordHistory, removeFromPlaylist, renamePlaylist, saveLibrary, toggleFavorite, type LibraryState } from './library'
 import recommendations from './data/recommendations.json'
@@ -11,6 +11,7 @@ import { activeLyricIndex } from './lyrics'
 import { useDesktopLyrics } from './useDesktopLyrics'
 import DesktopLyricsSettings from './DesktopLyricsSettings'
 import BilibiliFavoritesDialog, { type FavoritePlaylistImport } from './BilibiliFavoritesDialog'
+import SearchBox from './SearchBox'
 import { Monitor } from 'lucide-react'
 import { loadUISettings, saveUISettings, type UISettings } from './ui-settings'
 import { useBilibiliAccount } from './useBilibiliAccount'
@@ -216,7 +217,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
       const next = nextPage === 1 ? result : current?.mode === mode && searchQueryRef.current === trimmed
         ? { ...result, songs: [...current.songs, ...result.songs].filter((song, index, all) => all.findIndex(item => item.bvid === song.bvid) === index) }
         : current
-      replaceSearchResult(next)
+      replaceSearchResult(next && mode === 'song' ? { ...next, songs: rankSongTitleResults(next.songs, trimmed) } : next)
     } catch (error) { if (sequence === searchSequence.current && mode === searchModeRef.current) setSearchError(errorText(error)) }
     finally { if (sequence === searchSequence.current && mode === searchModeRef.current) setSearchLoading(false) }
   }
@@ -371,7 +372,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
 
     <div className="main-shell">
       <header className="topbar"><div className="navigation-arrows"><IconButton label="返回" onClick={() => { const old = page; setPage(previousPage); setPreviousPage(old) }}><ArrowLeft size={19} /></IconButton><IconButton label="发现音乐" onClick={() => navigate('discover')}><ArrowRight size={19} /></IconButton></div>
-        <form className="search-box" onSubmit={event => { event.preventDefault(); void search(searchInputRef.current) }}><div className="search-mode" role="group" aria-label="搜索模式"><button type="button" aria-pressed={searchMode === 'song'} onClick={() => changeSearchMode('song')}>歌名搜索</button><button type="button" aria-pressed={searchMode === 'video'} onClick={() => changeSearchMode('video')}>视频搜索</button></div><Search size={16} /><input ref={searchRef} aria-label={searchMode === 'song' ? '搜索完整歌名' : '搜索 Bilibili 视频'} maxLength={80} placeholder={searchMode === 'song' ? '输入完整歌名' : '搜索视频、歌手'} value={searchInput} onChange={event => changeSearchInput(event.target.value)} /><kbd>Ctrl K</kbd>{searchInput && <button type="button" aria-label="清空搜索" onClick={() => changeSearchInput('')}><X size={14} /></button>}</form>
+        <SearchBox query={searchInput} mode={searchMode} inputRef={searchRef} onQueryChange={changeSearchInput} onModeChange={changeSearchMode} onSearch={query => { void search(query) }} />
         <div className="topbar-right"><span className="local-badge"><span />本地音乐空间</span>{accountSession?.account ? <BilibiliAccountMenu account={accountSession.account} checking={accountSession.checking} error={accountSession.error} openingLogin={accountSession.openingLogin} onRefresh={accountSession.refresh} onLogin={accountSession.openLogin} onFavorites={() => openModal({ type: 'bilibili' })} onSettings={() => navigate('settings')} onError={notify} /> : accountSession ? <button className="button-secondary guest-login" type="button" aria-label="登录 Bilibili" onClick={() => void accountSession.openLogin()} disabled={accountSession.openingLogin}>{accountSession.openingLogin ? <LoaderCircle size={15} className="spin" /> : <ExternalLink size={15} />}{accountSession.openingLogin ? '正在打开登录' : accountSession.watchingLogin ? '继续 Bilibili 登录' : '登录 Bilibili'}</button> : <button className="profile" title="设置" onClick={() => navigate('settings')}>余</button>}</div>
       </header>
 
@@ -385,9 +386,9 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
           <div className="page-bottom">音乐响起，世界安静了一点。<AudioLines size={14} /></div>
         </>}
 
-        {page === 'search' && <><div className="page-heading"><div><div className="eyebrow">FIND YOUR SOUND</div><h1>搜索结果<span className="heading-dot">.</span></h1><p>“{searchQuery}” <span className="inline-divider">/</span> {searchResult ? searchMode === 'song' ? `已找到 ${searchResult.songs.length.toLocaleString()} 个精确匹配视频` : `${searchResult.total.toLocaleString()} 个 Bilibili 视频` : searchMode === 'song' ? '按完整歌名精确匹配标题' : '在 Bilibili 寻找声音'}</p></div><span className="sort-badge"><ChevronDown size={14} />{searchMode === 'song' ? '歌名精确匹配 · 综合排序' : 'Bilibili 综合排序'}</span></div><div className="search-notice"><span className="notice-icon"><AudioLines size={18} /></span><span>点击一首歌曲开始播放<small>{searchMode === 'song' ? '完整标题与歌名一致才显示，忽略空白、标点、大小写和全半角；带歌手、版本或合集说明的标题请用视频搜索。' : '音源来自原视频，MV、翻唱或合辑都可能出现在结果中。'}</small></span><button onClick={() => navigate('settings')}>偏好设置<ChevronRight size={14} /></button></div>
+        {page === 'search' && <><div className="page-heading"><div><div className="eyebrow">FIND YOUR SOUND</div><h1>搜索结果<span className="heading-dot">.</span></h1><p>“{searchQuery}” <span className="inline-divider">/</span> {searchResult ? searchMode === 'song' ? `已找到 ${searchResult.songs.length.toLocaleString()} 个相关视频` : `${searchResult.total.toLocaleString()} 个 Bilibili 视频` : searchMode === 'song' ? '按歌名相关性整理结果' : '在 Bilibili 寻找声音'}</p></div><span className="sort-badge"><ChevronDown size={14} />{searchMode === 'song' ? '歌名相关性 · 综合排序' : 'Bilibili 综合排序'}</span></div><div className="search-notice"><span className="notice-icon"><AudioLines size={18} /></span><span>点击一首歌曲开始播放<small>{searchMode === 'song' ? '支持歌名片段、歌手和 Live 等版本词；保留 Bilibili 官方召回并优先展示标题更相关的结果。' : '音源来自原视频，MV、翻唱或合辑都可能出现在结果中。'}</small></span><button onClick={() => navigate('settings')}>偏好设置<ChevronRight size={14} /></button></div>
           {searchError && <div className="error-state"><h3>这次没能连接到 Bilibili</h3><p>{searchError}</p><div><button className="button-primary" onClick={() => { void (accountSession ? accountSession.openLogin() : api.login().catch(error => notify(errorText(error)))) }}><ExternalLink size={15} />打开 Bilibili 登录 / 验证</button><button className="button-secondary" onClick={() => void search(searchQuery)}>重新搜索</button></div></div>}
-          {searchLoading && !searchResult ? <div className="loading-state"><LoaderCircle size={26} className="spin" /><h3>{searchMode === 'song' ? '正在寻找这首歌' : '正在搜索视频'}</h3><p>{searchMode === 'song' ? '正在按完整歌名精确匹配视频标题。' : '正在按 Bilibili 综合排序获取结果。'}</p></div> : visibleSongs.length ? songTable(visibleSongs) : !searchError && emptyState(searchMode === 'song' ? '还没有找到匹配的歌名' : '还没有找到这个声音', searchMode === 'song' ? searchResult?.hasMore ? '当前页面没有精确匹配视频，可继续加载，或切换视频搜索。' : '没有标题与完整歌名一致的视频，可以切换视频搜索。' : '试试完整歌名，或者加上歌手的名字。')}
+          {searchLoading && !searchResult ? <div className="loading-state"><LoaderCircle size={26} className="spin" /><h3>{searchMode === 'song' ? '正在寻找这首歌' : '正在搜索视频'}</h3><p>{searchMode === 'song' ? '正在获取 Bilibili 结果并按标题相关性整理。' : '正在按 Bilibili 综合排序获取结果。'}</p></div> : visibleSongs.length ? songTable(visibleSongs) : !searchError && emptyState(searchMode === 'song' ? '还没有找到相关结果' : '还没有找到这个声音', searchMode === 'song' ? searchResult?.hasMore ? '当前页面没有相关结果，可继续加载，或换一个歌名和歌手组合。' : '没有找到相关视频，试试输入歌名、歌手或版本词。' : '试试完整歌名，或者加上歌手的名字。')}
           {searchResult?.hasMore && <button className="load-more button-secondary" disabled={searchLoading} onClick={() => void search(searchQuery, searchResult.page + 1)}>{searchLoading ? <LoaderCircle size={15} className="spin" /> : <Plus size={15} />}加载更多</button>}
         </>}
 

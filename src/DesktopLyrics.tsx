@@ -5,6 +5,7 @@ import {
   DESKTOP_LYRICS_DEFAULT_CONTENT,
   DESKTOP_LYRICS_DEFAULT_SETTINGS,
   DESKTOP_LYRICS_FONT_OPTIONS,
+  type DesktopLyricsDragRegions,
   type DesktopLyricsSettings,
   type DesktopLyricsSnapshot,
 } from '../electron/desktop-lyrics-types'
@@ -69,6 +70,7 @@ export default function DesktopLyrics() {
   const mounted = useRef(true)
   const toolbarTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const nativePointerInside = useRef(false)
+  const rootElement = useRef<HTMLElement>(null)
   const api = window.desktopLyricsAPI
 
   function clearToolbarTimer() {
@@ -167,7 +169,43 @@ export default function DesktopLyrics() {
   const style = { '--lyrics-color': color, '--lyrics-font': fontFamily, '--lyrics-opacity': settings.opacity } as CSSProperties
   const rootClass = `desktop-lyrics ${error ? 'has-error' : ''} ${settings.locked ? 'is-locked' : ''} ${toolbarVisible ? 'toolbar-visible' : 'toolbar-hidden'}`
 
-  return <main className={rootClass} style={style} data-font={settings.font} data-color={settings.color} data-phase={content.phase} data-locked={settings.locked} data-opacity={settings.opacity} aria-label="余音桌面歌词" onPointerMove={revealToolbar}>
+  useLayoutEffect(() => {
+    const root = rootElement.current
+    if (!root || !api) return
+    const toolbar = root.querySelector<HTMLElement>('.desktop-lyrics-toolbar')
+    const handle = root.querySelector<HTMLElement>('.desktop-lyrics-handle')
+    if (!toolbar || !handle) return
+    let frame = 0
+    const report = () => {
+      frame = 0
+      const bounds = root.getBoundingClientRect()
+      if (bounds.width <= 0 || bounds.height <= 0) return
+      const relative = (element: HTMLElement) => {
+        const rect = element.getBoundingClientRect()
+        return { left: rect.left - bounds.left, top: rect.top - bounds.top, width: rect.width, height: rect.height }
+      }
+      const regions: DesktopLyricsDragRegions = {
+        viewportWidth: bounds.width,
+        viewportHeight: bounds.height,
+        toolbarVisible,
+        toolbar: relative(toolbar),
+        handle: relative(handle),
+      }
+      api.setDragRegions(regions)
+    }
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(report)
+    }
+    const observer = new ResizeObserver(schedule)
+    observer.observe(root)
+    observer.observe(toolbar)
+    observer.observe(handle)
+    window.addEventListener('resize', schedule)
+    schedule()
+    return () => { observer.disconnect(); window.removeEventListener('resize', schedule); if (frame) cancelAnimationFrame(frame) }
+  }, [api, toolbarVisible])
+
+  return <main ref={rootElement} className={rootClass} style={style} data-font={settings.font} data-color={settings.color} data-phase={content.phase} data-locked={settings.locked} data-opacity={settings.opacity} aria-label="余音桌面歌词" onPointerMove={revealToolbar}>
     <div className="desktop-lyrics-toolbar" role="toolbar" aria-label="桌面歌词设置">
       <div className="desktop-lyrics-handle" title="拖动手柄、歌词或空白处可移动窗口"><GripVertical size={13} /><span className="desktop-lyrics-brand"><AudioLines size={15} />余音</span><span className="desktop-lyrics-label">桌面歌词</span></div>
       <span className="desktop-toolbar-divider" />

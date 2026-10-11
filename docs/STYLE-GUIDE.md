@@ -1,25 +1,25 @@
 # 余音 PC 样式标准
 
-本标准帮助维护者与 agent 快速定位、修改和验证外观。基线是 PC 0.4.14 的米白／鼠尾草绿视觉；Android 0.1.1 采用相同品牌，但位于独立仓库。下文区分现有实现与新增主题时需要补齐的工作，不假定已存在运行时主题切换。
+本标准帮助维护者与 agent 快速定位、修改和验证外观。基线是 PC 0.5.0 的米白／鼠尾草绿视觉；Android 采用相同品牌但位于独立仓库。下文区分现有实现与新增主题时需要补齐的工作，不假定已存在运行时主题切换。
 
 ## 1. 修改入口与范围
 
 | 要改什么 | 组件／逻辑入口 | 样式／配置入口 |
 | --- | --- | --- |
 | 整体配色 | `src/main.tsx` | `src/theme.css` → `src/styles.css` |
-| 侧栏、品牌、搜索、页面、播放器、队列、歌单弹窗 | `src/App.tsx` | `src/styles.css` |
+| 侧栏、品牌、搜索、页面、播放器、队列、歌单弹窗 | `src/App.tsx`、`src/SearchBox.tsx` | `src/styles.css` |
 | 登录页与账号菜单 | `src/BilibiliAccount.tsx` | `src/styles.css` 的 `login-*`、`account-*` |
 | 软件更新、登录页检查入口与新版本提示 | `src/Updates.tsx`，`src/App.tsx` 的顶层 provider | `src/styles.css` 的 `update-*`、`.login-update`；发布流程见 `docs/UPDATES.md` |
 | Bilibili 收藏夹导入 | `src/BilibiliFavoritesDialog.tsx` | `src/styles.css` 的 `bilibili-*`、`.modal` |
 | 主歌词页面 | `src/LyricsView.tsx` | `src/lyrics.css`，组件直接导入 |
 | 主窗的桌面歌词设置 | `src/DesktopLyricsSettings.tsx` | `src/styles.css` 的 `desktop-lyrics-*` 设置类 |
 | 独立桌面歌词 | `src/DesktopLyrics.tsx`、`src/desktop-lyrics-main.tsx` | **仅** `src/desktop-lyrics.css` |
-| 桌面歌词可选字体／颜色和默认值 | 两个设置界面共用 | `electron/desktop-lyrics-types.ts` |
-| 主窗口尺寸、系统标题栏 | `electron/main.ts` | `BrowserWindow` 参数与窗口状态恢复 |
-| 桌面歌词原生窗口与指针检测 | `electron/desktop-lyrics.ts` | 固定尺寸、透明、置顶与工作区定位 |
-| 桌面歌词设置校验／保存 | `electron/desktop-settings-store.ts` | 允许字段、枚举、范围与有效备份 |
+| 桌面歌词可选字体／颜色和默认值 | 两个设置界面共用 | `electron/desktop-lyrics-types.ts`（共享类型） |
+| 主窗口尺寸、系统标题栏 | `windows-host/MainWindow.xaml`、`windows-host/MainWindow.xaml.cs` | WPF 窗口参数与窗口状态恢复 |
+| 桌面歌词原生窗口与指针检测 | `windows-host/DesktopLyricsHost.cs` | 固定尺寸、透明、置顶与工作区定位 |
+| 桌面歌词设置校验／保存 | `windows-host/DesktopSettingsStore.cs` | 允许字段、枚举、范围与有效备份 |
 
-主 renderer 导入 `styles.css`，其首行导入 `theme.css`。桌面歌词有自己的 HTML、入口、CSS 和 preload，不能给它导入主窗的全局 `body` 背景。`src/ui-settings.ts` 目前保存静音前音量及睡眠定时，**不是**通用主题设置文件。
+主 renderer 导入 `styles.css`，其首行导入 `theme.css`。桌面歌词有自己的 HTML、入口、CSS 和受限 WebView2 bridge，不能给它导入主窗的全局 `body` 背景。`src/ui-settings.ts` 目前保存静音前音量及睡眠定时，**不是**通用主题设置文件。
 
 先用 `rg` 查类名，再查看文件末尾和媒体查询。`styles.css` 后段存在字号、封面比例和 hero 尺寸的覆盖，例如导航最后为 14px、卡片封面最后为 `aspect-ratio: 1.35`。修改前段相同选择器可能不生效；编辑最终适用规则，避免在文件末尾反复追加同义覆盖。
 
@@ -81,6 +81,7 @@
 | 应用骨架 | `.app-shell`、`.sidebar`、`.main-shell`、`.main-content` | 单独内容滚动、侧栏可滚动、底部播放器留白 |
 | 品牌与导航 | `.brand`、`.brand-icon`、`.nav-item`、`.sidebar-playlist` | `.selected`、hover、数量、省略长歌单名 |
 | 顶栏 | `.topbar`、`.search-box`、`.search-mode`、`.topbar-right` | 输入焦点、快捷键、模式按钮的 `aria-pressed`、窗口拖动与控件命中 |
+| 歌名联想 | `src/SearchBox.tsx`；`.search-suggestions`、`.search-suggestions-list`、`.search-suggestions-status` | combobox／listbox、选中候选、最多 10 条／250ms、IME、慢请求拒绝、联想失败仍可搜索、选联想不自动播放 |
 | 账号 | `.account-menu-anchor`、`.account-trigger`、`.account-avatar`、`.account-menu-position` | `.expanded`、头像失败降级、hover／键盘菜单、从头像移入菜单的关闭缓冲 |
 | 登录 | `.login-shell`、`.login-titlebar`、`.login-layout`、`.login-card`、`.login-actions`、`.login-guest`、`.guest-login` | 验证中、未登录、游客、过期、网络错误、重试与关闭 |
 | 首页 | `.hero`、`.hero-content`、`.hero-art`、`.record`、`.song-cards`、`.playlist-cards` | 唱片与封面不覆盖按钮，卡片收藏与播放 |
@@ -99,19 +100,23 @@
 
 主歌词的 `[data-active="true"]` 用于居中滚动，`aria-current` 表示当前句。Bilibili 来源的 `.lyric-line` 禁用颜色过渡，滚动为即时 `auto`；LRCLIB 保留平滑滚动。不要为了动画重新引入字幕延迟。校准中暂停自动跟随；普通点句跳转、校准点句只调整偏移，样式改动不得更改这一语义。
 
-PC 0.4.14 包含游客与搜索模式流程。登录页“暂不登录，先听歌”在检查账号期间也可使用；游客右上角 `.guest-login` 显示登录入口，真实登录后才显示 `.account-trigger` 与头像菜单。游客与真实账号切换复用主界面，不清空搜索或本地音乐库；账号收藏夹仍需真实登录。
+PC 0.5.0 包含游客与搜索模式流程。登录页“暂不登录，先听歌”在检查账号期间也可使用；游客右上角 `.guest-login` 显示登录入口，真实登录后才显示 `.account-trigger` 与头像菜单。游客与真实账号切换复用主界面，不清空搜索或本地音乐库；账号收藏夹仍需真实登录。
 
-搜索框内 `.search-mode` 使用两个原生按钮组成 `role="group"`，以 `aria-pressed` 表示选择，保留 Tab／Enter 和焦点样式。歌名模式默认开启，输入标签为“搜索完整歌名”；视频模式为“搜索 Bilibili 视频”。选择写入 `library.json` 的 `settings.searchMode`，旧库缺失或非法值使用 `song`。切换模式时保留输入框原文、立刻按该原文重新搜索，并用请求序号和当前模式拒绝旧模式的晚到响应；不能为了搜索把输入替换为 `trim()` 后的关键词，也不能让快速输入后立即切换沿用旧模式。切换不自动播放。
+搜索框内 `.search-mode` 使用两个原生按钮组成 `role="group"`，以 `aria-pressed` 表示选择，保留 Tab／Enter 和焦点样式。歌名模式默认开启，输入标签为“搜索歌名或歌手”；视频模式为“搜索 Bilibili 视频”。歌名模式允许部分歌名、歌名加歌手或版本词；视频模式直接使用官方视频排序。选择写入 `library.json` 的 `settings.searchMode`，旧库缺失或非法值使用 `song`。切换模式时保留输入框原文，重新搜索使用当前模式和原文，并用请求序号和当前模式拒绝旧模式的晚到响应。联想下拉保持 combobox／listbox、选中项与键盘语义，不能因为样式修改丢失 IME 保护或 `no-drag` 命中规则；联想、搜索和选联想都不自动播放。
 
-歌名模式比较完整输入与完整标题的规范化键：解码源站标题的高亮 HTML 和实体后执行 NFKC、小写以及去除 Unicode 空白与标点，再作等值比对。输入“光年之外”可匹配“《光 年，之 外》”，不能匹配“【现场】光年之外”“光年之外 Live”或“光年之外 邓紫棋”；不剥离歌手／版本说明，不提取书名号内片段，不作子串或联想匹配。Bilibili 没有歌名哈希查询接口；过滤在官方原关键词召回结果上执行，沿用源站综合排序及分页。严格模式可能减少结果，相关提示与空状态要引导用户使用视频搜索查找带附加说明的标题。歌名页显示已加载匹配数，不能把源接口总数写成匹配总数；过滤为空而源站还有下一页时保留“加载更多”。匹配逻辑在 `src/shared/search-mode.ts`，IPC 校验在 `electron/main.ts`，纯外观改动不得改变这些行为。
+歌名模式的输入联想和正式搜索独立执行。联想请求 `https://s.search.bilibili.com/main/suggest?term=...`，250ms 防抖，最多 10 条，支持键盘上下／Enter／Escape 和 IME；联想失败仍可直接搜索。沿官方页码召回并保留全部结果，每页及已加载合并结果按标题相关性稳定排序，完整等值、前缀、包含、分词关系优先，同分沿官方页／项顺序；只使用标题，不把 UP 主或简介当作歌手元数据。视频模式不重排。排序只覆盖已召回结果，不宣称全站最相关。规则在 `src/shared/search-mode.ts`，每页调用入口在 `src/api.ts`、`electron/bilibili.ts` 和 `windows-host/BilibiliService.cs`；已加载合并去重后的排序在 `src/App.tsx`，IPC 校验在 `windows-host/MainWindow.xaml.cs`。纯外观改动不得改变这些行为。
 
-进度条展示 `electron/player.ts` 发布的可信时间轴。新选曲和同曲重播从 0 开始；播放中无用户接管的异常前跳／回退恢复最近可信位置，纠正未完成时也保持该位置，不能在界面自行归零。暂停、缓冲和倍速参与进度判断，普通暂停不解除保护；应用手动跳转或源页可信 `pointerdown`／`keydown` 才接管时间轴。样式变更不得修改这一保护、快照顺序或歌词校准行为。
+响应中的合法空数组显示无结果；缺失结果字段、非数组结构、异常状态码或验证页面必须保留错误／验证提示，不能当作正常空结果。联想错误不清空输入或禁用正式搜索。调整空状态、错误状态和联想下拉外观时保持这一区别。
+
+公开设计参考为 [Spotify Search API](https://developer.spotify.com/documentation/web-api/reference/search) 的曲目／歌手字段查询和 [Apple Get Catalog Search Suggestions](https://developer.apple.com/documentation/applemusicapi/get-catalog-search-suggesions) 的输入建议。它们说明可公开使用的搜索方式，没有公开完整排名算法；余音实际数据与联想来自 Bilibili，本地仅做上述标题相关性规则。
+
+进度条展示 `windows-host/PlayerHost.cs` 发布的可信时间轴。新选曲和同曲重播从 0 开始；播放中无用户接管的异常前跳／回退恢复最近可信位置，纠正未完成时也保持该位置，不能在界面自行归零。暂停、缓冲和倍速参与进度判断，普通暂停不解除保护；应用手动跳转或源页可信 `pointerdown`／`keydown` 才接管时间轴。样式变更不得修改这一保护、快照顺序或歌词校准行为。
 
 账号菜单的锚点和下拉层都必须保持 `no-drag`。指针从头像移到下拉层时使用约 700ms 的关闭缓冲；重新进入头像或菜单、菜单项获得焦点、点击、Escape 和外部点击都要正确取消或结束该计时器。不要通过永久显示菜单、扩大到遮挡标题栏的透明点击区或删除键盘关闭行为来规避间隙问题。
 
 ## 5. 布局与窗口约束
 
-主窗口默认 **1440×950**，最小 **1080×680**，参数在 `electron/main.ts`。已有窗口状态恢复带 DPI 尺寸校正，不用 CSS 改动替换它。
+主窗口默认 **1440×950**，最小 **1080×680**，参数在 `windows-host/MainWindow.xaml`。已有窗口状态恢复带 DPI 尺寸校正，不用 CSS 改动替换它。
 
 - `.app-shell` 左栏默认 222px，右侧 `minmax(0, 1fr)`；≤1200px 左栏 195px。主内容 padding 默认左右 45px，≤1200px 为 30px。
 - 底部播放器固定 98px，应用壳 `padding-bottom: 98px`、队列 `bottom: 98px` 与提示位置必须联动，避免内容被挡。
@@ -126,17 +131,23 @@ PC 0.4.14 包含游客与搜索模式流程。登录页“暂不登录，先听�
 
 外观改动保留“发现新版→用户选择下载→校验通过→用户选择退出并安装”的状态和动作顺序。自动检查不得下载或安装，安装失败和网络错误必须可见且可重试；状态只来自受限更新 IPC，不在 renderer 接受任意下载 URL、路径或脚本。
 
-桌面歌词原生尺寸固定 **900×200**，透明、无边框、置顶、不显示任务栏；控制器将其保持在显示器工作区内。CSS 上方预留工具栏，`.has-error` 增加留白，当前句与下一句完整显示。改变原生尺寸需同步 `electron/desktop-lyrics.ts`、`electron/desktop-settings-store.ts` 中旧位置读入尺寸、长句自适应和屏幕边界验收，不能只改 CSS。
+桌面歌词原生尺寸固定 **900×200**，透明、无边框、置顶、不显示任务栏；控制器将其保持在显示器工作区内。CSS 上方预留工具栏，`.has-error` 增加留白，当前句与下一句完整显示。改变原生尺寸需同步 `windows-host/DesktopLyricsHost.cs`、`windows-host/DesktopSettingsStore.cs` 中旧位置读入尺寸、长句自适应和屏幕边界验收，不能只改 CSS。
 
 ## 6. 原生拖动、锁定和工具栏
 
-Electron 拖动区域不是普通 DOM 拖拽。主窗 `.brand`、`.topbar`、`.login-titlebar` 设置 `-webkit-app-region: drag`；交互后代必须 `no-drag`。搜索框、游客登录入口、账号锚点及**全部后代**明确 `no-drag`，避免 SVG 路径点击变成拖窗。新增 select、range、链接、图标或按钮到拖动区时，对控件及后代设置 `no-drag`。
+0.5.0 主窗由 WPF 承载 WebView2。CSS 的 `-webkit-app-region` 仍是桥接命中语义：主窗 `.brand`、`.topbar`、`.login-titlebar` 设置 `-webkit-app-region: drag`，`windows-host/bridge.js` 把可信 pointerdown 转为白名单 `window.drag`，再由宿主调用 `DragMove()`。它不是 Electron 自带的原生拖动。交互后代必须 `no-drag`。搜索框、游客登录入口、账号锚点及**全部后代**明确 `no-drag`，避免 SVG 路径点击变成拖窗。新增 select、range、链接、图标或按钮到拖动区时，对控件及后代设置 `no-drag`。
 
 桌面歌词的歌词、标题、空白和工具栏左侧 `.desktop-lyrics-handle` 可拖动；工具栏与全部后代默认 `no-drag`，仅手柄重新启用 `drag`。`.is-locked` 覆盖整个窗口及手柄为 `no-drag !important`。锁定禁止移动，同时保留字体、透明度、解锁、关闭等控件操作。
 
-工具栏可见性由 `DesktopLyrics.tsx` 的定时器与 preload `onPointerPresence` 共同控制，原生控制器检测窗口内指针，处理透明拖动区可能不派发 DOM 事件的情况。当前逻辑是指针在窗口内保持可见、离开后约 2200ms 隐藏；初次／焦点操作会显示。不要仅删除 CSS opacity、仅用 hover、给窗口开启整体鼠标穿透，或改成固定显示。
+独立桌面歌词由 `DesktopLyrics.tsx` 的 ResizeObserver 报告 CSS 像素下的 viewport、工具栏、手柄矩形和可见性，`desktopLyricsAPI.setDragRegions()` 发送白名单 `desktopLyrics.window.dragRegions`。`windows-host/DesktopLyricsHost.cs` 校验矩形，并在 WPF `PreviewMouseLeftButtonDown` 中先排除锁定状态与可见工具栏控件，再对歌词、标题、空白或手柄调用 `DragMove()`；不能无条件拦截整个控件的点击。宿主每 100ms 发出指针存在状态，位置变化约 250ms 后原子保存，关闭时保存最终位置并解绑窗口／WebView2 事件。修改工具栏布局时必须重新同步矩形并做真实原生命中验收。
 
-`.toolbar-hidden` 同时禁用 visibility 和 pointer-events，`.toolbar-visible` 恢复命中；错误提示 `pointer-events: none`，不能遮住设置栏。任何相关调整都要用真实 Electron 窗口检查指针进入、下拉菜单操作、离开隐藏、再次进入、锁定解锁与拖动。静态截图只能证明外观。
+WebView2 的透明桌面歌词使用 `WebView2CompositionControl`，通过 WPF visual tree 绘制；主窗口和后台播放器继续使用普通 `WebView2`。控件依赖 Windows 10 1903 起的 Graphics Capture；产品与安装器的最低系统应为 1903，项目 Windows TFM 保留 WebView2 要求的 17763 SDK projection，并随发布输出 `Microsoft.Windows.SDK.NET.dll` 与 `WinRT.Runtime.dll`。不要将透明窗口换回 HWND 承载控件，`AllowsTransparency` 的分层窗口不能正常合成该子窗口，可能出现页面已加载但窗口内容不可见。歌词 renderer 保持透明背景与独立 CSS；原生 WPF 背景用 alpha 1/255，确保空白命中而不出现可见底板。启动与拖动结束按所在显示器工作区校正位置；原生输入需确认歌词／空白拖动、工具栏命中和锁定行为。
+
+WebView2 的桌面歌词设置由 `windows-host/DesktopSettingsStore.cs` 独立保存，16KiB 文件上限，校验字体／颜色／字号／透明度与坐标。每次原子写入前保留上一份有效 `.bak`；主文件损坏时读取有效备份，两份均损坏或不可读时保留原文件并显示保存错误。设置仍可在当前会话使用，不能让退出时的默认状态覆盖损坏文件。
+
+工具栏可见性由 `DesktopLyrics.tsx` 的定时器与 WebView2 bridge 的 `desktopLyrics.window.pointer` 事件共同控制，原生控制器检测窗口内指针，处理透明拖动区可能不派发 DOM 事件的情况。当前逻辑是指针在窗口内保持可见、离开后约 2200ms 隐藏；初次／焦点操作会显示。不要仅删除 CSS opacity、仅用 hover、给窗口开启整体鼠标穿透，或改成固定显示。
+
+`.toolbar-hidden` 同时禁用 visibility 和 pointer-events，`.toolbar-visible` 恢复命中；错误提示 `pointer-events: none`，不能遮住设置栏。任何相关调整都要用真实 WPF/WebView2 窗口检查指针进入、下拉菜单操作、离开隐藏、再次进入、锁定解锁与拖动。静态截图只能证明外观。
 
 ## 7. 常见修改方法
 
@@ -164,15 +175,15 @@ Electron 拖动区域不是普通 DOM 拖拽。主窗 `.brand`、`.topbar`、`.l
    ```
 
 2. 为所有表面、次要文字、悬停、错误及歌词状态提取对应语义变量，分别修改 `styles.css`、`lyrics.css`；上述示例只说明选择器约定，不能独自实现完整主题。
-3. 在主 renderer 根元素设置 `document.documentElement.dataset.theme`。新增保存字段需明确默认值、允许主题 ID、旧数据兼容，并沿用 `local-preferences.ts`／`ui-settings.ts` 与 `electron/preferences-store.ts` 的校验保存链路；不要创建另一套随安装目录变化的存储或接受任意 CSS 文本。
-4. 主窗口 `backgroundColor` 和 `titleBarOverlay` 当前是原生固定色，需要运行时同步时实现主进程校验后的受限更新；不要关闭隔离或给前台暴露任意原生 API。
+3. 在主 renderer 根元素设置 `document.documentElement.dataset.theme`。新增保存字段需明确默认值、允许主题 ID、旧数据兼容，并沿用 `local-preferences.ts`／`ui-settings.ts` 与 `windows-host/LocalDataStore.cs` 的校验保存链路；不要创建另一套随安装目录变化的存储或接受任意 CSS 文本。
+4. 主窗口的 WPF 背景与窗口设置在 `windows-host/MainWindow.xaml` 受控配置；需要运行时同步时只增加经过宿主校验的有限消息，不关闭隔离或给前台暴露任意原生 API。
 5. 独立桌面歌词保持透明，决定是否仅更新工具栏，不套用主窗 body。主窗主题切换不改变音源、队列、歌词来源或时间校准。
 6. 每个主题的状态与两种窗口尺寸均验收；新增持久化／IPC 需要相应业务回归。
 
 ### 新增桌面歌词字体或颜色
 
 1. 在 `electron/desktop-lyrics-types.ts` 扩展 `DesktopLyricsSettings` 对应枚举，并向 `DESKTOP_LYRICS_FONT_OPTIONS` 或 `DESKTOP_LYRICS_COLOR_OPTIONS` 加选项。字体写完整 fallback，使用稳定 ID；勿重命名既有 ID 或改变其含义。
-2. 同步 `electron/desktop-settings-store.ts` 的允许值校验。主设置页与歌词工具栏从同一数组渲染，不在一个界面手工添加不同配置。
+2. 同步 `windows-host/DesktopSettingsStore.cs` 的允许值校验。主设置页与歌词工具栏从同一数组渲染，不在一个界面手工添加不同配置。
 3. 保留默认值与旧保存记录兼容；新增选项不能使旧文件读取失败。扩展字号／透明度范围时同步校验、主设置控件、工具栏限制和布局检查。
 4. `DesktopLyrics.tsx` 自动从选项取得 fontFamily／color，通过 CSS 变量渲染，并在字体加载和尺寸变化后重新 fit。不要用 `!important font-size` 绕过自适应，长中文／英文句仍需完整显示。
 5. 检查两窗设置同步、保存后重启恢复、缺字体 fallback，以及浅／深桌面上的描边与阴影。引入可分发字体时放在项目资源中并记录许可；系统字体文件不提交。
@@ -197,7 +208,7 @@ npm run build
 
 涉及状态、存储、IPC、校准或播放行为再运行 `npm test`，补充对应回归。无需为可逆间距／颜色编写只复刻 CSS 值的测试。
 
-按 [CONTRIBUTING.md](../CONTRIBUTING.md) 使用新建绝对路径的 `--user-data-dir`，不要在真实账号和存储上验收。用虚构歌曲、受控歌词／搜索响应；加载真实 Bilibili 内容的验证需独立说明范围。
+按 [CONTRIBUTING.md](../CONTRIBUTING.md) 使用新建的绝对 `YUYIN_STATE_DIR` 和 `YUYIN_WEBVIEW2_USER_DATA_DIR`，不要在真实账号和存储上验收。用虚构歌曲、受控歌词／搜索响应；加载真实 Bilibili 内容的验证需独立说明范围。
 
 | 检查 | 最小覆盖 |
 | --- | --- |
@@ -210,4 +221,4 @@ npm run build
 | 原生命中 | 工具栏可见／隐藏／再次进入、控件不拖动、手柄可拖动、锁定、工作区边界 |
 | 保存 | 新增设置的双窗同步、正常退出后重启保留、旧配置兼容 |
 
-提交说明写清改动文件、视觉效果、实际执行的验证与限制。记录浏览器预览、真实 Electron 受控响应、真实网络播放、原生输入这几类不同证据，不能把其中一种写成另一种已经通过。截图与日志不得包含个人昵称、头像、cookies、真实音乐库或签名信息。构建包及 `.qa/` 不提交源码；发布产物按版本进入 GitHub Release。
+提交说明写清改动文件、视觉效果、实际执行的验证与限制。记录浏览器预览、WPF/WebView2 受控响应、真实网络播放、原生输入这几类不同证据，不能把其中一种写成另一种已经通过。截图与日志不得包含个人昵称、头像、cookies、真实音乐库或签名信息。构建包及 `.qa/` 不提交源码；发布产物按版本进入 GitHub Release。

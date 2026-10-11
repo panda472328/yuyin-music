@@ -105,6 +105,11 @@ function registerIPC() {
     return withPlaybackAccess(() => service.search(query.trim(), Math.floor(page), mode))
   })
   ipcMain.handle('music:play', async (event, song: unknown) => { if (!isTrustedSender(event) || !validSong(song)) throw new Error('歌曲信息不合法'); return withPlaybackAccess(() => player.play(song)) })
+  ipcMain.handle('music:search-suggestions', async (event, query: unknown) => {
+    if (!isTrustedSender(event) || typeof query !== 'string' || query.length > 200) throw new BilibiliError('搜索参数不合法', 'INVALID_QUERY')
+    if (!query.trim()) return []
+    return withPlaybackAccess(() => service.searchSuggestions(query))
+  })
   ipcMain.handle('music:pause', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return player.pause() })
   ipcMain.handle('music:resume', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return withPlaybackAccess(() => player.resume()) })
   ipcMain.handle('music:seek', (event, seconds: unknown) => { if (!isTrustedSender(event) || !numberInRange(seconds, 0, 24 * 60 * 60)) throw new Error('时间参数不合法'); return player.seek(seconds) })

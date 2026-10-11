@@ -22,6 +22,23 @@ export interface DesktopLyricsSnapshot {
   error: string | null
 }
 
+/** CSS-pixel rectangles reported by the independent overlay renderer. */
+export interface DesktopLyricsDragRect {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+/** Lets the native WPF window reserve toolbar controls from its title hit area. */
+export interface DesktopLyricsDragRegions {
+  viewportWidth: number
+  viewportHeight: number
+  toolbarVisible: boolean
+  toolbar: DesktopLyricsDragRect
+  handle: DesktopLyricsDragRect
+}
+
 export const DESKTOP_LYRICS_DEFAULT_SETTINGS: Readonly<DesktopLyricsSettings> = {
   enabled: false, locked: false, font: 'sans', fontSize: 36, color: 'white', opacity: 1,
 }
@@ -52,6 +69,8 @@ export interface DesktopLyricsAPI {
   updateSettings(patch: Partial<DesktopLyricsSettings>): Promise<DesktopLyricsSnapshot>
   onSnapshot(callback: (snapshot: DesktopLyricsSnapshot) => void): () => void
   onPointerPresence(callback: (inside: boolean) => void): () => void
+  /** Synchronize native hit regions; Electron continues to use CSS app regions. */
+  setDragRegions(regions: DesktopLyricsDragRegions): void
   close(): Promise<DesktopLyricsSnapshot>
 }
 

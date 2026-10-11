@@ -4,7 +4,8 @@ import { buildLyricsQueries, selectLyricsMatch } from './lyrics'
 import type { DesktopLyricsContent, DesktopLyricsSettings, DesktopLyricsSnapshot } from '../electron/desktop-lyrics-types'
 import { DESKTOP_LYRICS_DEFAULT_SETTINGS, DESKTOP_LYRICS_DEFAULT_CONTENT } from '../electron/desktop-lyrics-types'
 import type { UpdateState } from './shared/update'
-import { bilibiliResultText, isSearchMode, normalizeSongName, titleMatchesSongName, type SearchMode } from './shared/search-mode'
+import { bilibiliResultText, isSearchMode, normalizeSongName, parseSearchSuggestions, rankSongTitleResults, type SearchMode } from './shared/search-mode'
+import { createWebView2API, isWebView2Available } from './webview2-bridge'
 
 export interface MusicAPI {
   getUpdateState(): Promise<UpdateState>
@@ -14,6 +15,7 @@ export interface MusicAPI {
   openUpdateRelease(): Promise<void>
   onUpdateState(callback: (state: UpdateState) => void): () => void
   search(query: string, page?: number, mode?: SearchMode): Promise<SearchResult>
+  searchSuggestions(query: string): Promise<string[]>
   play(song: Song): Promise<PlaybackStatus>
   pause(): Promise<PlaybackStatus>
   resume(): Promise<PlaybackStatus>
@@ -67,17 +69,45 @@ const previewAPI: MusicAPI = {
     const params = new URLSearchParams({ search_type: 'video', keyword, order: 'totalrank', page: String(page), page_size: '20' })
     const response = await fetch(`/bili-api/x/web-interface/search/type?${params}`)
     if (!response.ok) throw new Error('Bilibili 暂时无法访问，请稍后重试。')
-    const payload = await response.json()
-    if (payload.code !== 0) throw new Error('Bilibili 需要验证，请在桌面客户端中打开 Bilibili 登录后重试。')
-    const songs: Song[] = (payload.data?.result ?? []).map((item: any) => ({
-      id: item.bvid, bvid: item.bvid,
-      title: bilibiliResultText(item.title) || item.bvid,
-      artist: item.author, cover: item.pic.startsWith('//') ? `https:${item.pic}` : item.pic,
-      duration: String(item.duration).split(':').reduce((total: number, part: string) => total * 60 + Number(part), 0),
-      playCount: Number(item.play), source: 'bilibili', url: `https://www.bilibili.com/video/${item.bvid}/`
-    }))
-    return { query: keyword, mode, songs: mode === 'song' ? songs.filter(song => titleMatchesSongName(song.title, keyword)) : songs,
-      page: payload.data.page, pageSize: 20, total: payload.data.numResults, hasMore: page < payload.data.numPages }
+    const payload: unknown = await response.json()
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Bilibili 搜索结果格式已变化，请稍后重试。')
+    const searchResponse = payload as { code?: unknown; data?: unknown }
+    if (searchResponse.code !== 0) throw new Error('Bilibili 需要验证，请在桌面客户端中打开 Bilibili 登录后重试。')
+    const data = searchResponse.data && typeof searchResponse.data === 'object' && !Array.isArray(searchResponse.data)
+      ? searchResponse.data as Record<string, unknown> : null
+    if (!data || !Array.isArray(data.result)) throw new Error('Bilibili 搜索结果格式已变化，请稍后重试。')
+    const songs: Song[] = data.result.filter((item): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === 'object' && !Array.isArray(item) && typeof item.bvid === 'string' && /^BV[0-9a-zA-Z]{10}$/.test(item.bvid),
+    ).map(item => {
+      const bvid = item.bvid as string
+      let cover = typeof item.pic === 'string' ? item.pic : ''
+      if (cover.startsWith('//')) cover = `https:${cover}`
+      if (!cover.startsWith('https://')) cover = ''
+      const parts = String(item.duration ?? '').split(':').map(Number)
+      return {
+        id: bvid, bvid, title: bilibiliResultText(item.title) || bvid,
+        artist: bilibiliResultText(item.author) || 'Bilibili UP 主', cover,
+        duration: parts.every(Number.isFinite) ? parts.reduce((total, part) => total * 60 + Math.max(0, part), 0) : 0,
+        playCount: Math.max(0, Number(item.play) || 0), source: 'bilibili', url: `https://www.bilibili.com/video/${bvid}/`,
+      }
+    })
+    const total = Math.max(0, Number(data.numResults) || songs.length)
+    const pageSize = Math.max(1, Number(data.pagesize) || 20)
+    const pages = Number(data.numPages) || Math.ceil(total / pageSize)
+    return { query: keyword, mode, songs: mode === 'song' ? rankSongTitleResults(songs, keyword) : songs,
+      page, pageSize, total, hasMore: page < pages }
+  },
+  async searchSuggestions(query) {
+    const keyword = query.trim()
+    if (!keyword) return []
+    if (keyword.length > 200) throw new Error('搜索词过长。')
+    const response = await fetch(`/bili-suggest/main/suggest?${new URLSearchParams({ term: keyword })}`)
+    if (!response.ok) throw new Error('Bilibili 搜索建议暂时无法访问，请稍后重试。')
+    const payload: unknown = await response.json()
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Bilibili 搜索建议响应格式异常。')
+    const code = (payload as { code?: unknown }).code
+    if (code !== undefined && code !== 0) throw new Error('Bilibili 搜索建议暂时不可用。')
+    return parseSearchSuggestions(payload)
   },
   play: desktopRequired, pause: desktopRequired, resume: desktopRequired, seek: desktopRequired,
   getBilibiliAccount: desktopRequired,
@@ -129,5 +159,11 @@ const previewAPI: MusicAPI = {
   }
 }
 
-export const api = window.musicAPI ?? previewAPI
-export const isDesktop = Boolean(window.musicAPI)
+const webView2API = createWebView2API()
+// Keep the existing storage helpers compatible with the native renderer. The
+// library and preference modules intentionally look up `window.musicAPI` so
+// that they can persist data outside browser storage; WebView2 uses the same
+// contract even though it does not expose Electron's preload.
+if (webView2API && !window.musicAPI) window.musicAPI = webView2API
+export const api = window.musicAPI ?? webView2API ?? previewAPI
+export const isDesktop = Boolean(window.musicAPI) || isWebView2Available()

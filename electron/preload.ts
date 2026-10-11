@@ -15,6 +15,7 @@ const musicAPI: MusicAPI = {
   openUpdateRelease: () => ipcRenderer.invoke('update:release'),
   onUpdateState(callback) { const listener = (_event: unknown, state: Parameters<typeof callback>[0]) => callback(state); ipcRenderer.on('update:state', listener); return () => ipcRenderer.removeListener('update:state', listener) },
   search: (query, page, mode) => ipcRenderer.invoke('music:search', query, page, mode),
+  searchSuggestions: query => ipcRenderer.invoke('music:search-suggestions', query),
   play: song => ipcRenderer.invoke('music:play', song),
   pause: () => ipcRenderer.invoke('music:pause'),
   resume: () => ipcRenderer.invoke('music:resume'),

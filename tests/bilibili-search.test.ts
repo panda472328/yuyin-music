@@ -32,6 +32,7 @@ const json = (value: unknown) => new Response(JSON.stringify(value), { status: 2
 function fixture(t: TestContext, options: {
   loggedIn?: boolean;
   search?: (url: URL) => unknown | Promise<unknown>;
+  suggestions?: (url: URL) => unknown | Promise<unknown>;
 } = {}) {
   const calls: Array<{ url: URL; options: RequestInit }> = [];
   const cookies = new EventEmitter();
@@ -44,8 +45,9 @@ function fixture(t: TestContext, options: {
         ? { code: -101 }
         : { code: 0, data: { isLogin: true, mid: 42, uname: '测试账号', face: '//i0.hdslb.com/avatar.jpg' } });
       if (endpoint.hostname === 'www.bilibili.com' && endpoint.pathname === '/') return new Response('');
+      if (endpoint.hostname === 's.search.bilibili.com' && endpoint.pathname === '/main/suggest') return json(options.suggestions ? await options.suggestions(endpoint) : { result: { tag: [] } });
       assert.equal(endpoint.origin + endpoint.pathname, 'https://api.bilibili.com/x/web-interface/search/type');
-      return json(await (options.search?.(endpoint) ?? payload([first, popular])));
+      return json(options.search ? await options.search(endpoint) : payload([first, popular]));
     },
   } as unknown as Session;
   const service = new BilibiliService(session);
@@ -158,7 +160,7 @@ test('guest search rejects an old response after an identity cookie change while
 });
 
 
-test('song mode uses the original official keyword and exact normalized title keys in source order', async t => {
+test('song mode keeps all official results and ranks title relevance without uploader or description metadata', async t => {
   const { service, searchCalls } = fixture(t, { search: () => payload([
     { ...first, title: '《光 年，之 外》', tid: 1, description: '跨分区演唱' },
     { ...popular, title: '听见夏天', description: '光年之外', author: '光年之外' },
@@ -171,7 +173,7 @@ test('song mode uses the original official keyword and exact normalized title ke
   const result = await service.search('  光年之外  ', 1, 'song');
   assert.equal(result.mode, 'song');
   assert.equal(result.query, '光年之外');
-  assert.deepEqual(result.songs.map(song => song.bvid), [first.bvid, 'BV0000000004']);
+  assert.deepEqual(result.songs.map(song => song.bvid), [first.bvid, 'BV0000000004', 'BV0000000005', 'BV0000000007', 'BV0000000006', popular.bvid, 'BV0000000003']);
   assert.equal(searchCalls()[0].url.searchParams.get('keyword'), '光年之外');
   assert.equal(searchCalls()[0].url.searchParams.get('order'), 'totalrank');
   assert.equal(searchCalls()[0].url.searchParams.has('tids'), false, 'Song matching must not remove cross-category videos');
@@ -179,19 +181,100 @@ test('song mode uses the original official keyword and exact normalized title ke
   assert.equal(result.hasMore, true);
 });
 
-test('song mode leaves pagination available after an empty filtered page and does not infer split artist words', async t => {
+test('song mode preserves official pagination and supports split query words', async t => {
   const { service, searchCalls } = fixture(t, { search: url => payload([
     { ...first, title: url.searchParams.get('page') === '1' ? '晴天' : '《晴天》周杰伦' },
   ], 2) });
   const firstPage = await service.search('晴天 周杰伦', 1, 'song');
   const secondPage = await service.search('晴天 周杰伦', 2, 'song');
-  assert.deepEqual(firstPage.songs, []);
+  assert.deepEqual(firstPage.songs.map(song => song.bvid), [first.bvid]);
   assert.equal(firstPage.hasMore, true);
   assert.equal(firstPage.total, 40);
   assert.deepEqual(secondPage.songs.map(song => song.bvid), [first.bvid]);
   assert.equal(secondPage.page, 2);
   assert.equal(secondPage.hasMore, false);
   assert.equal(searchCalls()[1].url.searchParams.get('keyword'), '晴天 周杰伦');
+});
+
+test('song title ranking supports reversed words and version terms while video mode stays untouched', async t => {
+  const entries = [
+    { ...first, title: '无关节目', author: '晴天 周杰伦 Live' },
+    { ...popular, title: '晴天' },
+    { ...video('BV0000000003', 1), title: '晴天 周杰伦 Live' },
+    { ...video('BV0000000004', 1), title: '周杰伦 现场 晴天' },
+  ];
+  const { service } = fixture(t, { search: () => payload(entries) });
+  assert.deepEqual((await service.search('周杰伦 晴天', 1, 'song')).songs.map(song => song.bvid), ['BV0000000003', 'BV0000000004', popular.bvid, first.bvid]);
+  assert.deepEqual((await service.search('晴天 Live', 1, 'song')).songs.map(song => song.bvid), ['BV0000000003', popular.bvid, 'BV0000000004', first.bvid]);
+  assert.deepEqual((await service.search('晴天 Live', 1, 'video')).songs.map(song => song.bvid), entries.map(entry => entry.bvid));
+});
+
+test('official suggestions use the browser session and original term with bounded sanitized results', async t => {
+  const { service, calls } = fixture(t, { suggestions: () => ({ result: { tag: [
+    { value: '<em>晴天</em>' }, { value: '晴天' }, { value: '&lt;b&gt;夜曲&lt;/b&gt;\u0000' },
+    { value: 1 }, { value: 'x'.repeat(150) }, ...Array.from({ length: 20 }, (_, index) => ({ value: `建议${index}` })),
+  ] } }) });
+  const result = await service.searchSuggestions('  晴天 + Live  ');
+  assert.equal(result.length, 10);
+  assert.deepEqual(result.slice(0, 3), ['晴天', '夜曲', 'x'.repeat(100)]);
+  const request = calls.find(call => call.url.hostname === 's.search.bilibili.com')!;
+  assert.equal(request.url.origin + request.url.pathname, 'https://s.search.bilibili.com/main/suggest');
+  assert.deepEqual(Object.fromEntries(request.url.searchParams), { term: '晴天 + Live' });
+  assert.equal(request.options.credentials, 'include');
+  assert.deepEqual(request.options.headers, { Accept: 'application/json', Referer: 'https://www.bilibili.com/' });
+  const count = calls.length;
+  assert.deepEqual(await service.searchSuggestions('  '), []);
+  await assert.rejects(service.searchSuggestions('x'.repeat(201)), error => error instanceof BilibiliError && error.code === 'INVALID_QUERY');
+  assert.equal(calls.length, count);
+});
+
+test('suggestions reject malformed payloads and surface restricted API responses', async t => {
+  for (const response of [null, [], {}, { code: 0 }, { result: {} }, { result: { tag: null } }, { data: { tag: {} } }]) {
+    const malformed = fixture(t, { suggestions: () => response });
+    malformed.service.continueAsGuest();
+    await assert.rejects(malformed.service.searchSuggestions('晴天'), error => error instanceof BilibiliError && error.code === 'BILIBILI_INVALID_RESPONSE');
+  }
+  for (const response of [{ result: { tag: [] } }, { code: 0, data: { tag: [] } }]) {
+    const empty = fixture(t, { suggestions: () => response });
+    empty.service.continueAsGuest();
+    assert.deepEqual(await empty.service.searchSuggestions('晴天'), []);
+  }
+  const restricted = fixture(t, { suggestions: () => ({ code: -412, message: '验证' }) });
+  restricted.service.continueAsGuest();
+  await assert.rejects(restricted.service.searchSuggestions('晴天'), error => error instanceof BilibiliError && error.code === 'BILIBILI_VERIFICATION_REQUIRED' && error.requiresVerification);
+});
+
+test('search distinguishes malformed result containers from valid empty official pages', async t => {
+  for (const response of [null, [], { code: 0 }, { code: 0, data: {} }, { code: 0, data: [] }, { code: 0, data: { result: null } }, { code: 0, data: { result: {} } }]) {
+    const { service } = fixture(t, { search: () => response });
+    service.continueAsGuest();
+    await assert.rejects(service.search('晴天', 1, 'song'), error => error instanceof BilibiliError && error.code === 'BILIBILI_INVALID_RESPONSE');
+  }
+  const { service } = fixture(t, { search: () => payload([], 2) });
+  service.continueAsGuest();
+  const result = await service.search('晴天', 1, 'song');
+  assert.deepEqual(result.songs, []);
+  assert.equal(result.total, 40);
+  assert.equal(result.hasMore, true);
+});
+
+test('suggestions from an old identity are rejected and guest opt-in remains required', async t => {
+  const loggedOut = fixture(t, { loggedIn: false });
+  await assert.rejects(loggedOut.service.searchSuggestions('晴天'), error => error instanceof BilibiliError && error.code === 'BILIBILI_LOGIN_REQUIRED');
+  assert.equal(loggedOut.calls.some(call => call.url.hostname === 's.search.bilibili.com'), false);
+  loggedOut.service.continueAsGuest();
+  assert.deepEqual(await loggedOut.service.searchSuggestions('晴天'), []);
+  let resolve!: (value: unknown) => void;
+  let started!: () => void;
+  const pending = new Promise<unknown>(done => { resolve = done; });
+  const fetching = new Promise<void>(done => { started = done; });
+  const { service, cookies } = fixture(t, { suggestions: () => { started(); return pending; } });
+  const request = service.searchSuggestions('晴天');
+  const rejected = assert.rejects(request, error => error instanceof BilibiliError && error.code === 'BILIBILI_SESSION_CHANGED');
+  await fetching;
+  cookies.emit('changed', {}, { name: 'SESSDATA', domain: '.bilibili.com' });
+  resolve({ result: { tag: [{ value: '晴天' }] } });
+  await rejected;
 });
 
 test('video mode preserves unrelated title results and invalid modes never start a request', async t => {

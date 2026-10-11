@@ -40,19 +40,24 @@ jobs:
           node-version: '24'
           cache: npm
           registry-url: https://registry.npmjs.org
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
       - name: Validate platform and version
         run: node scripts/release.mjs --validate-version --tag "$env:RELEASE_TAG"
       - name: Validate locked dependency metadata before installation
         run: node scripts/check-release-lock.mjs
       - name: Install locked dependencies
         run: npm ci --registry=https://registry.npmjs.org
-      - name: Install the locked Electron runtime
-        run: node node_modules/electron/install.js
       - name: Test release channel guards
         run: node --test scripts/release.test.mjs scripts/release-cli.test.mjs scripts/check-release-lock.test.mjs
       - name: Run application tests
         run: npm test
-      - name: Build only the Windows x64 NSIS installer
+      - name: Run Windows host storage and native contract tests
+        run: npm run test:host
+      - name: Run controlled WPF WebView2 background media checks
+        run: npm run test:host-native
+      - name: Build only the Windows x64 WebView2 NSIS installer
         run: npm run dist:installer -- --x64 --publish never
       - name: Verify native installer guards without installing on the runner
         env:
