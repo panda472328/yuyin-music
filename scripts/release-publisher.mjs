@@ -37,6 +37,16 @@ export async function publishRelease({ config, manifest, artifact, notes, commit
     if (releaseId(release) !== id) throw new Error('Release 回读 ID 不匹配。')
     return release
   }
+  function verifyRemoteTag() {
+    let object = api(`git/ref/tags/${config.tag}`).object
+    const visited = new Set()
+    while (object?.type === 'tag') {
+      if (!/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(object.sha) || visited.has(object.sha) || visited.size >= 8) throw new Error('远端发布标签解析异常。')
+      visited.add(object.sha)
+      object = api(`git/tags/${object.sha}`).object
+    }
+    if (object?.type !== 'commit' || object.sha !== commit) throw new Error('远端发布标签必须已存在且指向实际构建提交。')
+  }
   function correctSource(release) {
     if (release.draft || !release.published_at) throw new Error('来源校正只允许已公开的 Release。')
     if (typeof release.body !== 'string') throw new Error('Release 正文缺失，拒绝盲目校正来源。')
@@ -88,8 +98,13 @@ export async function publishRelease({ config, manifest, artifact, notes, commit
       const body = `${notes}\n\n安装文件：\`${config.filename}\`\n\nSHA-256：\`${manifest.artifact.sha256}\`\n\n大小：${manifest.artifact.size} 字节\n\n实际构建提交：\`${commit}\`\n\n完整许可：[MIT](https://github.com/${config.repository}/blob/${config.tag}/LICENSE)、[第三方声明](https://github.com/${config.repository}/blob/${config.tag}/THIRD_PARTY_NOTICES.md)。\n`
       fs.writeFileSync(bodyFile, body)
       if (!release) {
-        gh(['release', 'create', config.tag, '--repo', config.repository, '--verify-tag', '--draft', '--title', `余音 ${config.platform === 'windows' ? 'PC' : 'Android'} ${config.version}`, '--notes-file', bodyFile])
-        release = findRelease()
+        verifyRemoteTag()
+        // A newly created draft may not immediately be visible by tag or in lists.
+        // Keep the creation response ID and read that exact resource instead.
+        const created = api('releases', { tag_name: config.tag, target_commitish: commit, draft: true, prerelease: false,
+          name: `余音 ${config.platform === 'windows' ? 'PC' : 'Android'} ${config.version}`, body }, 'POST')
+        const id = releaseId(created)
+        release = readRelease(id)
         if (!release?.draft || release.prerelease || release.assets?.length !== 0) throw new Error('新建草稿回读异常，禁止覆盖附件。')
       }
       // A failed publication may already have uploaded the final file. Reuse it and verify its bytes.

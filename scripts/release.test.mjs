@@ -124,15 +124,28 @@ async function publisherFixture(t, options = {}) {
   const apiRoutes = []
   const api = (route, body, method = body ? 'PUT' : 'GET') => {
     apiRoutes.push(route)
+    if (route === `git/ref/tags/${config.tag}`) return { object: options.annotatedTag
+      ? { type: 'tag', sha: 'c'.repeat(40) } : { type: 'commit', sha: options.wrongTagCommit ? 'd'.repeat(40) : 'b'.padEnd(40, '0') } }
+    if (route === `git/tags/${'c'.repeat(40)}`) return { object: { type: 'commit', sha: 'b'.padEnd(40, '0') } }
+    if (route === 'releases' && method === 'POST') {
+      events.push('create')
+      assert.equal(body.tag_name, config.tag)
+      assert.equal(body.target_commitish, 'b'.padEnd(40, '0'))
+      assert.equal(body.draft, true)
+      assert.equal(body.prerelease, false)
+      release = { id: releaseId, tag_name: config.tag, draft: true, prerelease: false, assets: [] }
+      options.created = true
+      return structuredClone(release)
+    }
     if (route === 'contents/updates/stable.json?ref=main') return { sha, encoding: 'base64', content: Buffer.from(JSON.stringify(current)).toString('base64') }
     if (route.startsWith('releases/tags/')) {
-      if (!release || release.draft && options.draftTag404) { const error = new Error('404'); error.notFound = true; throw error }
+      if (!release || release.draft && (options.draftTag404 || options.created && options.invisibleCreated)) { const error = new Error('404'); error.notFound = true; throw error }
       return structuredClone(release)
     }
     if (route.startsWith('releases?per_page=100&page=')) {
       const page = Number(route.split('page=').at(-1))
       if (options.secondPage && page === 1) return Array.from({ length: 100 }, (_, index) => ({ id: 1000 + index, tag_name: `pc-v0.0.${index}`, draft: false }))
-      return page === (options.secondPage ? 2 : 1) && release ? [structuredClone(release)] : []
+      return page === (options.secondPage ? 2 : 1) && release && !(options.created && options.invisibleCreated) ? [structuredClone(release)] : []
     }
     if (route === `releases/${releaseId}` && method === 'PATCH') {
       assert.deepEqual(Object.keys(body), ['body'])
@@ -199,12 +212,28 @@ test('远程下载损坏时保持草稿，不推进客户端清单', async t => 
   assert.deepEqual(fixture.events, ['create', 'upload', 'download'])
 })
 
+test('新建草稿通过创建返回 ID 回读，标签与列表尚不可见也不重复创建', async t => {
+  const fixture = await publisherFixture(t, { invisibleCreated: true, annotatedTag: true })
+  assert.equal((await fixture.publish()).updated, true)
+  assert.deepEqual(fixture.events, ['create', 'upload', 'download', 'publish', 'manifest-write'])
+  assert.ok(fixture.apiRoutes.includes(`git/tags/${'c'.repeat(40)}`))
+  assert.equal(fixture.apiRoutes.filter(route => route.startsWith('releases/tags/')).length, 1)
+  assert.equal(fixture.apiRoutes.filter(route => route === 'releases').length, 1)
+})
+
+test('创建 Release 前核对远端现有标签提交，不隐式创建或移动错误标签', async t => {
+  const fixture = await publisherFixture(t, { wrongTagCommit: true })
+  await assert.rejects(fixture.publish, /远端发布标签/)
+  assert.deepEqual(fixture.events, [])
+  assert.equal(fixture.apiRoutes.includes('releases'), false)
+})
+
 test('草稿标签恒为 404 时分页查找，并按 ID 回读上传与公开结果', async t => {
   const fixture = await publisherFixture(t, { draftTag404: true, secondPage: true, draftUrl: true })
   assert.equal((await fixture.publish()).updated, true)
   assert.deepEqual(fixture.events, ['create', 'upload', 'download', 'publish', 'manifest-write'])
   assert.ok(fixture.apiRoutes.includes('releases?per_page=100&page=2'))
-  assert.equal(fixture.apiRoutes.filter(route => route === 'releases/987').length, 3)
+  assert.equal(fixture.apiRoutes.filter(route => route === 'releases/987').length, 4)
   assert.equal(fixture.release.assets[0].browser_download_url, fixture.current.artifact.url)
 })
 

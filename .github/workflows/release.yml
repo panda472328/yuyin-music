@@ -99,6 +99,9 @@ jobs:
     if: always() && github.repository == 'panda472328/yuyin-music' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     runs-on: windows-latest
     timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       REQUESTED_TAG: ${{ inputs.tag }}
@@ -111,7 +114,7 @@ jobs:
         with:
           node-version: '24'
       - name: Test current release recovery guards without installing dependencies
-        run: node --test scripts/release.test.mjs scripts/release-cli.test.mjs scripts/check-release-lock.test.mjs
+        run: node --test scripts/release.test.mjs scripts/release-cli.test.mjs scripts/check-release-lock.test.mjs scripts/recover-build-artifact.test.mjs
       - name: Validate existing tag, source versions and uploaded installer
         id: existing
         shell: pwsh
@@ -155,7 +158,14 @@ jobs:
             if (releases.length < 100) { complete = true; break }
           }
           if (!complete) throw new Error('Release pagination limit exceeded.')
-          if (!Number.isSafeInteger(found?.id) || found.id < 1) throw new Error('Existing release was not found; recovery never creates one.')
+          const recoverOriginalBuild = tag === 'pc-v0.4.14' && buildCommit === '023bec8ae0e7c3ccb4d5ca9667245313e8ef54e2' &&
+            (!found || found.draft === true && found.prerelease === false && Array.isArray(found.assets) && found.assets.length === 0)
+          if (recoverOriginalBuild) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'restore_build=true\n')
+            console.log('No installer uploaded yet; verify the original tagged Actions backup before resuming publication.')
+            process.exit(0)
+          }
+          if (!Number.isSafeInteger(found?.id) || found.id < 1) throw new Error('Existing release was not found; only the pinned verified 0.4.14 backup can resume an empty publication.')
           const release = api(`releases/${found.id}`)
           if (release.id !== found.id || release.tag_name !== tag || release.prerelease !== false ||
               typeof release.draft !== 'boolean' || !Array.isArray(release.assets) || release.assets.length !== 1) {
@@ -181,6 +191,7 @@ jobs:
           '@ | node --input-type=module -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Download original installer, verify digest and recover publication
+        if: steps.existing.outputs.restore_build != 'true'
         shell: pwsh
         env:
           RELEASE_TAG: ${{ steps.existing.outputs.tag }}
@@ -199,6 +210,21 @@ jobs:
           $actualSha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actualSha256 -cne $env:EXPECTED_SHA256) { throw 'Downloaded installer SHA-256 differs from the existing asset.' }
           node scripts/release.mjs --publish --existing-only --tag "$env:RELEASE_TAG" --artifact "$artifact" --build-commit "$env:YUYIN_BUILD_COMMIT" --correct-build-source
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify and extract the original tagged build backup without rebuilding
+        if: steps.existing.outputs.restore_build == 'true'
+        id: original
+        run: node scripts/recover-build-artifact.mjs
+      - name: Resume publication from the verified original build
+        if: steps.existing.outputs.restore_build == 'true'
+        env:
+          ORIGINAL_ARTIFACT: ${{ steps.original.outputs.artifact }}
+          ORIGINAL_NOTES: ${{ steps.original.outputs.notes }}
+          ORIGINAL_TAG: ${{ steps.original.outputs.tag }}
+          ORIGINAL_COMMIT: ${{ steps.original.outputs.build_commit }}
+        shell: pwsh
+        run: |
+          node scripts/release.mjs --publish --tag "$env:ORIGINAL_TAG" --artifact "$env:ORIGINAL_ARTIFACT" --notes "$env:ORIGINAL_NOTES" --build-commit "$env:ORIGINAL_COMMIT"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   advance-existing-release:
