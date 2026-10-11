@@ -54,7 +54,24 @@ if (args['--validate-version']) {
       try { return execFileSync(process.platform === 'win32' ? 'gh.exe' : 'gh', parameters, { cwd: root, input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 }) }
       catch (error) {
         if (/\b404\b/.test(String(error.stderr))) { const missing = new Error('GitHub 资源不存在。'); missing.notFound = true; throw missing }
-        throw new Error(`GitHub 操作失败：${parameters.slice(0, 2).join(' ')}。请检查 Actions 日志、权限和网络，不重建或替换已公开的安装文件。`)
+        // Preserve useful HTTP/CLI diagnostics without echoing authentication or signed download URLs.
+        let detail = String(error.stderr ?? '').replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+        for (const secret of [process.env.GH_TOKEN, process.env.GITHUB_TOKEN]) {
+          if (secret) detail = detail.replaceAll(secret, '[REDACTED]')
+        }
+        detail = detail
+          .replace(/^.*\b(?:proxy-)?authorization\b.*$/gim, '[REDACTED authentication header]')
+          .replace(/\b(?:gh[pousr]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+)\b/g, '[REDACTED]')
+          .replace(/https?:\/\/[^\s<>"']+/gi, value => {
+            try {
+              const url = new URL(value)
+              return `${url.protocol}//${url.host}${url.pathname}${url.search ? '?[REDACTED]' : ''}${url.hash ? '#[REDACTED]' : ''}`
+            } catch { return '[REDACTED URL]' }
+          })
+          .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, '')
+          .trim().slice(0, 1200)
+        const status = Number.isInteger(error.status) ? error.status : '未知'
+        throw new Error(`GitHub 操作失败：${parameters.slice(0, 2).join(' ')}（退出码：${status}）。${detail || '没有收到错误详情。'} 请检查 Actions 日志、权限和网络，不重建或替换已公开的安装文件。`)
       }
     }
     function api(route, body, method = body ? 'PUT' : 'GET') {

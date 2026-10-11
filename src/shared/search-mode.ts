@@ -10,10 +10,10 @@ export function normalizeSongName(value: string): string {
   return value.normalize('NFKC').toLowerCase().replace(/[\p{White_Space}\p{P}]/gu, '')
 }
 
-/** Title-only filtering: never infer a song from description, author, split words or related names. */
+/** Exact normalized keys: do not infer songs or strip artist/version text from a title. */
 export function titleMatchesSongName(title: string, query: string): boolean {
   const songName = normalizeSongName(query)
-  return songName.length > 0 && normalizeSongName(title).includes(songName)
+  return songName.length > 0 && normalizeSongName(title) === songName
 }
 
 /** Decode the official result title before comparing or displaying it. */

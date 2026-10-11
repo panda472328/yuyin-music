@@ -58,6 +58,13 @@ jobs:
         env:
           YUYIN_REQUIRE_INSTALLER_TESTS: '1'
         run: npm run test:installer
+      - name: Back up the verified installer before publication
+        uses: actions/upload-artifact@v4
+        with:
+          name: yuyin-${{ github.ref_name }}-installer
+          path: release/Yuyin-*-Setup.exe
+          if-no-files-found: error
+          retention-days: 7
       - name: Publish one installer, then advance stable channel
         shell: pwsh
         run: |

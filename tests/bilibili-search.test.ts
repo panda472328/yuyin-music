@@ -158,12 +158,15 @@ test('guest search rejects an old response after an identity cookie change while
 });
 
 
-test('song mode uses the original official keyword but keeps only complete title matches in source order', async t => {
+test('song mode uses the original official keyword and exact normalized title keys in source order', async t => {
   const { service, searchCalls } = fixture(t, { search: () => payload([
-    { ...first, title: '【现场】光 年，之 外', tid: 1, description: '跨分区演唱' },
+    { ...first, title: '《光 年，之 外》', tid: 1, description: '跨分区演唱' },
     { ...popular, title: '听见夏天', description: '光年之外', author: '光年之外' },
     { ...video('BV0000000003', 3000), title: '光年中途之外' },
-    { ...video('BV0000000004', 40), title: '《光年之外》纯音乐', tid: 999 },
+    { ...video('BV0000000004', 40), title: '光年之外', tid: 999 },
+    { ...video('BV0000000005', 40), title: '《光年之外》纯音乐' },
+    { ...video('BV0000000006', 40), title: '【现场】光年之外' },
+    { ...video('BV0000000007', 40), title: '光年之外 邓紫棋' },
   ], 3) });
   const result = await service.search('  光年之外  ', 1, 'song');
   assert.equal(result.mode, 'song');
@@ -178,7 +181,7 @@ test('song mode uses the original official keyword but keeps only complete title
 
 test('song mode leaves pagination available after an empty filtered page and does not infer split artist words', async t => {
   const { service, searchCalls } = fixture(t, { search: url => payload([
-    { ...first, title: url.searchParams.get('page') === '1' ? '晴天' : '《晴天》周杰伦 现场版' },
+    { ...first, title: url.searchParams.get('page') === '1' ? '晴天' : '《晴天》周杰伦' },
   ], 2) });
   const firstPage = await service.search('晴天 周杰伦', 1, 'song');
   const secondPage = await service.search('晴天 周杰伦', 2, 'song');

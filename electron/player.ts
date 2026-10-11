@@ -36,6 +36,7 @@ interface PageSnapshot {
   blocked?: string;
   navigationMismatch?: boolean;
   restarting?: boolean;
+  guardPosition?: number;
 }
 
 interface PlaybackWaiter {
@@ -63,7 +64,10 @@ function pageScript(command: PageCommand, bvid: string, volume: number, requestI
     if (args.requestId < memory.requestId) return empty;
     if (args.requestId !== memory.requestId) {
       memory.requestId = args.requestId;
-      memory.startup = { active: true, positioned: false, correcting: false, expiresAt: 0, lastTime: 0, lastAt: Date.now() };
+      // Keep rejecting source-side history restores until the user explicitly
+      // takes over the timeline. Bilibili can restore watch progress well after
+      // media startup, so a short timeout lets a late restore move both clocks.
+      memory.startup = { active: true, positioned: false, correcting: false, correctionPending: false, position: 0, advancing: false, lastAt: Date.now() };
     }
     if (!memory.captureInstalled) {
       window.addEventListener('ended', (event) => {
@@ -100,29 +104,32 @@ function pageScript(command: PageCommand, bvid: string, volume: number, requestI
         const startup = memory.startup;
         if (memory.video !== video || !startup.active || startup.correcting) return;
         const now = Date.now();
-        if (startup.expiresAt && now >= startup.expiresAt) {
-          startup.active = false;
-          return;
-        }
         const elapsed = Math.max(0, now - startup.lastAt) / 1000;
-        const rate = Number.isFinite(video.playbackRate) ? Math.max(1, video.playbackRate) : 1;
-        // Bilibili may restore its saved progress after metadata or playback is
-        // ready. Reject those initial seeks, while allowing natural playback.
-        const jumped = video.currentTime > startup.lastTime + elapsed * rate + 0.75;
-        if (!startup.positioned || (event?.type === 'seeking' && video.currentTime > 0.05) || jumped) {
+        const rate = Number.isFinite(video.playbackRate) ? Math.max(0, video.playbackRate) : 1;
+        const target = Number.isFinite(startup.position) ? startup.position : 0;
+        const maximumAdvance = startup.advancing ? elapsed * rate : 0;
+        // Seeking/seeked can arrive asynchronously during normal buffering.
+        // Judge the measured discontinuity, not the event name, and preserve
+        // the last trusted listening position if the source changes its clock.
+        const jumped = video.currentTime > target + maximumAdvance + 0.75 || video.currentTime < target - 0.75;
+        if (!startup.positioned || jumped) {
           try {
             startup.correcting = true;
-            video.currentTime = 0;
-            startup.positioned = Number.isFinite(video.currentTime) && video.currentTime <= 0.05;
+            video.currentTime = target;
+            startup.positioned = Number.isFinite(video.currentTime) && Math.abs(video.currentTime - target) <= 0.05;
+            startup.correctionPending = video.seeking;
             memory.ended = false;
             memory.lastTime = video.currentTime;
           } catch {
             // Some media elements reject seeks until their metadata arrives.
             startup.positioned = false;
           } finally { startup.correcting = false; }
+        } else {
+          startup.position = video.currentTime;
+          if (!video.seeking) startup.correctionPending = false;
         }
-        startup.lastTime = video.currentTime;
         startup.lastAt = now;
+        startup.advancing = memory.playing && !video.paused && !video.seeking;
       };
       memory.keepBeginning = keepBeginning;
       for (const event of ['loadedmetadata', 'canplay', 'seeking', 'seeked', 'timeupdate']) {
@@ -133,10 +140,15 @@ function pageScript(command: PageCommand, bvid: string, volume: number, requestI
         if (memory.video !== video) return;
         keepBeginning();
         memory.playing = true;
-        if (memory.startup.active && memory.startup.positioned && video.readyState >= 2 && !memory.startup.expiresAt) memory.startup.expiresAt = Date.now() + 8000;
+        memory.startup.advancing = !video.paused && !video.seeking;
       });
       for (const event of ['pause', 'waiting', 'stalled', 'ended']) {
-        video.addEventListener(event, () => { if (memory.video === video) memory.playing = false; });
+        video.addEventListener(event, () => {
+          if (memory.video !== video) return;
+          keepBeginning();
+          memory.playing = false;
+          memory.startup.advancing = false;
+        });
       }
     }
     memory.keepBeginning();
@@ -145,7 +157,10 @@ function pageScript(command: PageCommand, bvid: string, volume: number, requestI
       video.volume = args.value;
     }
     if (args.command === 'pause') {
-      if (memory.startup.positioned && (memory.playing || !video.paused)) memory.startup.active = false;
+      if (memory.startup.active && memory.startup.positioned && Number.isFinite(video.currentTime)) {
+        memory.startup.position = video.currentTime;
+        memory.startup.lastAt = Date.now();
+      }
       video.pause();
     }
     if (args.command === 'seek') {
@@ -177,17 +192,17 @@ function pageScript(command: PageCommand, bvid: string, volume: number, requestI
     }
     if (memory.requestId !== args.requestId || memory.video !== video) return empty;
     if (!video.paused && video.currentTime > memory.lastTime + 0.01) memory.playing = true;
-    if (memory.startup.active && memory.startup.positioned && video.readyState >= 2 && memory.playing && !memory.startup.expiresAt) memory.startup.expiresAt = Date.now() + 8000;
     memory.lastTime = video.currentTime;
     return {
       found: true,
       paused: video.paused,
       ended: memory.ended || video.ended,
-      currentTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
+      currentTime: memory.startup.active ? memory.startup.position : (Number.isFinite(video.currentTime) ? video.currentTime : 0),
       duration: Number.isFinite(video.duration) ? video.duration : 0,
       readyState: video.readyState,
       playing: memory.playing,
-      restarting: memory.startup.active && (!memory.startup.positioned || video.seeking),
+      restarting: memory.startup.active && (!memory.startup.positioned || memory.startup.correctionPending),
+      guardPosition: memory.startup.active ? memory.startup.position : undefined,
       mediaError: video.error?.code || memory.error,
       playError,
     };
@@ -203,6 +218,10 @@ export class BackgroundPlayer extends EventEmitter {
   // Seeking does not start a new playback request or invalidate its waiter.
   // It does invalidate media snapshots captured before the new position.
   private positionRevision = 0;
+  // Play() can wait for buffering while newer polls already sample the source.
+  // An older in-flight command must never replace a newer applied snapshot.
+  private snapshotRequestSequence = 0;
+  private appliedSnapshotSequence = 0;
   private disposed = false;
   private desiredPlayback = false;
   private startAttempted = false;
@@ -335,6 +354,7 @@ export class BackgroundPlayer extends EventEmitter {
 
   private async startNativePlayback(generation: number): Promise<void> {
     const positionRevision = this.positionRevision;
+    const snapshotSequence = ++this.snapshotRequestSequence;
     this.startAttempted = true;
     try {
       const snapshot = await this.readPage('play');
@@ -343,6 +363,9 @@ export class BackgroundPlayer extends EventEmitter {
         this.startAttempted = false;
         return;
       }
+      // A newer successful poll already supersedes this buffered command.
+      // Paused/loading polls alone must not hide a real autoplay failure.
+      if (snapshotSequence < this.appliedSnapshotSequence && this.status.state === 'playing') return;
       if (snapshot?.playError && snapshot.paused) {
         this.fail(new PlaybackError(
           `Bilibili 视频无法开始播放：${snapshot.playError}。可打开源视频完成登录或手动播放后重试。`,
@@ -350,7 +373,8 @@ export class BackgroundPlayer extends EventEmitter {
         ), generation);
         return;
       }
-      if (snapshot) await this.consume(snapshot, generation);
+      if (snapshotSequence < this.appliedSnapshotSequence) return;
+      if (snapshot) await this.consume(snapshot, generation, snapshotSequence);
     } catch {
       // During navigation the JavaScript context can disappear. The main-frame
       // load handler or the bounded playback wait supplies the final error.
@@ -358,8 +382,9 @@ export class BackgroundPlayer extends EventEmitter {
     }
   }
 
-  private async consume(snapshot: PageSnapshot, generation: number): Promise<void> {
-    if (generation !== this.generation || this.disposed || !this.status.song) return;
+  private async consume(snapshot: PageSnapshot, generation: number, snapshotSequence = ++this.snapshotRequestSequence): Promise<void> {
+    if (generation !== this.generation || this.disposed || !this.status.song || snapshotSequence < this.appliedSnapshotSequence) return;
+    this.appliedSnapshotSequence = snapshotSequence;
     if (snapshot.navigationMismatch) {
       if (!this.window?.webContents.isLoadingMainFrame() && !['idle', 'error', 'ended'].includes(this.status.state)) {
         this.fail(new PlaybackError('源视频页面已切换，请重新选择歌曲播放。', 'SOURCE_PAGE_CHANGED'), generation);
@@ -385,7 +410,7 @@ export class BackgroundPlayer extends EventEmitter {
       this.fail(new PlaybackError(`Bilibili ${causes[snapshot.mediaError] || '媒体播放失败'}，请在源视频页面检查。`, 'MEDIA_ERROR'), generation);
       return;
     }
-    this.status.currentTime = snapshot.restarting ? 0 : snapshot.currentTime;
+    this.status.currentTime = snapshot.restarting ? snapshot.guardPosition ?? this.status.currentTime : snapshot.currentTime;
     if (snapshot.duration > 0) this.status.duration = snapshot.duration;
     // Native ended can briefly remain true until the startup seek completes.
     if (snapshot.ended && !snapshot.restarting) {
@@ -440,13 +465,14 @@ export class BackgroundPlayer extends EventEmitter {
     if (this.polling || this.disposed || !this.status.song || ['idle', 'error', 'ended'].includes(this.status.state)) return;
     const generation = this.generation;
     const positionRevision = this.positionRevision;
+    const snapshotSequence = ++this.snapshotRequestSequence;
     this.polling = true;
     try {
       const snapshot = await this.readPage();
-      if (snapshot && positionRevision === this.positionRevision) await this.consume(snapshot, generation);
+      if (snapshot && positionRevision === this.positionRevision) await this.consume(snapshot, generation, snapshotSequence);
     } catch {
       // Loading/navigating a page temporarily destroys its execution context.
-      if (generation === this.generation && positionRevision === this.positionRevision && !this.waiter) {
+      if (generation === this.generation && positionRevision === this.positionRevision && snapshotSequence >= this.appliedSnapshotSequence && !this.waiter) {
         this.missingSince ??= Date.now();
         if (Date.now() - this.missingSince > 12_000) {
           this.fail(new PlaybackError('无法读取 Bilibili 播放状态，请重新播放。', 'MEDIA_UNREACHABLE'), generation);
@@ -488,6 +514,7 @@ export class BackgroundPlayer extends EventEmitter {
   async pause(): Promise<PlaybackStatus> {
     const generation = ++this.generation;
     const positionRevision = this.positionRevision;
+    const snapshotSequence = ++this.snapshotRequestSequence;
     this.desiredPlayback = false;
     if (this.window && !this.window.isDestroyed()) this.window.webContents.setAudioMuted(true);
     this.rejectWaiter(new PlaybackError('播放已暂停。', 'PLAYBACK_INTERRUPTED'));
@@ -495,7 +522,8 @@ export class BackgroundPlayer extends EventEmitter {
     this.publish();
     try {
       const snapshot = await this.readPage('pause');
-      if (generation === this.generation && positionRevision === this.positionRevision && snapshot?.found) {
+      if (generation === this.generation && positionRevision === this.positionRevision && snapshotSequence >= this.appliedSnapshotSequence && snapshot?.found) {
+        this.appliedSnapshotSequence = snapshotSequence;
         this.status.currentTime = snapshot.currentTime;
       }
     } catch {
@@ -532,11 +560,13 @@ export class BackgroundPlayer extends EventEmitter {
     if (!Number.isFinite(seconds) || seconds < 0) throw new PlaybackError('播放位置无效。', 'INVALID_POSITION');
     const generation = this.generation;
     const positionRevision = ++this.positionRevision;
+    const snapshotSequence = ++this.snapshotRequestSequence;
     let snapshot: PageSnapshot | null;
     try { snapshot = await this.readPage('seek', seconds); }
     catch { throw new PlaybackError('视频尚未加载，暂时无法调整进度。', 'MEDIA_NOT_READY'); }
     if (!snapshot?.found) throw new PlaybackError('视频尚未加载，暂时无法调整进度。', 'MEDIA_NOT_READY');
     if (generation === this.generation && positionRevision === this.positionRevision) {
+      this.appliedSnapshotSequence = Math.max(this.appliedSnapshotSequence, snapshotSequence);
       // Also invalidate reads started while the seek was still in flight.
       ++this.positionRevision;
       this.status.currentTime = snapshot.currentTime;

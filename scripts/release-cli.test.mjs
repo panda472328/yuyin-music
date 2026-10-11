@@ -88,6 +88,13 @@ function fixture(t) {
       if (command !== 'gh' && command !== 'gh.exe') throw new Error('Unexpected external executable.')
       const request = { args, body: options?.input ? JSON.parse(options.input) : null }
       fs.appendFileSync(process.env.YUYIN_CLI_TRACE, JSON.stringify(request) + '\\n')
+      if (process.env.YUYIN_CLI_FAILURE_STDERR &&
+          (process.env.YUYIN_CLI_FAILURE_OPERATION === 'download' ? args[1] === 'download' : args[0] === 'api')) {
+        const error = new Error('Controlled GitHub CLI failure')
+        error.status = Number(process.env.YUYIN_CLI_FAILURE_STATUS || '1')
+        error.stderr = process.env.YUYIN_CLI_FAILURE_STDERR
+        throw error
+      }
       const state = JSON.parse(fs.readFileSync(statePath, 'utf8'))
       if (args[0] === 'api') {
         const prefix = 'repos/${repository}/'
@@ -210,4 +217,62 @@ test('CLI 本地标签缺失时拒绝来源校正，绝不访问 GitHub 或写�
   assert.deepEqual(result.requests, [])
   assert.equal(fs.existsSync(result.output), false)
   assert.deepEqual(f.state(), { release: f.release, manifest: f.currentManifest })
+})
+
+test('CLI GitHub 失败保留退出码与 HTTP 原因，脱敏认证和签名下载地址', t => {
+  const f = fixture(t)
+  const secrets = ['controlled-fixture-token', 'controlled-secondary-token', 'controlled-bearer-secret',
+    'controlled-basic-secret', 'ghp_controlledSecret123', 'github_pat_controlled_secret456',
+    'controlled-signature', 'controlled-query-token', 'controlled-user', 'controlled-password', 'controlled-fragment']
+  const failure = [
+    '\u001b[31mgh: Resource not accessible by integration (HTTP 403)\u001b[0m',
+    `GH_TOKEN=${secrets[0]} GITHUB_TOKEN=${secrets[1]}`,
+    `> Authorization: Bearer ${secrets[2]}`,
+    `Proxy-Authorization: Basic ${secrets[3]}`,
+    `Unexpected credentials ${secrets[4]} ${secrets[5]}`,
+    `GET https://${secrets[8]}:${secrets[9]}@release-assets.githubusercontent.com/asset?sig=${secrets[6]}&token=${secrets[7]}#${secrets[10]}`,
+  ].join('\n')
+  const result = f.run([...correctionArgs, '--build-commit', f.tagCommit], {
+    GITHUB_TOKEN: secrets[1], YUYIN_CLI_FAILURE_STATUS: '7', YUYIN_CLI_FAILURE_STDERR: failure,
+  })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /退出码：7/)
+  assert.match(result.stderr, /Resource not accessible by integration \(HTTP 403\)/)
+  assert.match(result.stderr, /release-assets\.githubusercontent\.com\/asset\?\[REDACTED\]/)
+  assert.match(result.stderr, /\[REDACTED authentication header\]/)
+  for (const secret of secrets) assert.equal(result.stderr.includes(secret), false, `Must remove ${secret}`)
+  assert.equal(result.stderr.includes('\u001b'), false)
+  assert.equal(result.requests.length, 1, 'Stop at the failed read, before any remote mutation')
+  assert.equal(fs.existsSync(result.output), false)
+  assert.deepEqual(f.state(), { release: f.release, manifest: f.currentManifest })
+})
+
+test('CLI 安装包下载失败显示 HTTP 原因并保留原公开附件和稳定通道', t => {
+  const f = fixture(t)
+  const result = f.run([...correctionArgs, '--build-commit', f.tagCommit], {
+    YUYIN_CLI_FAILURE_OPERATION: 'download', YUYIN_CLI_FAILURE_STATUS: '1',
+    YUYIN_CLI_FAILURE_STDERR: 'gh: HTTP 502: Bad Gateway (https://release-assets.githubusercontent.com/asset?sig=controlled-download-signature)',
+  })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /release download（退出码：1）/)
+  assert.match(result.stderr, /HTTP 502: Bad Gateway/)
+  assert.equal(result.stderr.includes('controlled-download-signature'), false)
+  assert.equal(result.requests.filter(request => request.args[1] === 'download').length, 1)
+  assert.equal(result.requests.some(request => request.args.includes('PATCH')), false)
+  assert.equal(fs.existsSync(result.output), false)
+  assert.deepEqual(f.state(), { release: f.release, manifest: f.currentManifest })
+  assert.deepEqual(fs.readFileSync(path.join(f.root, filename)), installerBytes)
+})
+
+test('Windows 发布流程先验证安装包，再备份唯一 EXE，最后公开发布', () => {
+  const workflow = fs.readFileSync(path.join(sourceDirectory, '../.github/workflows/release.yml'), 'utf8')
+  const guards = workflow.indexOf('name: Verify native installer guards without installing on the runner')
+  const backup = workflow.indexOf('name: Back up the verified installer before publication')
+  const publish = workflow.indexOf('name: Publish one installer, then advance stable channel')
+  assert.ok(guards >= 0 && backup > guards && publish > backup)
+  const backupStep = workflow.slice(backup, publish)
+  assert.match(backupStep, /uses: actions\/upload-artifact@v4/)
+  assert.match(backupStep, /path: release\/Yuyin-\*-Setup\.exe/)
+  assert.match(backupStep, /if-no-files-found: error/)
+  assert.match(backupStep, /retention-days: 7/)
 })

@@ -18,8 +18,9 @@ function previewFixture() {
     return new Response(JSON.stringify({ code: 0, data: {
       page: Number(endpoint.searchParams.get('page')), numResults: 40, numPages: 2,
       result: [
-        { bvid: 'BV0000000001', title: '<em>光&#x5e74;</em>&nbsp;&#20043;外 演唱', author: '跨区演唱', pic: '', duration: '3:20', play: 1 },
+        { bvid: 'BV0000000001', title: '<em>光&#x5e74;</em>&nbsp;&#20043;外', author: '跨区演唱', pic: '', duration: '3:20', play: 1 },
         { bvid: 'BV0000000002', title: '夏日推荐', description: '光年之外', author: '光年之外', pic: '', duration: '3:20', play: 9000 },
+        { bvid: 'BV0000000003', title: '《光年之外》现场版', author: '跨区演唱', pic: '', duration: '3:20', play: 1 },
       ],
     } }), { status: 200 })
   }
@@ -27,7 +28,7 @@ function previewFixture() {
   return { api: (loaded.exports as { api: MusicAPI }).api, calls }
 }
 
-test('preview song mode shares complete title matching and source pagination without changing the query', async () => {
+test('preview song mode shares exact normalized title keys and source pagination without changing the query', async () => {
   const { api, calls } = previewFixture()
   const result = await api.search(' 光年之外 ', 1, 'song')
   assert.deepEqual(result.songs.map(song => song.bvid), ['BV0000000001'])
@@ -42,7 +43,7 @@ test('preview song mode shares complete title matching and source pagination wit
 test('preview legacy search stays video mode and an invalid mode is rejected before fetching', async () => {
   const { api, calls } = previewFixture()
   const result = await api.search('光年之外', 2)
-  assert.deepEqual(result.songs.map(song => song.bvid), ['BV0000000001', 'BV0000000002'])
+  assert.deepEqual(result.songs.map(song => song.bvid), ['BV0000000001', 'BV0000000002', 'BV0000000003'])
   assert.equal(result.mode, 'video')
   assert.equal(result.hasMore, false)
   await assert.rejects(api.search('光年之外', 1, null as never), /搜索模式不合法/)

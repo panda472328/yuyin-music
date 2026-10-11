@@ -27,10 +27,10 @@ GitHub Raw、Release 下载在用户网络中不可达时，应用会显示失�
    git push origin pc-v0.4.12
    ```
 
-4. Actions 在 `npm ci` 后显式执行 `node node_modules/electron/install.js`，安装锁定版本的官方运行时（Electron 44.6.0 不再通过 npm postinstall 自动下载）。在 Windows x64 上只构建 NSIS 安装器 `Yuyin-X.Y.Z-Setup.exe`。它先创建草稿、只上传一个安装文件，核对 GitHub 附件大小并重新下载校验 SHA-256；随后公开 Release，最后更新 main 的清单。`latest.yml`、`.blockmap`、便携包、许可压缩包和本地校验文件不会作为发布附件。
+4. Actions 在 `npm ci` 后显式执行 `node node_modules/electron/install.js`，安装锁定版本的官方运行时（Electron 44.6.0 不再通过 npm postinstall 自动下载）。在 Windows x64 上只构建 NSIS 安装器 `Yuyin-X.Y.Z-Setup.exe`。通过原生 NSIS 保护检查后，先将唯一安装包作为 Actions artifact 备份 7 天；缺少文件会停止，备份不出现在公开 Release 附件列表中。随后创建草稿、只上传一个安装文件，核对 GitHub 附件大小并重新下载校验 SHA-256；再公开 Release，最后更新 main 的清单。`latest.yml`、`.blockmap`、便携包、许可压缩包和本地校验文件不会作为发布附件。
 5. 检查 Actions 成功、发布页、清单，以及在隔离用户数据目录中的旧版升级体验。不要让客户端清单指向草稿、缺失附件或还未验收的文件。
 
-若上传后清单写入失败，Release 可能已公开，但客户端尚未收到更新。先处理权限／网络问题。重新运行流程时，若已公开附件与本轮构建不一致，脚本会拒绝替换；维护者应使用原始已发布文件执行发布重试，或递增版本重新发布。公开版本及附件保持不可变。
+若上传后清单写入失败，Release 可能已公开，但客户端尚未收到更新。先检查工作流中的退出码与脱敏错误原因，判断是权限、API、网络还是发布状态问题，不能只凭客户端更新失败归因于用户网络。日志会屏蔽令牌、Authorization 与下载 URL 的凭据、查询参数和片段；不要为了诊断输出凭据。正式发布失败时，保留并核对原构建和 Actions 安装包备份。重新运行流程时，若已公开附件与本轮构建不一致，脚本会拒绝替换；维护者应使用原始已发布文件执行发布重试，或递增版本重新发布。公开版本及附件保持不可变。
 
 已有草稿或公开版本的恢复使用工作流的 `workflow_dispatch`，填写与 main 源码版本一致的 `pc-vX.Y.Z` 标签。修复发布脚本后，可同时更新 `.github/workflows/release.yml`，该文件推送至 main 时也会自动尝试恢复当前版本已有的 Release；普通源码提交不会触发发布。恢复任务从 main 读取最新发布脚本，校验原标签的 package／lock 版本和唯一附件，下载原文件并核对 SHA-256，再使用 `--existing-only` 公开草稿或推进清单。它不构建、不上传文件，也不移动标签；不存在 Release 或安装附件时停止。安装包构建提交继续记录原标签提交，不能使用恢复提交代替。工作流通过非保留环境变量 `YUYIN_BUILD_COMMIT` 传入原标签提交，并在命令中显式使用 `--build-commit`；脚本会要求它是完整哈希且与标签解析到的提交一致，不能用恢复运行的 `GITHUB_SHA` 冒充构建来源。
 
