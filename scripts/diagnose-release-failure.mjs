@@ -36,6 +36,88 @@ export function extractPublishFailure(log, secrets = []) {
   return messages.slice(0, 8).map(line => line.trim().slice(0, 600)).join('\n').slice(0, 1800)
 }
 
+function safeAsset(asset, expectedUrl, expectedFilename) {
+  const downloadUrl = typeof asset?.browser_download_url === 'string' ? asset.browser_download_url : ''
+  const prefix = 'https://github.com/' + repository + '/releases/download/untagged-'
+  const parts = downloadUrl.startsWith(prefix) ? downloadUrl.slice(prefix.length).split('/') : []
+  return {
+    name: asset?.name === expectedFilename ? expectedFilename : '[unexpected name]',
+    size: Number.isSafeInteger(asset?.size) ? asset.size : null,
+    state: ['uploaded', 'new', 'open'].includes(asset?.state) ? asset.state : '[invalid]',
+    digest: typeof asset?.digest === 'string' && /^sha256:[a-f0-9]{64}$/.test(asset.digest) ? asset.digest : '[invalid]',
+    download_url_matches: downloadUrl === expectedUrl,
+    temporary_url_matches: parts.length === 2 && /^[A-Za-z0-9_-]+$/.test(parts[0]) && parts[1] === expectedFilename,
+  }
+}
+
+export function summarizeRelease(release, { tag, version }) {
+  const filename = 'Yuyin-' + version + '-Setup.exe'
+  const expectedUrl = 'https://github.com/' + repository + '/releases/download/' + tag + '/' + filename
+  const assets = Array.isArray(release?.assets) ? release.assets : []
+  const summary = {
+    id: Number.isSafeInteger(release?.id) ? release.id : null,
+    tag_name: release?.tag_name === tag || /^untagged-[A-Za-z0-9_-]+$/.test(release?.tag_name ?? '') ? release.tag_name : '[unexpected]',
+    draft: typeof release?.draft === 'boolean' ? release.draft : null,
+    prerelease: typeof release?.prerelease === 'boolean' ? release.prerelease : null,
+    created_at: /^\d{4}-\d{2}-\d{2}T[0-9:.]+Z$/.test(release?.created_at ?? '') ? release.created_at : '[missing]',
+    assets: assets.slice(0, 2).map(asset => safeAsset(asset, expectedUrl, filename)),
+    asset_count: assets.length,
+  }
+  summary.creation_readback_ok = summary.draft === true && summary.prerelease === false && summary.asset_count === 0
+  summary.creation_readback_reasons = []
+  if (summary.draft !== true) summary.creation_readback_reasons.push('draft must be true')
+  if (summary.prerelease !== false) summary.creation_readback_reasons.push('prerelease must be false')
+  if (summary.asset_count !== 0) summary.creation_readback_reasons.push('assets.length=' + summary.asset_count + ' (expected 0 while creating draft)')
+  summary.recovery_reasons = []
+  if (summary.id === null || summary.id < 1) summary.recovery_reasons.push('Release ID must be a positive integer')
+  if (release?.tag_name !== tag) summary.recovery_reasons.push('Release tag differs from current PC tag')
+  if (release?.prerelease !== false) summary.recovery_reasons.push('prerelease must be false')
+  if (summary.draft === null) summary.recovery_reasons.push('draft must be boolean')
+  if (!Array.isArray(release?.assets) || assets.length !== 1) summary.recovery_reasons.push('Existing Release must contain exactly one installer')
+  if (assets.length === 1) {
+    const asset = assets[0]
+    const safe = summary.assets[0]
+    if (!Number.isSafeInteger(asset?.id) || asset.id < 1) summary.recovery_reasons.push('Installer ID must be a positive integer')
+    if (asset?.name !== filename) summary.recovery_reasons.push('Installer name differs from the versioned Setup.exe')
+    if (asset?.state !== 'uploaded') summary.recovery_reasons.push('Installer state must be uploaded')
+    if (!Number.isSafeInteger(asset?.size) || asset.size < 2 || asset.size > 500000000) summary.recovery_reasons.push('Installer size is invalid or exceeds the PC limit')
+    if (!/^sha256:[a-f0-9]{64}$/.test(asset?.digest ?? '')) summary.recovery_reasons.push('Installer SHA-256 digest is missing or invalid')
+    if (!safe.download_url_matches && !(summary.draft && safe.temporary_url_matches)) summary.recovery_reasons.push('Installer download URL does not match current or allowed draft URL')
+  }
+  summary.recovery_metadata_ok = summary.recovery_reasons.length === 0
+  return summary
+}
+
+export function inspectCurrentRelease(api, { tag, version }) {
+  let tagged
+  let matchingDraft
+  let complete = false
+  for (let page = 1; page <= 100; page++) {
+    const releases = api('releases?per_page=100&page=' + page)
+    if (!Array.isArray(releases)) throw new Error('Invalid release list response.')
+    for (const release of releases) {
+      if (release?.tag_name === tag) {
+        if (tagged) throw new Error('Multiple Releases use the current tag.')
+        tagged = release
+      }
+      if (release?.draft === true && release?.name === '余音 PC ' + version) {
+        if (matchingDraft) throw new Error('Multiple exact-title PC drafts found; metadata diagnosis stopped.')
+        matchingDraft = release
+      }
+    }
+    if (releases.length < 100) { complete = true; break }
+  }
+  if (!complete) throw new Error('Release metadata pagination limit exceeded.')
+  const selected = tagged ?? matchingDraft
+  if (!selected) return { found: false, current_tag_found: false, tag, title: '余音 PC ' + version, reason: 'No current-tag Release or exact-title PC draft found.' }
+  if (!Number.isSafeInteger(selected.id) || selected.id < 1) throw new Error('Release metadata has invalid ID.')
+  const detail = api('releases/' + selected.id)
+  if (!detail || detail.id !== selected.id || (tagged ? detail.tag_name !== tag :
+    detail.draft !== true || detail.name !== '余音 PC ' + version)) throw new Error('Release metadata changed before detail read.')
+  const summary = summarizeRelease(detail, { tag, version })
+  return { found: true, current_tag_found: Boolean(tagged), source: tagged ? 'tag' : 'exact-title-draft', ...summary }
+}
+
 export function selectFailedTagRun(runs, tag, commit) {
   if (!Array.isArray(runs)) throw new Error('Invalid workflow run response.')
   const selected = runs.filter(run => run.event === 'push' && run.head_branch === tag &&
@@ -69,9 +151,10 @@ export function diagnoseFailedPublication({ root = process.cwd(), env = process.
   if (!/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(commit)) throw new Error('Invalid current tag commit.')
   const gh = args => command(process.platform === 'win32' ? 'gh.exe' : 'gh', args, options)
   const api = route => JSON.parse(gh(['api', '--method', 'GET', `repos/${repository}/${route}`]))
+  const releaseMetadata = inspectCurrentRelease(api, { tag, version: packageJson.version })
   const response = api(`actions/workflows/release.yml/runs?event=push&branch=${tag}&status=failure&per_page=100`)
   const candidate = selectFailedTagRun(response.workflow_runs, tag, commit)
-  if (!candidate) return { tag, commit, message: 'No failed tag publication exists for this source; no logs were read.' }
+  if (!candidate) return { tag, commit, releaseMetadata, message: 'No failed tag publication exists for this source; no logs were read.' }
   const run = api(`actions/runs/${candidate.id}`)
   if (selectFailedTagRun([run], tag, commit)?.id !== candidate.id ||
     run.run_number !== candidate.run_number || run.run_attempt !== candidate.run_attempt) {
@@ -83,7 +166,7 @@ export function diagnoseFailedPublication({ root = process.cwd(), env = process.
   const failed = steps.filter(step => step.conclusion === 'failure')
   if (failed.length !== 1 || failed[0].name !== publishStep) throw new Error('Only a failure in the final Publish step may be diagnosed.')
   const log = gh(['run', 'view', String(run.id), '--repo', repository, '--attempt', String(run.run_attempt), '--log-failed'])
-  return { tag, commit, runId: run.id, attempt: run.run_attempt,
+  return { tag, commit, releaseMetadata, runId: run.id, attempt: run.run_attempt,
     url: `https://github.com/${repository}/actions/runs/${run.id}`,
     message: extractPublishFailure(log, [env.GH_TOKEN, env.GITHUB_TOKEN]) }
 }
@@ -96,6 +179,11 @@ export function reportDiagnostic(result, summary) {
   const identity = result.runId ? `${result.tag}, run ${result.runId}, attempt ${result.attempt}` : result.tag
   console.log(`::warning title=Read-only publication diagnosis::${annotation(`${identity}: ${result.message}`)}`)
   const message = result.message.replace(/`/g, '\u02cb')
+  if (result.releaseMetadata) {
+    const metadata = JSON.stringify(result.releaseMetadata)
+    console.log(`::warning title=Read-only Release metadata::${annotation(metadata)}`)
+    fs.appendFileSync(summary, `### Read-only Release metadata and recovery checks\n\n\`\`\`json\n${JSON.stringify(result.releaseMetadata, null, 2)}\n\`\`\`\n\nOnly allowlisted fields and URL-match booleans are shown. Release body, author and URL text are withheld.\n\n`)
+  }
   fs.appendFileSync(summary, `### Read-only publication diagnosis\n\n${identity}\n\n${result.url ? `[Original failed run](${result.url})\n\n` : ''}\`\`\`text\n${message}\n\`\`\`\n\nOnly the current tagged source and final Publish error were inspected. Tokens, authentication headers and all logged URLs were removed. No logs were uploaded and no Release was changed.\n`)
 }
 

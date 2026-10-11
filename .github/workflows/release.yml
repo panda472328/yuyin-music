@@ -91,6 +91,8 @@ jobs:
       - name: Diagnose the latest failed publication without changing GitHub
         continue-on-error: true
         run: node scripts/diagnose-release-failure.mjs
+      - name: Verify read-only diagnosis guards
+        run: node --test scripts/diagnose-release-failure.test.mjs
 
   recover-existing-release:
     needs: diagnose-failed-publication

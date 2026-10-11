@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { diagnoseFailedPublication, extractPublishFailure, reportDiagnostic, sanitizeDiagnostic, selectFailedTagRun } from './diagnose-release-failure.mjs'
+import { diagnoseFailedPublication, extractPublishFailure, inspectCurrentRelease, reportDiagnostic, sanitizeDiagnostic, selectFailedTagRun, summarizeRelease } from './diagnose-release-failure.mjs'
 
 const repository = 'panda472328/yuyin-music'
 const publishStep = 'Publish one installer, then advance stable channel'
@@ -26,6 +26,7 @@ function fixture(t) {
     GITHUB_REPOSITORY: repository, GH_TOKEN: 'controlled-ephemeral-token', GITHUB_STEP_SUMMARY: path.join(root, 'summary.md') }
   const calls = []
   const state = { runs: [run], run, jobs: [{ name: 'release', steps: [{ name: publishStep, conclusion: 'failure' }] }],
+    releases: [{ id: 987, tag_name: tag, draft: true, prerelease: false, created_at: '2026-10-11T07:00:00Z', name: '余音 PC 0.4.14', assets: [] }],
     log: [logLine('Error: GitHub 操作失败：release upload（退出码：1）。gh: HTTP 403: Resource not accessible by integration'),
       logLine('##[error]Process completed with exit code 1.')].join('\n') }
   function command(executable, args, options) {
@@ -40,6 +41,8 @@ function fixture(t) {
     if (args[0] === 'api') {
       assert.deepEqual(args.slice(0, 3), ['api', '--method', 'GET'])
       const route = args[3]
+      if (route === 'repos/' + repository + '/releases?per_page=100&page=1') return JSON.stringify(state.releases)
+      if (route === 'repos/' + repository + '/releases/987') return JSON.stringify(state.detail ?? state.releases[0])
       if (route === 'repos/' + repository + '/actions/workflows/release.yml/runs?event=push&branch=' + tag + '&status=failure&per_page=100') {
         return JSON.stringify({ total_count: state.runs.length, workflow_runs: state.runs })
       }
@@ -56,9 +59,10 @@ function fixture(t) {
 test('diagnostic reads only current tag and final Publish failed logs using read-only commands', t => {
   const f = fixture(t)
   assert.deepEqual(f.diagnose(), { tag, commit, runId: run.id, attempt: 1,
+    releaseMetadata: { found: true, current_tag_found: true, source: 'tag', ...summarizeRelease(f.state.releases[0], { tag, version: '0.4.14' }) },
     url: 'https://github.com/' + repository + '/actions/runs/' + run.id,
     message: 'Error: GitHub 操作失败：release upload（退出码：1）。gh: HTTP 403: Resource not accessible by integration\n##[error]Process completed with exit code 1.' })
-  assert.equal(f.calls.length, 5)
+  assert.equal(f.calls.length, 7)
   assert.equal(f.calls.some(({ args }) => args.some(value => ['POST', 'PUT', 'PATCH', 'DELETE', 'download', 'upload', 'create', 'edit'].includes(value))), false)
 })
 
@@ -98,7 +102,7 @@ test('no matching tag failure avoids reading any logs', t => {
   const f = fixture(t)
   f.state.runs = [{ ...run, head_sha: 'a'.repeat(40) }]
   assert.match(f.diagnose().message, /No failed tag publication/)
-  assert.equal(f.calls.length, 2)
+  assert.equal(f.calls.length, 4)
 })
 
 test('only Publish errors survive extraction; environment and other jobs are withheld', () => {
@@ -155,4 +159,66 @@ test('workflow diagnostics use actions read permission and precede recovery', ()
   const recovery = workflow.slice(workflow.indexOf('  recover-existing-release:'), workflow.indexOf('  advance-existing-release:'))
   assert.match(recovery, /needs: diagnose-failed-publication/)
   assert.match(recovery, /always\(\)/)
+})
+
+test('release metadata explains empty-draft recovery failure using only allowlisted fields', t => {
+  const f = fixture(t)
+  f.state.releases[0].body = 'private-body-sentinel'
+  f.state.releases[0].author = { login: 'private-author-sentinel' }
+  const metadata = f.diagnose().releaseMetadata
+  assert.equal(metadata.creation_readback_ok, true)
+  assert.equal(metadata.recovery_metadata_ok, false)
+  assert.deepEqual(metadata.recovery_reasons, ['Existing Release must contain exactly one installer'])
+  const serialized = JSON.stringify(metadata)
+  assert.equal(serialized.includes('private-body-sentinel'), false)
+  assert.equal(serialized.includes('private-author-sentinel'), false)
+})
+
+test('missing current-tag release inspects only the exact-title PC draft', t => {
+  const f = fixture(t)
+  f.state.releases = [
+    { id: 123, tag_name: 'untagged-other', draft: true, name: '余音 PC 0.4.12', body: 'unrelated-body-sentinel', assets: [] },
+    { ...f.state.releases[0], tag_name: 'untagged-controlled-draft' },
+  ]
+  f.state.detail = f.state.releases[1]
+  const metadata = f.diagnose().releaseMetadata
+  assert.equal(metadata.source, 'exact-title-draft')
+  assert.equal(metadata.current_tag_found, false)
+  assert.equal(metadata.tag_name, 'untagged-controlled-draft')
+  assert.ok(metadata.recovery_reasons.includes('Release tag differs from current PC tag'))
+  assert.equal(JSON.stringify(metadata).includes('unrelated-body-sentinel'), false)
+  assert.equal(f.calls.some(({ args }) => args.includes('repos/' + repository + '/releases/123')), false)
+})
+
+test('metadata checks installer name, state, size, digest and URL without emitting URL text', () => {
+  const release = { id: 1, tag_name: tag, draft: true, prerelease: false, assets: [{ id: 2,
+    name: 'private-name-sentinel', state: 'new', size: 1, digest: 'private-digest-sentinel',
+    browser_download_url: 'https://private-host-sentinel/file?private-signature-sentinel' }] }
+  const metadata = summarizeRelease(release, { tag, version: '0.4.14' })
+  assert.equal(metadata.creation_readback_ok, false)
+  assert.equal(metadata.recovery_metadata_ok, false)
+  assert.equal(metadata.recovery_reasons.length, 5)
+  for (const sentinel of ['private-name-sentinel', 'private-digest-sentinel', 'private-host-sentinel', 'private-signature-sentinel']) {
+    assert.equal(JSON.stringify(metadata).includes(sentinel), false)
+  }
+  release.assets[0] = { id: 2, name: 'Yuyin-0.4.14-Setup.exe', state: 'uploaded', size: 150000000,
+    digest: 'sha256:' + 'a'.repeat(64),
+    browser_download_url: 'https://github.com/' + repository + '/releases/download/untagged-controlled/Yuyin-0.4.14-Setup.exe' }
+  const valid = summarizeRelease(release, { tag, version: '0.4.14' })
+  assert.equal(valid.recovery_metadata_ok, true)
+  assert.equal(valid.assets[0].temporary_url_matches, true)
+  assert.equal(valid.assets[0].download_url_matches, false)
+})
+
+test('metadata diagnosis refuses changed identities and ignores other draft titles', () => {
+  const routes = []
+  const api = route => {
+    routes.push(route)
+    return [{ id: 1, draft: true, name: '余音 PC 0.4.12', tag_name: 'untagged-other', assets: [] }]
+  }
+  assert.equal(inspectCurrentRelease(api, { tag, version: '0.4.14' }).found, false)
+  assert.deepEqual(routes, ['releases?per_page=100&page=1'])
+  assert.throws(() => inspectCurrentRelease(route => route.startsWith('releases?')
+    ? [{ id: 1, draft: true, name: '余音 PC 0.4.14', tag_name: 'untagged-a', assets: [] }]
+    : { id: 1, draft: true, name: '余音 PC 0.4.12', assets: [] }, { tag, version: '0.4.14' }), /changed/)
 })
