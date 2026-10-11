@@ -198,7 +198,7 @@ export async function recoverBuildArtifact({ root = process.cwd(), env = process
   try {
     const archive = path.join(temporary, 'original.zip')
     const bytes = command(process.platform === 'win32' ? 'gh.exe' : 'gh', ['api', '--method', 'GET',
-      '--header', 'Accept: application/zip', 'repos/' + recoveryIdentity.repository + '/actions/artifacts/' + recoveryIdentity.artifactId + '/zip'],
+      '--header', 'Accept: application/vnd.github+json', 'repos/' + recoveryIdentity.repository + '/actions/artifacts/' + recoveryIdentity.artifactId + '/zip'],
       { ...options, encoding: null, maxBuffer: recoveryIdentity.archiveSize + 1024 })
     await fsp.writeFile(archive, bytes, { flag: 'wx' })
     const result = await verify(archive, temporary)

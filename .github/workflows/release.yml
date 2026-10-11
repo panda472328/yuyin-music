@@ -211,7 +211,7 @@ jobs:
           if ($actualSha256 -cne $env:EXPECTED_SHA256) { throw 'Downloaded installer SHA-256 differs from the existing asset.' }
           node scripts/release.mjs --publish --existing-only --tag "$env:RELEASE_TAG" --artifact "$artifact" --build-commit "$env:YUYIN_BUILD_COMMIT" --correct-build-source
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Verify and extract the original tagged build backup without rebuilding
+      - name: Download via the Actions API and verify the original build backup
         if: steps.existing.outputs.restore_build == 'true'
         id: original
         run: node scripts/recover-build-artifact.mjs

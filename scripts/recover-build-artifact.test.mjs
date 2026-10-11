@@ -139,7 +139,11 @@ async function fixture(t) {
       throw new Error('Unexpected git command')
     }
     assert.ok(['gh', 'gh.exe'].includes(executable)); assert.deepEqual(args.slice(0, 3), ['api', '--method', 'GET'])
-    if (args.includes('--header')) { assert.equal(options.encoding, null); return Buffer.from('controlled archive') }
+    if (args.includes('--header')) {
+      assert.equal(args[args.indexOf('--header') + 1], 'Accept: application/vnd.github+json')
+      assert.equal(options.encoding, null)
+      return Buffer.from('controlled archive')
+    }
     if (args[3].endsWith('/actions/runs/' + id.runId)) return JSON.stringify(state.run)
     if (args[3].includes('/attempts/1/jobs?')) return JSON.stringify({ jobs: state.jobs })
     if (args[3].endsWith('/actions/artifacts/' + id.artifactId)) return JSON.stringify(state.artifact)
