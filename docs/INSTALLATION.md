@@ -1,6 +1,6 @@
 # Windows 安装与重装
 
-PC 0.5.0（待发布）已切换为 WPF + 系统 WebView2，正式脚本为 `build/webview2-installer.nsi`。当前用户默认目录为 `%LOCALAPPDATA%/Programs/YuyinMusic`，数据为独立 `%LOCALAPPDATA%/YuyinMusic`。安装包包含 .NET 运行文件；系统 WebView2 缺失时通过签名有效的微软官方小型引导程序联网安装，共享内核不随应用更新打包。运行时安装失败会先停止，不覆盖程序文件；当前公开稳定包仍为 0.4.14。
+PC **0.5.0 已正式发布**，采用 WPF + 系统 WebView2，正式脚本为 `build/webview2-installer.nsi`。唯一正式文件为 [Yuyin-0.5.0-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.0/Yuyin-0.5.0-Setup.exe)，大小 `54235650` 字节；校验值和成功构建记录见 [RELEASE.md](RELEASE.md)。当前用户默认目录为 `%LOCALAPPDATA%/Programs/YuyinMusic`，数据为独立 `%LOCALAPPDATA%/YuyinMusic`。安装包包含 .NET 运行文件；系统 WebView2 缺失时通过签名有效的微软官方小型引导程序联网安装，共享内核不随应用更新打包。运行时安装失败会先停止，不覆盖程序文件。
 
 安装前正常退出余音；文件占用或目录不可写时显示明确错误并停止。应用内选择安装更新时，安装器校验 `/YUYINPID=` 并有限等待该进程自然退出，不强杀。卸载按确切发行文件列表删除，保留应用外的数据和安装目录内无关文件。此轮不处理旧 Electron 客户端兼容／自动迁移；不要用新包覆盖旧端目录。下文保留 0.4.x 历史问题说明。
 
@@ -38,6 +38,6 @@ npm run dist:installer -- --x64 --publish never
 npm run test:installer
 ```
 
-原生测试用 NSIS 编译仓库宏与无害进程，在 `.qa/installer-guards-*` 验证占用、只读、路径边界、静默／页面回调和卸载结果；不执行真实安装，不写安装注册项、快捷方式或真实用户数据。Windows 发布工作流在打包后强制执行此测试。非 Windows 或缺少编译器的本地运行会明确标为跳过；CI 用 `YUYIN_REQUIRE_INSTALLER_TESTS=1` 使缺失依赖成为失败。
+0.5.0 的原生测试用 NSIS 编译仓库保护与无害进程，在 `.qa/webview2-installer-guards-*` 和 `.qa/webview2-installer-flow-*` 的受控目录中验证占用、更新退出等待、精确文件删除及无关文件保留，共 11 项检查通过。流程测试只使用独立 QA 注册键，测试卸载清除该登记；不创建真实快捷方式，不读取或修改真实用户数据。正式标签 Actions 已在打包后强制通过这些检查。非 Windows 或缺少编译器的本地运行会明确标为跳过；CI 用 `YUYIN_REQUIRE_INSTALLER_TESTS=1` 使缺失依赖成为失败。
 
-完整首次安装、旧版覆盖升级和跨用户管理员权限需要在独立 Windows 虚拟机或 Windows Sandbox 继续验收。宏回归及“锁定时提前退出”的成品检查不能替代这些生命周期测试，详见 [QA.md](QA.md)。
+真实安装向导、桌面／开始菜单快捷方式、正式卸载、缺失 WebView2 Runtime 的联网引导、跨用户管理员权限，以及实际已安装 0.5.x 的应用内更新仍需在独立 Windows 环境验收。0.5.0 不提供旧 Electron 客户端兼容／自动迁移；受控安装回归和发布文件校验不能替代这些生命周期测试，详见 [QA.md](QA.md)。

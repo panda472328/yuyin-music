@@ -2,17 +2,17 @@
 
 一个基于 WPF、系统 WebView2、React 和 TypeScript 的 Windows 音乐播放器。米白与鼠尾草绿的独立听歌界面，音源来自后台浏览器中的 Bilibili 原视频。0.5.0 起安装包不再携带 Electron／Chromium 内核。
 
-当前源码版本为 **0.5.0（待发布）**，迁移到 Windows 系统 WebView2，保留游客入口、双模式搜索、歌词及本地音乐库；详见 [版本记录](CHANGELOG.md)。当前稳定清单仍为 0.4.14，最终安装文件和公开状态以 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 为准。Android 版在[独立仓库](https://github.com/panda472328/yuyin-music-mobile)维护，两端分别构建、存储数据和发布版本。
+当前正式版本为 **0.5.0**，已迁移到 Windows 系统 WebView2，保留游客入口、双模式搜索、歌词及本地音乐库；详见 [版本记录](CHANGELOG.md)。[正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.0) 已公开，稳定清单已推进至 0.5.0。Android 版在[独立仓库](https://github.com/panda472328/yuyin-music-mobile)维护，两端分别构建、存储数据和发布版本。
 
 ## 下载与安装
 
-前往 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 下载已公开的正式版。下表描述 0.5.0 发布后提供的文件，当前不代表它已可下载：
+前往 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 下载正式版，0.5.0 只提供下列安装文件：
 
-| 0.5.0 发布后文件 | 用途 |
+| 0.5.0 正式文件 | 用途 |
 | --- | --- |
-| `Yuyin-0.5.0-Setup.exe` | Windows x64 安装版，中文向导，可选择安装目录 |
+| [Yuyin-0.5.0-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.0/Yuyin-0.5.0-Setup.exe) | Windows x64 安装版，中文向导，可选择安装目录 |
 
-发布 0.5.0 时，发布页只提供一个最终安装文件 `Yuyin-0.5.0-Setup.exe`。SHA-256 和构建来源写在发布说明中，许可文本见 [第三方声明](THIRD_PARTY_NOTICES.md)。GitHub 自动生成的 Source code ZIP / TAR 是源码下载入口；实际公开状态以发布页为准。
+正式安装包为 **54,235,650 字节（约 54.2 MB）**，由 [Windows Actions 38133373433](https://github.com/panda472328/yuyin-music/actions/runs/38133373433) 从 `pc-v0.5.0` 构建并发布。SHA-256、实际构建提交和稳定清单证据见 [发布与文件管理](docs/RELEASE.md)，许可文本见 [第三方声明](THIRD_PARTY_NOTICES.md)。GitHub 自动生成的 Source code ZIP / TAR 是源码下载入口。
 
 支持 Windows 10 1903（build 18362）及 Windows 11 x64。安装包包含 .NET 运行文件，使用系统 Microsoft Edge WebView2 Evergreen Runtime；若系统缺少 WebView2，安装器通过微软官方小型引导程序联网安装共享运行时，不把内核装进每份应用。此架构版本使用新数据目录，不自动读取旧 Electron 客户端资料。
 
@@ -121,9 +121,9 @@ npm run dist
 
 ## 验证范围
 
-0.5.0 的 WebView2 宿主、受控媒体时钟、存储／歌词／更新契约、生产构建和安装保护已有隔离回归记录；宿主契约检查通过 159 项，前端／业务回归记录为 160 项 TypeScript 测试，受控原生媒体检查通过 21 项，WebView2 页面检查 22 项，当前安装器保护检查通过 11 项，发布／锁文件检查通过 61 项，锁文件元数据检查覆盖 435 个包。这些是预发布证据，最终代码定稿后需复跑。之前的 0.4.x Electron 检查保留在 [docs/QA.md](docs/QA.md) 的历史章节，不代表新宿主已通过同一项验收。
+0.5.0 的 WebView2 宿主、受控媒体时钟、存储／歌词／更新契约、生产构建和安装保护已有隔离回归记录；宿主契约检查通过 159 项，前端／业务回归记录为 160 项 TypeScript 测试，受控原生媒体检查通过 21 项，WebView2 页面检查 22 项，当前安装器保护检查通过 11 项，发布／锁文件检查通过 61 项，锁文件元数据检查覆盖 435 个包。正式标签的 Actions 流程已成功完成测试、最终构建、安装保护、公开附件下载校验和稳定清单推进。之前的 0.4.x Electron 检查保留在 [docs/QA.md](docs/QA.md) 的历史章节，不代表新宿主已通过同一项验收。
 
-0.5.0 最终安装包仍需在桌面歌词代码定稿后重新构建和计算 SHA-256；中间自包含输出的大小和摘要不能作为发布文件依据。桌面歌词在真实 WPF/WebView2 窗口中的拖动、工具栏隐藏／唤出、锁定命中和设置重启恢复尚未完成最终原生验收。正式安装向导、桌面／开始菜单快捷方式、缺失 WebView2 Runtime 的联网引导、真实 Bilibili 登录／音源和跨机器 UAC 也尚未在独立环境验收。网页预览和受控响应不能替代这些检查。
+桌面歌词已在真实 WPF/WebView2 窗口通过歌词正文拖动、位置写盘、字号按钮、工具栏隐藏与重新显示检查；锁定后禁止拖动和设置重启恢复仍未完整验收。字体／颜色／透明度控件、两个规定尺寸的完整原生页面状态、正式安装向导、桌面／开始菜单快捷方式、卸载、缺失 WebView2 Runtime 的联网引导、真实 Bilibili 登录／音源、跨机器 UAC，以及实际已安装 0.5.x 的应用内更新也尚未完整验收。网页预览和受控响应不能替代这些检查。
 
 详细结果及未执行项见 [docs/QA.md](docs/QA.md)。Bilibili 页面与接口会变化，其他电脑和账号的可用性需要实际验证。
 

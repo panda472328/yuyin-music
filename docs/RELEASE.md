@@ -2,9 +2,22 @@
 
 PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码位于本仓库；Android 源码位于 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。不要把其中一个工程嵌套进另一个仓库。
 
-## PC 0.5.0（WebView2，待发布）
+## PC 0.5.0（WebView2，2026-10-11 正式发布）
 
-默认 `npm run dist:installer` 构建 React renderer、自包含 .NET WPF 宿主和单个 `Yuyin-0.5.0-Setup.exe`。只使用系统 WebView2，不分发 Electron／Chromium。运行时缺失时使用微软官方联网引导安装器。当前尚未建立 `pc-v0.5.0` 标签或公开 Release；只有桌面歌词原生验收、最终重建和 SHA-256 复核完成后，才建立标签、上传唯一附件并推进稳定清单。`electron/` 及历史发行许可保留在源码中供参考，不进入新包。
+[正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.0) 已公开，唯一安装附件为 [Yuyin-0.5.0-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.0/Yuyin-0.5.0-Setup.exe)。默认 `npm run dist:installer` 构建 React renderer、自包含 .NET WPF 宿主和单个安装 EXE，只使用系统 WebView2，不分发 Electron／Chromium。运行时缺失时使用微软官方联网引导安装器。`electron/` 历史宿主代码保留在源码中供参考，不进入新包；发行许可文本见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
+
+| 项目 | 值 |
+| --- | --- |
+| 安装包实际构建及标签提交 | `fe1f0af48ff6fd4c07c70ec706d9673d8c53ee0b` |
+| 安装包 SHA-256 | `4c8708594d01b5e5448e88c73b154322db39489b7841aa26e287fa9890b407cb` |
+| 安装包字节数 | `54235650` |
+| Release／唯一附件 ID | `409608262`／`630500807` |
+| 正式发布时间（UTC） | `2026-10-11T10:55:00Z` |
+| 稳定清单更新提交 | `4c620738cd425f8f48df28284c45ca39d58fc4ac` |
+
+[正式标签 Actions 38133373433](https://github.com/panda472328/yuyin-music/actions/runs/38133373433) 整体成功，完成依赖和版本检查、应用／宿主测试、WebView2 安装包构建、原生安装保护、备份及正式发布。发布器上传唯一安装文件，在 Windows runner 完整下载并校验 SHA-256 和大小，公开 Release 后才推进 main 的 `updates/stable.json`；清单的版本、固定下载地址、大小、摘要和发布时间均与公开附件一致。后续文档提交不移动标签，也不重建或替换这一安装文件。
+
+桌面歌词的真实 WPF/WebView2 原生检查已通过正文拖动、位置写盘、字号按钮和工具栏隐藏／重新显示；锁定后禁止拖动、设置重启恢复及其他尚未完整验收的范围见 [QA.md](QA.md)。公开元数据与云端下载校验不等于真实安装、跨机器或在线音源验收。
 
 ## PC 0.4.12
 

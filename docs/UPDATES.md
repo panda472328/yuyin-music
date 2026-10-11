@@ -1,6 +1,8 @@
 # 应用更新与正式发布
 
-PC 版从本仓库的 `updates/stable.json` 检查正式版本。当前稳定清单仍为 0.4.14；0.5.0 尚未公开。Android 使用独立仓库和独立更新清单，不共享安装文件、版本号或用户数据。
+PC 版从本仓库的 `updates/stable.json` 检查正式版本。当前稳定清单为 **0.5.0**；[正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.0) 的唯一安装包已公开。Android 使用独立仓库和独立更新清单，不共享安装文件、版本号或用户数据。
+
+0.5.0 的 [正式标签 Actions 38133373433](https://github.com/panda472328/yuyin-music/actions/runs/38133373433) 已成功完成构建、发布及下载校验，再以提交 `4c620738cd425f8f48df28284c45ca39d58fc4ac` 推进 main 的稳定清单。清单指向 `Yuyin-0.5.0-Setup.exe`，大小为 `54235650` 字节，SHA-256 为 `4c8708594d01b5e5448e88c73b154322db39489b7841aa26e287fa9890b407cb`；完整构建与公开证据见 [RELEASE.md](RELEASE.md)。实际已安装 0.5.x 的应用内下载安装尚未完整验收，清单推进不等于这一用户流程已通过。
 
 0.5.0 起原生更新器是 `windows-host/UpdateService.cs`。安装器写入 `installed.marker`；开发／未安装的发布目录可检查新版，但不启动安装。检查、下载、安装采用同一稳定清单契约，下载安装仍由用户选择。安装程序等待当前宿主自然退出后写入文件，不强杀进程。此次架构迁移不提供旧 Electron 客户端数据或会话自动迁移；请使用新版独立安装目录。
 
