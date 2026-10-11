@@ -31,10 +31,10 @@ function fail() {
   if (ended) return; ended = true;
   if (process.connected) process.send({ error: '更新安装器启动失败，请重新下载后重试。' });
   else {
-    try { fs.writeFileSync(path.join(path.dirname(file), 'update-failed.txt'), 'Update installation failed. Reopen Yuyin and retry.\n', { mode: 0o600 }); } catch {}
+    try { fs.writeFileSync(path.join(path.dirname(file), 'update-failed.txt'), 'Update installation failed. Reopen openmusic and retry.\n', { mode: 0o600 }); } catch {}
     try {
       const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-      const ps = cp.spawn(powershell, ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('更新安装失败，请重新打开余音并重试，或从 GitHub 发布页下载最新安装包。','余音更新') | Out-Null"], { windowsHide: true, detached: true, stdio: 'ignore', env: cleanEnv });
+      const ps = cp.spawn(powershell, ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('更新安装失败，请重新打开openmusic并重试，或从 GitHub 发布页下载最新安装包。','openmusic更新') | Out-Null"], { windowsHide: true, detached: true, stdio: 'ignore', env: cleanEnv });
       ps.on('error', () => {}); ps.unref();
     } catch {}
   }

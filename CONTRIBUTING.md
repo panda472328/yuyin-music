@@ -1,6 +1,8 @@
-# 参与余音 PC 版
+# 参与 openmusic PC 版
 
 本仓库是 Windows 桌面端，当前源码版本为 0.5.0（WPF + 系统 WebView2），正式安装文件以 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 为准。Android 的问题和修改请提交到 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。两个仓库使用独立版本、构建与数据，不把手机源码或 APK 放进 PC 仓库。
+
+展示品牌统一为小写 `openmusic`，历史发布仍可显示余音 / Yuyin Music。品牌改名只修改用户可见文字与布局；`Yuyin.WindowsHost`、`%LOCALAPPDATA%/YuyinMusic`、`YUYIN_*` 环境变量、存储键、安装／卸载标识、更新下载文件名和既有仓库 URL 保留兼容值。不要用全局替换迁移这些标识或重写历史发布记录；其他平台的品牌修改需在独立仓库授权、验证与发布。
 
 ## 开发流程
 

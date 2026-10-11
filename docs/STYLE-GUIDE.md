@@ -1,6 +1,8 @@
-# 余音 PC 样式标准
+# openmusic PC 样式标准
 
-本标准帮助维护者与 agent 快速定位、修改和验证外观。基线是 PC 0.5.0 的米白／鼠尾草绿视觉；Android 采用相同品牌但位于独立仓库。下文区分现有实现与新增主题时需要补齐的工作，不假定已存在运行时主题切换。
+本标准帮助维护者与 agent 快速定位、修改和验证外观。基线是 PC 0.5.0 的米白／鼠尾草绿视觉，当前 PC 展示品牌改为小写 `openmusic`；Android 位于独立仓库，本次未修改其品牌。下文区分现有实现与新增主题时需要补齐的工作，不假定已存在运行时主题切换。
+
+展示改名覆盖主界面、登录页、窗口标题、账号页面授权说明、导出对话框、安装向导与快捷方式名称。兼容技术标识不随之替换：宿主命名空间／程序集、`YUYIN_*` 环境变量、`%LOCALAPPDATA%/YuyinMusic`、本地存储键、安装／卸载登记、更新文件名及既有 GitHub／Android 仓库地址保留原值。已发布安装包、标签、版本号、校验值与历史验收记录保留原名；不能把展示改名写成数据迁移或已发布新版本。改名后的安装器管理新的 openmusic 快捷方式，升级时不自动删除旧「余音」快捷方式，以免影响独立安装的旧 Electron 版；旧快捷方式可能需要用户确认后手动清理。
 
 ## 1. 修改入口与范围
 
@@ -61,7 +63,7 @@
 
 | 内容 | 当前桌面参考尺寸 |
 | --- | --- |
-| 品牌「余音」 | 25px，登录标题栏为 22px |
+| 品牌 `openmusic` | `.brand-name` 为 20px／字间距 0.3px，登录标题栏 22px；`.brand-subtitle` 为 8px／字间距 1px |
 | 侧栏导航 | 最终覆盖为 14px；歌单标题 13px／补充 11px |
 | 搜索框 | 最终覆盖为 12px |
 | 歌曲标题 | 表格 13px；次要字段 11px |
@@ -72,6 +74,8 @@
 
 现有间距多为 4／8／12／16px 附近，主要圆角 7–12px，主卡片 17–19px。延续当前节奏，新组件避免任意增加不同圆角和字重。字体扩大时同步检查行高、网格最小宽度、长标题省略和最小窗口，而不是只改 `font-size`。
 
+`openmusic` 比原来的两个中文字宽。品牌字标需完整显示、保持小写，不使用中文标题的 4px 字间距，不靠裁切或省略号掩盖溢出。主侧栏在 222px 与紧凑 195px 两种宽度下都要保留图标大小、字标与间距；`.brand` 水平外边距为 8px，`.brand-icon` 为 `flex-shrink: 0`。优先调整品牌自身字号、字间距和外边距，不扩大侧栏挤压搜索与主内容。主窗与登录页均使用 `.brand-name`／`.brand-subtitle`，登录标题栏共用品牌语义并单独确认宽度，仍保留 `.brand` 的 `drag` 和关闭按钮的 `no-drag`。字标旁的英文补充不能继续使用旧品牌 `YUYIN MUSIC`；文案与选择器变更需两处同步。独立桌面歌词同步修改窗口标题、工具栏、空闲占位、曲名提示及 aria 文案中的品牌，保留独立 CSS，不套用主品牌布局。
+
 正文和图标应可辨认，新增主题特别检查浅底／深底文字、禁用态、选中态和焦点。不要因全局 `outline: none` 删除现有 `:focus-visible` 轮廓；hover 不得成为唯一可访问操作。
 
 ## 4. 组件与状态选择器
@@ -79,7 +83,7 @@
 | 区域 | 主要选择器 | 必须保留的状态／行为 |
 | --- | --- | --- |
 | 应用骨架 | `.app-shell`、`.sidebar`、`.main-shell`、`.main-content` | 单独内容滚动、侧栏可滚动、底部播放器留白 |
-| 品牌与导航 | `.brand`、`.brand-icon`、`.nav-item`、`.sidebar-playlist` | `.selected`、hover、数量、省略长歌单名 |
+| 品牌与导航 | `.brand`、`.brand-icon`、`.brand-name`、`.brand-subtitle`、`.nav-item`、`.sidebar-playlist` | 完整小写字标、图标不收缩、`.selected`、hover、数量、省略长歌单名 |
 | 顶栏 | `.topbar`、`.search-box`、`.search-mode`、`.topbar-right` | 输入焦点、快捷键、模式按钮的 `aria-pressed`、窗口拖动与控件命中 |
 | 歌名联想 | `src/SearchBox.tsx`；`.search-suggestions`、`.search-suggestions-list`、`.search-suggestions-status` | combobox／listbox、选中候选、最多 10 条／250ms、IME、慢请求拒绝、联想失败仍可搜索、选联想不自动播放 |
 | 账号 | `.account-menu-anchor`、`.account-trigger`、`.account-avatar`、`.account-menu-position` | `.expanded`、头像失败降级、hover／键盘菜单、从头像移入菜单的关闭缓冲 |
@@ -108,7 +112,7 @@ PC 0.5.0 包含游客与搜索模式流程。登录页“暂不登录，先听�
 
 响应中的合法空数组显示无结果；缺失结果字段、非数组结构、异常状态码或验证页面必须保留错误／验证提示，不能当作正常空结果。联想错误不清空输入或禁用正式搜索。调整空状态、错误状态和联想下拉外观时保持这一区别。
 
-公开设计参考为 [Spotify Search API](https://developer.spotify.com/documentation/web-api/reference/search) 的曲目／歌手字段查询和 [Apple Get Catalog Search Suggestions](https://developer.apple.com/documentation/applemusicapi/get-catalog-search-suggesions) 的输入建议。它们说明可公开使用的搜索方式，没有公开完整排名算法；余音实际数据与联想来自 Bilibili，本地仅做上述标题相关性规则。
+公开设计参考为 [Spotify Search API](https://developer.spotify.com/documentation/web-api/reference/search) 的曲目／歌手字段查询和 [Apple Get Catalog Search Suggestions](https://developer.apple.com/documentation/applemusicapi/get-catalog-search-suggesions) 的输入建议。它们说明可公开使用的搜索方式，没有公开完整排名算法；openmusic 实际数据与联想来自 Bilibili，本地仅做上述标题相关性规则。
 
 进度条展示 `windows-host/PlayerHost.cs` 发布的可信时间轴。新选曲和同曲重播从 0 开始；播放中无用户接管的异常前跳／回退恢复最近可信位置，纠正未完成时也保持该位置，不能在界面自行归零。暂停、缓冲和倍速参与进度判断，普通暂停不解除保护；应用手动跳转或源页可信 `pointerdown`／`keydown` 才接管时间轴。样式变更不得修改这一保护、快照顺序或歌词校准行为。
 
@@ -190,7 +194,7 @@ WebView2 的桌面歌词设置由 `windows-host/DesktopSettingsStore.cs` 独立�
 
 ## 8. PC 与 Android 的统一规则
 
-共同品牌包括「余音 / YUYIN MUSIC」、米白／鼠尾草绿基色、唱片与封面元素、圆角卡片、按钮主次关系、歌词当前句的绿色高亮，以及加载／错误／空状态用语。平台布局各自适配：PC 是侧栏与固定播放器，手机是触屏与安全区布局，不能直接复制 PC 宽度或拖窗规则。
+两端沿用米白／鼠尾草绿基色、唱片与封面元素、圆角卡片、按钮主次关系、歌词当前句的绿色高亮，以及加载／错误／空状态用语。PC 的当前字标是小写 `openmusic`（原名「余音 / YUYIN MUSIC」），手机版此次未改名，后续同步需在手机仓库单独实施。平台布局各自适配：PC 是侧栏与固定播放器，手机是触屏与安全区布局，不能直接复制 PC 宽度或拖窗规则。
 
 - PC 仓库 `yuyin-music` 与手机仓库 `yuyin-music-mobile` 分别保存源代码、Git 历史和版本；当前不存在共享 npm 样式包、自动同步或跨端主题设置同步。
 - 手机相关入口是其 `src/theme.css`、`src/styles.css`、`src/App.tsx`，以手机仓库实际文件为准。先比对其 token／类名，再实现语义对应，不假定所有 CSS 选择器相同。

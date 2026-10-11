@@ -109,8 +109,8 @@ public partial class MainWindow : Window
         {
             var runtimeMissing = error is WebView2RuntimeNotFoundException;
             StatusText.Text = runtimeMissing
-                ? "系统缺少 Microsoft Edge WebView2 运行时。余音直接使用系统运行时，请安装后重新打开余音。"
-                : $"无法启动余音：{error.Message}";
+                ? "系统缺少 Microsoft Edge WebView2 运行时。openmusic直接使用系统运行时，请安装后重新打开openmusic。"
+                : $"无法启动openmusic：{error.Message}";
             RuntimeDownloadButton.Visibility = runtimeMissing ? Visibility.Visible : Visibility.Collapsed;
             StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
         }
@@ -194,7 +194,7 @@ public partial class MainWindow : Window
             case "music.status": return _player.Status;
             case "library.export":
                 LocalDataStore.ValidateLibrary(ArgString(args, 0));
-                var save = new Microsoft.Win32.SaveFileDialog { Filter = "JSON 音乐库|*.json", FileName = "余音音乐库.json", DefaultExt = ".json" };
+                var save = new Microsoft.Win32.SaveFileDialog { Filter = "JSON 音乐库|*.json", FileName = "openmusic音乐库.json", DefaultExt = ".json" };
                 if (save.ShowDialog(this) != true) return false;
                 LocalDataStore.AtomicWrite(save.FileName, ArgString(args, 0));
                 return true;
@@ -400,7 +400,7 @@ public partial class MainWindow : Window
     private async Task ShutdownAsync()
     {
         ++_playEntryRevision;
-        async Task Cleanup(Func<Task> operation) { try { await operation(); } catch (Exception error) { Debug.WriteLine("余音关闭清理失败：" + error.Message); } }
+        async Task Cleanup(Func<Task> operation) { try { await operation(); } catch (Exception error) { Debug.WriteLine("openmusic关闭清理失败：" + error.Message); } }
         SaveWindowState();
         await Cleanup(() => { if (_updater is not null) { _updater.StateChanged -= Updater_StateChanged; _updater.Dispose(); } return Task.CompletedTask; });
         await Cleanup(() => { CloseLoginWindow(); return Task.CompletedTask; });

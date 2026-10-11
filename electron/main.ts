@@ -137,7 +137,7 @@ function registerIPC() {
   ipcMain.handle('music:source', event => { if (!isTrustedSender(event)) throw new Error('未授权'); return withPlaybackAccess(async () => { player.openSourceWindow() }) })
   ipcMain.handle('library:export', async (event, json: unknown) => {
     if (!isTrustedSender(event) || typeof json !== 'string' || json.length > 2_000_000) return false
-    const result = await dialog.showSaveDialog(mainWindow!, { title: '导出我的音乐库', defaultPath: '余音音乐库.json', filters: [{ name: 'JSON', extensions: ['json'] }] })
+    const result = await dialog.showSaveDialog(mainWindow!, { title: '导出我的音乐库', defaultPath: 'openmusic音乐库.json', filters: [{ name: 'JSON', extensions: ['json'] }] })
     if (result.canceled || !result.filePath) return false
     const { writeFile } = await import('node:fs/promises'); await writeFile(result.filePath, json, 'utf8'); return true
   })
@@ -250,7 +250,7 @@ else {
     mainWindow?.show()
     mainWindow?.focus()
   })
-  app.whenReady().then(createWindow).catch(error => { dialog.showErrorBox('余音无法启动', error instanceof Error ? error.message : String(error)); app.quit() })
+  app.whenReady().then(createWindow).catch(error => { dialog.showErrorBox('openmusic无法启动', error instanceof Error ? error.message : String(error)); app.quit() })
 }
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
 app.on('before-quit', event => {
@@ -279,7 +279,7 @@ app.on('before-quit', event => {
       updater.reportInstallationFailure(error)
       return
     }
-    if (updateRequested) dialog.showErrorBox('余音更新未安装', error instanceof Error ? error.message : '保存设置或启动安装器失败，请重新打开余音后重试。')
+    if (updateRequested) dialog.showErrorBox('openmusic更新未安装', error instanceof Error ? error.message : '保存设置或启动安装器失败，请重新打开openmusic后重试。')
     quitCompleted = true; app.quit()
   })
 })

@@ -89,7 +89,7 @@ export function UpdateSettings({ compact = false }: { compact?: boolean }) {
   const version = state?.currentVersion || packageInfo.version
   return <section className={compact ? 'login-update' : 'settings-panel update-settings'} aria-label="软件更新">
     {!compact && <h2>软件更新</h2>}
-    <div className="setting-row update-setting-row"><span><strong>余音 v{version}</strong><small role="status">{updateMessage(state)}</small>{state?.installDisabledReason && <small>{state.installDisabledReason}</small>}</span><UpdateActions check /></div>
+    <div className="setting-row update-setting-row"><span><strong>openmusic v{version}</strong><small role="status">{updateMessage(state)}</small>{state?.installDisabledReason && <small>{state.installDisabledReason}</small>}</span><UpdateActions check /></div>
     {state?.status === 'downloading' && <progress className="update-progress" aria-label="更新下载进度" max={100} value={state.progress ?? undefined} />}
     {(failure || state?.status === 'error') && <p className="update-error" role="alert">{failure || state?.error}</p>}
     {!compact && <p className="update-hint">自动发现 GitHub 正式新版，由你选择下载和安装。安装后继续使用原来的音乐库与设置。</p>}
@@ -103,7 +103,7 @@ function UpdateBanner() {
   const show = state?.manifest && ['available', 'downloading', 'downloaded', 'installing', 'error'].includes(state.status)
   if (!isDesktop || !show || bannerBlocked || dismissed === key) return null
   return <aside className="update-banner" aria-label="新版本更新提示">
-    <div className="update-banner-heading"><strong>余音 v{state.manifest!.version}</strong><button className="icon-button" type="button" aria-label="稍后更新" title="稍后更新" onClick={() => setDismissed(key)}><X size={17} /></button></div>
+    <div className="update-banner-heading"><strong>openmusic v{state.manifest!.version}</strong><button className="icon-button" type="button" aria-label="稍后更新" title="稍后更新" onClick={() => setDismissed(key)}><X size={17} /></button></div>
     <p role="status">{updateMessage(state)}</p>
     {state.status === 'available' && state.manifest!.notes && <p className="update-notes">{state.manifest!.notes}</p>}
     {state.installDisabledReason && <p className="update-hint">{state.installDisabledReason}</p>}

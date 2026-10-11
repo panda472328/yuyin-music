@@ -6,7 +6,7 @@ Unicode true
 !include "WinVer.nsh"
 !include "${YUYIN_ROOT}\build\webview2-installer-guards.nsh"
 
-Name "余音音乐播放器"
+Name "openmusic音乐播放器"
 OutFile "${YUYIN_INSTALLER}"
 !ifdef YUYIN_QA
   !define YUYIN_INSTALL_KEY "Software\YuyinWebView2Qa\${YUYIN_QA}"
@@ -24,8 +24,8 @@ SetCompressorDictSize 64
 ShowInstDetails show
 ShowUninstDetails show
 VIProductVersion "${YUYIN_VERSION}.0"
-VIAddVersionKey /LANG=2052 "ProductName" "余音音乐播放器"
-VIAddVersionKey /LANG=2052 "FileDescription" "余音 Windows WebView2 安装程序"
+VIAddVersionKey /LANG=2052 "ProductName" "openmusic音乐播放器"
+VIAddVersionKey /LANG=2052 "FileDescription" "openmusic Windows WebView2 安装程序"
 VIAddVersionKey /LANG=2052 "FileVersion" "${YUYIN_VERSION}"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "MIT License"
 Icon "${YUYIN_ROOT}\build\icon.ico"
@@ -34,7 +34,7 @@ UninstallIcon "${YUYIN_ROOT}\build\icon.ico"
 !define YUYIN_WEBVIEW2_KEY "Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\Yuyin.WindowsHost.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "启动余音"
+!define MUI_FINISHPAGE_RUN_TEXT "启动openmusic"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${YUYIN_ROOT}\LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
@@ -83,11 +83,11 @@ Function .onInit
         Call StopInstall
     ${EndIf}
     ${IfNot} ${AtLeastWin10}
-        StrCpy $FailureMessage "余音 WebView2 版需要 Windows 10 1903 或更新系统。"
+        StrCpy $FailureMessage "openmusic WebView2 版需要 Windows 10 1903 或更新系统。"
         Call StopInstall
     ${EndIf}
     ${IfNot} ${AtLeastBuild} 18362
-        StrCpy $FailureMessage "余音 WebView2 版需要 Windows 10 1903 或更新系统。"
+        StrCpy $FailureMessage "openmusic WebView2 版需要 Windows 10 1903 或更新系统。"
         Call StopInstall
     ${EndIf}
     SetShellVarContext current
@@ -162,11 +162,11 @@ Function .onInit
             System::Call 'kernel32::WaitForSingleObject(p r1, i 60000)i.r2'
             System::Call 'kernel32::CloseHandle(p r1)'
             ${If} $2 != 0
-                StrCpy $FailureMessage "余音尚未正常退出，更新已停止。请先退出余音和桌面歌词，再重新安装。"
+                StrCpy $FailureMessage "openmusic尚未正常退出，更新已停止。请先退出openmusic和桌面歌词，再重新安装。"
                 Call StopInstall
             ${EndIf}
         ${ElseIf} $2 != 87
-            StrCpy $FailureMessage "无法确认余音更新进程已退出（Windows 错误 $2），更新已停止。请退出余音后重新安装。"
+            StrCpy $FailureMessage "无法确认openmusic更新进程已退出（Windows 错误 $2），更新已停止。请退出openmusic后重新安装。"
             Call StopInstall
         ${EndIf}
     ${EndIf}
@@ -178,7 +178,7 @@ Function .onInit
     ${EndIf}
 FunctionEnd
 
-Section "余音" MainSection
+Section "openmusic" MainSection
     ; An installer inside its target would overwrite/delete its own payload.
     GetFullPathName $0 "$INSTDIR\"
     GetFullPathName $1 "$EXEDIR\"
@@ -222,7 +222,7 @@ Section "余音" MainSection
         Call CheckWebView2
         ${If} $RuntimeVersion == ""
         ${OrIf} $RuntimeVersion == "0.0.0.0"
-            StrCpy $FailureMessage "系统 WebView2 运行时未安装成功（退出码 $0）。请检查网络后重试，或从微软官方网站安装 Evergreen Runtime。余音程序文件尚未覆盖。"
+            StrCpy $FailureMessage "系统 WebView2 运行时未安装成功（退出码 $0）。请检查网络后重试，或从微软官方网站安装 Evergreen Runtime。openmusic程序文件尚未覆盖。"
             ${IfNot} ${Silent}
                 MessageBox MB_YESNO|MB_ICONEXCLAMATION "$FailureMessage$\r$\n现在打开官方下载页面？" IDNO +2
                 ExecShell "open" "https://developer.microsoft.com/microsoft-edge/webview2/#download-section"
@@ -236,31 +236,31 @@ Section "余音" MainSection
     ClearErrors
     File /r "${YUYIN_PAYLOAD}\*"
     ${If} ${Errors}
-        StrCpy $FailureMessage "写入余音程序文件失败，请检查磁盘空间和目录权限后重试。"
+        StrCpy $FailureMessage "写入openmusic程序文件失败，请检查磁盘空间和目录权限后重试。"
         Call StopInstall
     ${EndIf}
     ClearErrors
     WriteUninstaller "$INSTDIR\Uninstall Yuyin.exe"
     ${If} ${Errors}
-        StrCpy $FailureMessage "写入余音卸载程序失败，请检查目录权限后重试。"
+        StrCpy $FailureMessage "写入openmusic卸载程序失败，请检查目录权限后重试。"
         Call StopInstall
     ${EndIf}
     ClearErrors
     FileOpen $0 "$INSTDIR\installed.marker" w
     ${If} ${Errors}
-        StrCpy $FailureMessage "保存余音安装状态失败，请检查目录权限后重试。"
+        StrCpy $FailureMessage "保存openmusic安装状态失败，请检查目录权限后重试。"
         Call StopInstall
     ${EndIf}
     FileWrite $0 "yuyin-webview2-installed-v1"
     ${If} ${Errors}
         FileClose $0
         Delete "$INSTDIR\installed.marker"
-        StrCpy $FailureMessage "保存余音安装状态失败，请检查目录权限后重试。"
+        StrCpy $FailureMessage "保存openmusic安装状态失败，请检查目录权限后重试。"
         Call StopInstall
     ${EndIf}
     FileClose $0
     WriteRegStr HKCU "${YUYIN_INSTALL_KEY}" "InstallLocation" "$INSTDIR"
-    WriteRegStr HKCU "${YUYIN_UNINSTALL_KEY}" "DisplayName" "余音音乐播放器"
+    WriteRegStr HKCU "${YUYIN_UNINSTALL_KEY}" "DisplayName" "openmusic音乐播放器"
     WriteRegStr HKCU "${YUYIN_UNINSTALL_KEY}" "DisplayVersion" "${YUYIN_VERSION}"
     WriteRegStr HKCU "${YUYIN_UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKCU "${YUYIN_UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\Yuyin.WindowsHost.exe"
@@ -269,10 +269,10 @@ Section "余音" MainSection
     WriteRegDWORD HKCU "${YUYIN_UNINSTALL_KEY}" "NoModify" 1
     WriteRegDWORD HKCU "${YUYIN_UNINSTALL_KEY}" "NoRepair" 1
 !ifndef YUYIN_QA
-    CreateDirectory "$SMPROGRAMS\余音"
-    CreateShortcut "$SMPROGRAMS\余音\余音音乐播放器.lnk" "$INSTDIR\Yuyin.WindowsHost.exe"
-    CreateShortcut "$SMPROGRAMS\余音\卸载余音.lnk" "$INSTDIR\Uninstall Yuyin.exe"
-    CreateShortcut "$DESKTOP\余音音乐播放器.lnk" "$INSTDIR\Yuyin.WindowsHost.exe"
+    CreateDirectory "$SMPROGRAMS\openmusic"
+    CreateShortcut "$SMPROGRAMS\openmusic\openmusic音乐播放器.lnk" "$INSTDIR\Yuyin.WindowsHost.exe"
+    CreateShortcut "$SMPROGRAMS\openmusic\卸载openmusic.lnk" "$INSTDIR\Uninstall Yuyin.exe"
+    CreateShortcut "$DESKTOP\openmusic音乐播放器.lnk" "$INSTDIR\Yuyin.WindowsHost.exe"
 !endif
     ${If} ${Silent}
     ${AndIf} $ForceRun == "1"
@@ -295,10 +295,10 @@ Section "Uninstall"
     Delete "$INSTDIR\installed.marker"
     Delete "$INSTDIR\Uninstall Yuyin.exe"
 !ifndef YUYIN_QA
-    Delete "$DESKTOP\余音音乐播放器.lnk"
-    Delete "$SMPROGRAMS\余音\余音音乐播放器.lnk"
-    Delete "$SMPROGRAMS\余音\卸载余音.lnk"
-    RMDir "$SMPROGRAMS\余音"
+    Delete "$DESKTOP\openmusic音乐播放器.lnk"
+    Delete "$SMPROGRAMS\openmusic\openmusic音乐播放器.lnk"
+    Delete "$SMPROGRAMS\openmusic\卸载openmusic.lnk"
+    RMDir "$SMPROGRAMS\openmusic"
 !endif
     RMDir "$INSTDIR"
     DeleteRegKey HKCU "${YUYIN_UNINSTALL_KEY}"

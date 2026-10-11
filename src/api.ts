@@ -52,10 +52,10 @@ export interface MusicAPI {
 
 declare global { interface Window { musicAPI?: MusicAPI } }
 
-const desktopRequired = async (): Promise<never> => { throw new Error('请在余音桌面客户端中播放，网页预览仅提供界面和音乐库功能。') }
+const desktopRequired = async (): Promise<never> => { throw new Error('请在openmusic桌面客户端中播放，网页预览仅提供界面和音乐库功能。') }
 const idle: PlaybackStatus = { state: 'idle', song: null, currentTime: 0, duration: 0, volume: .7, error: null }
 const previewUpdate: UpdateState = { status: 'idle', currentVersion: '预览', manifest: null, progress: null, error: null,
-  checkedAt: null, canInstall: false, installDisabledReason: '网页预览不支持软件更新，请使用余音 Windows 安装版。' }
+  checkedAt: null, canInstall: false, installDisabledReason: '网页预览不支持软件更新，请使用openmusic Windows 安装版。' }
 
 const previewAPI: MusicAPI = {
   async getUpdateState() { return { ...previewUpdate } },
@@ -114,15 +114,15 @@ const previewAPI: MusicAPI = {
   async continueAsGuest() { return { loggedIn: false, account: null, guest: true } },
   openBilibiliProfile: desktopRequired,
   onBilibiliSessionChanged() { return () => {} },
-  async getBilibiliFavoriteFolders() { throw new Error('请在余音桌面客户端中读取 Bilibili 收藏夹。') },
-  async getBilibiliFavoriteItems() { throw new Error('请在余音桌面客户端中读取 Bilibili 收藏夹。') },
-  async getBilibiliFavoriteSongs() { throw new Error('请在余音桌面客户端中读取 Bilibili 收藏夹。') },
+  async getBilibiliFavoriteFolders() { throw new Error('请在openmusic桌面客户端中读取 Bilibili 收藏夹。') },
+  async getBilibiliFavoriteItems() { throw new Error('请在openmusic桌面客户端中读取 Bilibili 收藏夹。') },
+  async getBilibiliFavoriteSongs() { throw new Error('请在openmusic桌面客户端中读取 Bilibili 收藏夹。') },
   async getDesktopLyricsSnapshot() { return { settings: { ...DESKTOP_LYRICS_DEFAULT_SETTINGS }, content: { ...DESKTOP_LYRICS_DEFAULT_CONTENT }, error: null } },
   updateDesktopLyricsSettings: desktopRequired,
   async publishDesktopLyrics() {},
   onDesktopLyricsSnapshot() { return () => {} },
   async getLyrics(request) {
-    if (request.provider === 'bilibili') throw new Error('请在余音桌面客户端中获取 Bilibili 字幕，桌面端会使用你的 Bilibili 登录状态。')
+    if (request.provider === 'bilibili') throw new Error('请在openmusic桌面客户端中获取 Bilibili 字幕，桌面端会使用你的 Bilibili 登录状态。')
     const queries = buildLyricsQueries(request)
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 20_000)
@@ -148,7 +148,7 @@ const previewAPI: MusicAPI = {
   writeLocalPreference(key, value) { localStorage.setItem(key, value) },
   onPreferenceError() { return () => {} },
   async exportLibrary(data) {
-    const anchor = document.createElement('a'); anchor.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); anchor.download = '余音音乐库.json'; anchor.click(); URL.revokeObjectURL(anchor.href); return true
+    const anchor = document.createElement('a'); anchor.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); anchor.download = 'openmusic音乐库.json'; anchor.click(); URL.revokeObjectURL(anchor.href); return true
   },
   async importLibrary() {
     return new Promise(resolve => {

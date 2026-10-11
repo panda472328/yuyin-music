@@ -2,7 +2,7 @@
   "name": "yuyin-music",
   "version": "0.5.0",
   "private": true,
-  "description": "余音 · 基于 Bilibili 的桌面音乐播放器",
+  "description": "openmusic · 基于 Bilibili 的桌面音乐播放器",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "npm run build:webview2 && node scripts/webview2-host.mjs run",
@@ -46,7 +46,7 @@
   },
   "build": {
     "appId": "com.yuyin.music",
-    "productName": "余音",
+    "productName": "openmusic",
     "directories": {
       "output": "release"
     },
@@ -75,8 +75,8 @@
       ],
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "余音音乐播放器",
-      "uninstallDisplayName": "余音音乐播放器 ${version}",
+      "shortcutName": "openmusic音乐播放器",
+      "uninstallDisplayName": "openmusic音乐播放器 ${version}",
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true
     },

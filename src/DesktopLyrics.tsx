@@ -92,7 +92,7 @@ export default function DesktopLyrics() {
   useEffect(() => {
     mounted.current = true
     revealToolbar()
-    if (!api) { setActionError('请从余音桌面播放器打开桌面歌词。'); return () => clearToolbarTimer() }
+    if (!api) { setActionError('请从openmusic桌面播放器打开桌面歌词。'); return () => clearToolbarTimer() }
     let disposed = false
     let unsubscribe = () => {}
     let unsubscribePointer = () => {}
@@ -154,8 +154,8 @@ export default function DesktopLyrics() {
   const hasCurrent = connected && content.phase === 'ready' && Boolean(content.current.trim())
   let current = content.current
   let next = content.next
-  if (!connected) { current = api ? '余音 · 桌面歌词' : '桌面歌词暂不可用'; next = api ? '正在连接播放器…' : '请在余音桌面版中打开' }
-  else if (content.phase === 'idle') { current = '余音 · 桌面歌词'; next = '播放一首歌，让歌词随音乐流动' }
+  if (!connected) { current = api ? 'openmusic · 桌面歌词' : '桌面歌词暂不可用'; next = api ? '正在连接播放器…' : '请在openmusic桌面版中打开' }
+  else if (content.phase === 'idle') { current = 'openmusic · 桌面歌词'; next = '播放一首歌，让歌词随音乐流动' }
   else if (content.phase === 'loading') { current = '正在寻找歌词…'; next = '音乐照常播放' }
   else if (content.phase === 'empty') { current = '暂无同步歌词'; next = '可在播放器中切换歌词来源' }
   else if (content.phase === 'error') { current = '歌词暂时不可用'; next = '请在播放器中重新获取' }
@@ -205,9 +205,9 @@ export default function DesktopLyrics() {
     return () => { observer.disconnect(); window.removeEventListener('resize', schedule); if (frame) cancelAnimationFrame(frame) }
   }, [api, toolbarVisible])
 
-  return <main ref={rootElement} className={rootClass} style={style} data-font={settings.font} data-color={settings.color} data-phase={content.phase} data-locked={settings.locked} data-opacity={settings.opacity} aria-label="余音桌面歌词" onPointerMove={revealToolbar}>
+  return <main ref={rootElement} className={rootClass} style={style} data-font={settings.font} data-color={settings.color} data-phase={content.phase} data-locked={settings.locked} data-opacity={settings.opacity} aria-label="openmusic桌面歌词" onPointerMove={revealToolbar}>
     <div className="desktop-lyrics-toolbar" role="toolbar" aria-label="桌面歌词设置">
-      <div className="desktop-lyrics-handle" title="拖动手柄、歌词或空白处可移动窗口"><GripVertical size={13} /><span className="desktop-lyrics-brand"><AudioLines size={15} />余音</span><span className="desktop-lyrics-label">桌面歌词</span></div>
+      <div className="desktop-lyrics-handle" title="拖动手柄、歌词或空白处可移动窗口"><GripVertical size={13} /><span className="desktop-lyrics-brand"><AudioLines size={15} />openmusic</span><span className="desktop-lyrics-label">桌面歌词</span></div>
       <span className="desktop-toolbar-divider" />
       <select className="desktop-font-select" aria-label="桌面歌词字体" title="切换歌词字体" value={settings.font} disabled={disabled} onChange={event => void changeSettings({ font: event.target.value as DesktopLyricsSettings['font'] })}>
         {DESKTOP_LYRICS_FONT_OPTIONS.map(option => <option key={option.value} value={option.value} style={{ fontFamily: option.fontFamily }}>{option.label}</option>)}
@@ -225,7 +225,7 @@ export default function DesktopLyrics() {
       <div className="desktop-current-area" ref={currentFit.area}><p ref={currentFit.line} className="desktop-lyric-current" style={{ fontSize: currentMaximum }} title={current}>{current}</p></div>
       <div className="desktop-next-area" ref={nextFit.area}><p ref={nextFit.line} className="desktop-lyric-next" style={{ fontSize: nextMaximum }} title={next}>{next || '\u00a0'}</p></div>
     </section>
-    <div className="desktop-lyrics-caption">{content.title ? <><span className={`desktop-playing-dot ${content.playing ? 'is-playing' : ''}`} title={content.playing ? '播放中' : '已暂停'} /><span className="desktop-song-title" title={content.title}>{content.title}</span>{!content.playing && <span className="desktop-paused-label">已暂停</span>}</> : <span>YUYIN · 留住每一句喜欢</span>}</div>
+    <div className="desktop-lyrics-caption">{content.title ? <><span className={`desktop-playing-dot ${content.playing ? 'is-playing' : ''}`} title={content.playing ? '播放中' : '已暂停'} /><span className="desktop-song-title" title={content.title}>{content.title}</span>{!content.playing && <span className="desktop-paused-label">已暂停</span>}</> : <span>openmusic · 留住每一句喜欢</span>}</div>
     {error && <p className="desktop-lyrics-status" role="status" title={error}>{shortError(error)}</p>}
   </main>
 }

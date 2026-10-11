@@ -16,10 +16,10 @@ h1, h2, h3, p { margin: 0; }
 ::-webkit-scrollbar-thumb { background: #d6dbd3; border-radius: 8px; }
 .app-shell { display: grid; grid-template-columns: 222px minmax(0, 1fr); height: 100vh; overflow: hidden; padding-bottom: 98px; }
 .sidebar { background: var(--sidebar); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 38px 18px 18px; user-select: none; min-height: 0; overflow-y: auto; }
-.brand { display: flex; align-items: center; gap: 10px; margin: 0 16px 44px; -webkit-app-region: drag; }
-.brand-icon { display: flex; align-items: center; justify-content: center; background: var(--green); width: 43px; height: 43px; border-radius: 14px 14px 14px 4px; color: #eff8e8; }
-.brand > span:last-child { font-size: 25px; letter-spacing: 4px; font-weight: 750; line-height: 1.1; }
-.brand small { display: block; font-size: 8px; letter-spacing: 2px; margin-top: 6px; font-weight: 600; color: #849083; }
+.brand { display: flex; align-items: center; gap: 10px; margin: 0 8px 44px; -webkit-app-region: drag; }
+.brand-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--green); width: 43px; height: 43px; border-radius: 14px 14px 14px 4px; color: #eff8e8; }
+.brand-name { font-size: 20px; letter-spacing: .3px; font-weight: 750; line-height: 1.1; white-space: nowrap; }
+.brand-subtitle { display: block; font-size: 8px; letter-spacing: 1px; margin-top: 6px; font-weight: 600; color: #849083; }
 .sidebar-label { color: #98a194; font-size: 10px; font-weight: 600; letter-spacing: 2px; padding-left: 16px; }
 .sidebar > .sidebar-label { margin-bottom: 15px; }
 .nav-item { width: 100%; display: flex; gap: 13px; align-items: center; padding: 13px 16px; border-radius: 9px; color: #788174; margin: 3px 0; position: relative; text-align: left; font-size: 13px; }
@@ -97,7 +97,7 @@ h1, h2, h3, p { margin: 0; }
 .login-titlebar { -webkit-app-region: drag; display: flex; align-items: center; justify-content: space-between; padding: 31px 44px; flex-shrink: 0; }
 .login-titlebar .brand { margin: 0; }
 .login-titlebar .brand-icon { width: 38px; height: 38px; border-radius: 12px 12px 12px 4px; }
-.login-titlebar .brand > span:last-child { font-size: 22px; }
+.login-titlebar .brand-name { font-size: 22px; }
 .login-close { background: #edf1e6; width: 31px; height: 31px; }
 .login-layout { margin: auto; padding: 28px 46px 30px; width: min(1040px, 100%); display: grid; grid-template-columns: 1.1fr 1fr; gap: 70px; align-items: center; }
 .login-intro { position: relative; }
