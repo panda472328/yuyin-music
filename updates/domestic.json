@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "platform": "windows",
+  "version": "0.5.2",
+  "artifact": {
+    "url": "https://gitee.com/api/v5/repos/openmusic/openmusic/releases/1200021/attach_files/3371613/download",
+    "sha256": "12b818df22cc804faaf1295f5774a84a8cb24c0577ea5edf760a3bfe228a0d6c",
+    "size": 54264043
+  },
+  "releaseNotesUrl": "https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2",
+  "notes": "- 修正 Gitee 官方附件下载路径的大小写规范化兼容：仍只接受固定 Gitee API 发出的单次官方跳转，并严格校验版本文件名、短期签名、大小与 SHA-256。\r\n- 国内更新清单在正式附件匿名完整下载核验后启用；0.5.1 标签和安装包保持不可变。",
+  "publishedAt": "2026-10-12T05:07:01.000Z",
+  "provider": "gitee",
+  "source": {
+    "releaseId": 1200021,
+    "attachmentId": 3371613,
+    "filename": "Yuyin-0.5.2-Setup.exe"
+  }
+}
