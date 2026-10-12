@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "platform": "windows",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "artifact": {
-    "url": "https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.1/Yuyin-0.5.1-Setup.exe",
-    "sha256": "2384bb10c85a14ca16d36e99fff93a580b6df66dfebd7a636b2f107ee8225138",
-    "size": 54274254
+    "url": "https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.2/Yuyin-0.5.2-Setup.exe",
+    "sha256": "12b818df22cc804faaf1295f5774a84a8cb24c0577ea5edf760a3bfe228a0d6c",
+    "size": 54264043
   },
-  "releaseNotesUrl": "https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.1",
-  "notes": "- PC 项目展示名称改为小写 `openmusic`，同步主界面、登录页、歌词、窗口标题、导出备份名称、安装向导和新快捷方式。\r\n- 调整品牌字标字号、字距和间距，适配主侧栏与登录页；保留拖动、控件命中及无障碍语义。\r\n- 继续使用原来的本地数据目录、存储键、安装登记、程序集、更新地址和发行文件名，兼容已有收藏和设置。旧快捷方式不自动删除，升级后如有重复可手动清理；手机版在独立仓库维护。\r\n- 新增当前视频评论区：读取 Bilibili 原视频的热门／最新评论，支持分页、展开楼中楼回复、点赞／取消点赞以及发表评论／回复。\r\n- 评论入口位于右下角气泡按钮，重复点击保留当前页面与草稿；侧栏“Bilibili · MV”复用当前后台视频进入网页全屏，保留播放进度。按 Esc、关闭或最小化返回后台继续播放；未加载、需要验证或全屏控件不可用时保留普通来源窗口并提示。\r\n- 游客只读；写操作验证原生登录账号与 CSRF。切歌和账号会话变化拒绝晚到响应；发送失败保留草稿，未知结果不自动重发，审核与验证提示遵循源站返回。\r\n- PC 更新器新增 Gitee 独立国内清单与官方附件下载支持；选择有效清单中的较新版本，同版本字节一致时优先 Gitee，国内下载失败可回退到经过相同大小与 SHA-256 校验的 GitHub 文件。下载和安装仍由用户选择，旧客户端需先安装含双源更新器的版本。\r\n- 国内通道实际可用性以正式附件、匿名完整下载校验和公开清单为准，单纯上传源码不会切换已安装客户端；已公开的 `pc-v0.5.0` 标签、安装文件和校验值保持原样。",
-  "publishedAt": "2026-10-12T03:59:01.000Z"
+  "releaseNotesUrl": "https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.2",
+  "notes": "- 修正 Gitee 官方附件下载路径的大小写规范化兼容：仍只接受固定 Gitee API 发出的单次官方跳转，并严格校验版本文件名、短期签名、大小与 SHA-256。\r\n- 国内更新清单在正式附件匿名完整下载核验后启用；0.5.1 标签和安装包保持不可变。",
+  "publishedAt": "2026-10-12T05:07:01.000Z"
 }
