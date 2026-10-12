@@ -28,6 +28,8 @@ PC 版从本仓库的 `updates/stable.json` 检查正式版本。当前稳定清
 
 3. 审核候选后将其保存为 `updates/domestic.json`，提交并推送源码到 GitHub 和 Gitee；保留 `stable.json` 中的固定 GitHub 地址。发布前在绝对临时 `YUYIN_STATE_DIR`／`YUYIN_WEBVIEW2_USER_DATA_DIR` 下完成实际 Gitee 清单、完整附件、备用下载与用户选择安装验收。不要在 Gitee 附件未公开或完整下载未通过时推进 domestic 清单。
 
+本机公共 API 限流时，可使用 GitHub Actions 的 `Verify public Gitee update channel` 工作流从独立网络执行相同匿名准备脚本。该工作流只在本仓库 `main` 上运行，权限为 `contents: read`；不会上传安装包或修改清单，仅保存已验证的候选 JSON 七天。没有 `updates/domestic.json` 时只生成候选，明确不声称原生探针通过；清单提交后会再次生成候选、核对版本和附件身份，再运行下面的原生下载探针。公共 API 限流、下载或摘要校验失败都会使工作流失败，不能当作国内通道已通过。
+
 公开清单与附件准备完成后，可以显式运行宿主的只下载验收：`dotnet run --project tests/windows-host/Yuyin.HostTests.csproj -c Release -- --live-update-probe X.Y.Z`（`X.Y.Z` 替换为正式版本；本机也可使用 `.tools/dotnet/dotnet.exe`）。该操作使用实际 `UpdateService`、受控旧版本 `0.5.0` 和新建临时缓存，要求选择 Gitee 并匿名完整下载、两次检查大小及 SHA-256；GitHub 回退不计为国内通过。不启动应用、不读取 profile、不调用安装接口，完成后只删除本次随机缓存。它不能代替用户选择安装及实际升级验收。
 
 国内清单比旧契约增加 `schemaVersion: 2`、`provider: "gitee"` 和 `source: { "releaseId": 12345, "attachmentId": 67890, "filename": "Yuyin-X.Y.Z-Setup.exe" }`。ID 例子仅说明结构；必须使用正式 Gitee Release API 回读的真实身份。artifact 的 URL 固定为上述同仓库附件下载 API，releaseNotesUrl 固定为同版本 `https://gitee.com/openmusic/openmusic/releases/tag/pc-vX.Y.Z`；其余版本、字节数、SHA-256、说明和发布时间沿用已校验的 GitHub 稳定清单。

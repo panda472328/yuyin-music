@@ -1,0 +1,110 @@
+name: Verify public Gitee update channel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/domestic-update.yml
+      - updates/domestic.json
+      - updates/stable.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: domestic-update-read-only
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.repository == 'panda472328/yuyin-music' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Test domestic candidate guards
+        run: node --test scripts/prepare-domestic-update.test.mjs
+      - name: Prepare candidate after a complete anonymous attachment download
+        timeout-minutes: 20
+        run: node scripts/prepare-domestic-update.mjs --prepare --output .qa/domestic-candidate.json
+      - name: Review public metadata and conditionally run the native download probe
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { spawnSync } from 'node:child_process';
+          import { isDeepStrictEqual } from 'node:util';
+          import { validateDomesticManifest } from './scripts/prepare-domestic-update.mjs';
+
+          const summary = text => fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, text + '\n');
+          const exactKeys = (value, keys, label) => {
+            if (!value || typeof value !== 'object' || Array.isArray(value) ||
+                !isDeepStrictEqual(Object.keys(value).sort(), [...keys].sort())) {
+              throw new Error(label + ' has missing or unsupported fields.');
+            }
+          };
+          const readManifest = file => {
+            const bytes = fs.readFileSync(file);
+            if (bytes.length < 1 || bytes.length > 64 * 1024) throw new Error('Manifest size is invalid.');
+            const manifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+            exactKeys(manifest, ['schemaVersion', 'platform', 'provider', 'version', 'artifact',
+              'source', 'releaseNotesUrl', 'notes', 'publishedAt'], 'Manifest');
+            exactKeys(manifest.artifact, ['url', 'size', 'sha256'], 'Artifact');
+            exactKeys(manifest.source, ['releaseId', 'attachmentId', 'filename'], 'Source');
+            validateDomesticManifest(manifest);
+            return manifest;
+          };
+
+          try {
+            const candidate = readManifest('.qa/domestic-candidate.json');
+            const published = fs.existsSync('updates/domestic.json')
+              ? readManifest('updates/domestic.json') : null;
+            if (published && ['version', 'artifact', 'source'].some(key =>
+                !isDeepStrictEqual(published[key], candidate[key]))) {
+              throw new Error('Published domestic version, artifact or source differs from the verified candidate.');
+            }
+            // Only fixed-API metadata is printed; no CDN signatures or attachment bytes.
+            const json = JSON.stringify(candidate, null, 2);
+            console.log(json);
+            summary('## Verified Gitee candidate\n\nPreparation completed an anonymous full attachment download and verified size and SHA-256.\n\n```json\n' + json + '\n```\n');
+            if (!published) {
+              const message = 'No updates/domestic.json is published. Candidate generated only; the native probe was not run and is not claimed to have passed.';
+              console.log(message);
+              summary(message);
+            } else {
+              const probe = spawnSync('dotnet', ['run', '--project',
+                'tests/windows-host/Yuyin.HostTests.csproj', '-c', 'Release', '--',
+                '--live-update-probe', candidate.version], {
+                shell: false, stdio: 'inherit', windowsHide: true, timeout: 18 * 60 * 1000,
+              });
+              if (probe.error || probe.status !== 0) {
+                throw new Error('Public native Gitee download probe failed or timed out; no passing result is claimed.');
+              }
+              summary('The public native Gitee download probe passed for version ' + candidate.version + '. It requires Gitee selection and a complete verified download; GitHub fallback does not pass. No application, profile, cookies or installer was used.');
+            }
+          } catch (error) {
+            const message = String(error?.message ?? 'Unknown verification error')
+              .replace(/https?:\/\/\S+/g, '[URL]').slice(0, 500);
+            console.error('Domestic update verification failed: ' + message);
+            summary('Domestic update verification failed. This run does not establish a passing native Gitee probe.');
+            process.exitCode = 1;
+          }
+          NODE
+      - name: Save verified candidate metadata only
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitee-domestic-update-candidate
+          path: .qa/domestic-candidate.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
