@@ -17,6 +17,11 @@ public sealed record WindowsUpdateArtifact(
     [property: JsonPropertyName("sha256")] string Sha256,
     [property: JsonPropertyName("size")] long Size);
 
+public sealed record WindowsUpdateSource(
+    [property: JsonPropertyName("releaseId")] int ReleaseId,
+    [property: JsonPropertyName("attachmentId")] int AttachmentId,
+    [property: JsonPropertyName("filename")] string Filename);
+
 public sealed record WindowsUpdateManifest(
     [property: JsonPropertyName("schemaVersion")] int SchemaVersion,
     [property: JsonPropertyName("platform")] string Platform,
@@ -24,7 +29,9 @@ public sealed record WindowsUpdateManifest(
     [property: JsonPropertyName("artifact")] WindowsUpdateArtifact Artifact,
     [property: JsonPropertyName("releaseNotesUrl")] string ReleaseNotesUrl,
     [property: JsonPropertyName("notes")] string Notes,
-    [property: JsonPropertyName("publishedAt")] string PublishedAt);
+    [property: JsonPropertyName("publishedAt")] string PublishedAt,
+    [property: JsonPropertyName("provider"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Provider = null,
+    [property: JsonPropertyName("source"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WindowsUpdateSource? Source = null);
 
 /// <summary>
 /// A cookie-free updater using the public stable contract. Checking is automatic;
@@ -34,10 +41,12 @@ public sealed record WindowsUpdateManifest(
 public sealed class UpdateService : IDisposable
 {
     public const string ManifestUrl = "https://raw.githubusercontent.com/panda472328/yuyin-music/main/updates/stable.json";
+    public const string DomesticManifestUrl = "https://gitee.com/api/v5/repos/openmusic/openmusic/contents/updates/domestic.json?ref=main";
     public const string LatestReleaseUrl = "https://github.com/panda472328/yuyin-music/releases/latest";
     public const string InstalledMarkerName = "installed.marker";
     public const string InstalledMarkerContent = "yuyin-webview2-installed-v1";
     public const int ManifestMaxBytes = 64 * 1024;
+    public const int DomesticContentsMaxBytes = 128 * 1024;
     public const long MaxUpdateBytes = 500_000_000;
     private readonly object _sync = new();
     private readonly HttpClient _http;
@@ -48,6 +57,7 @@ public sealed class UpdateService : IDisposable
     private Timer? _timer;
     private Task<UpdateState>? _operation;
     private string? _downloadedFile;
+    private WindowsUpdateManifest? _highestManifest;
     private bool _disposed;
     private UpdateState _state;
 
@@ -92,19 +102,23 @@ public sealed class UpdateService : IDisposable
     public Task<UpdateState> CheckAsync() => RunAsync(async token =>
     {
         Publish(state => state with { Status = "checking", Error = null });
-        using var response = await RequestAsync(new Uri(ManifestUrl), true, token);
-        if (response.Content.Headers.ContentLength > ManifestMaxBytes) throw Failure("更新清单过大。");
-        await using var stream = await response.Content.ReadAsStreamAsync(token);
-        using var text = new MemoryStream();
-        var buffer = new byte[8192];
-        while (true)
+        // Independent source budgets ensure an unavailable domestic endpoint cannot
+        // consume the entire check timeout before GitHub is attempted.
+        var sources = await Task.WhenAll(ReadSourceAsync(DomesticManifestUrl, token), ReadSourceAsync(ManifestUrl, token));
+        token.ThrowIfCancellationRequested();
+        var manifests = sources.Where(result => result.Manifest is not null).Select(result => result.Manifest!).ToArray();
+        if (manifests.Length == 0) throw Failure(sources.Last().Error ?? "更新服务暂时不可用，请稍后重试。");
+        var manifest = manifests.Aggregate((preferred, candidate) => CompareVersions(candidate.Version, preferred.Version) > 0 ? candidate : preferred);
+        foreach (var other in manifests.Where(value => value.Version == manifest.Version)) RequireSameBytes(manifest, other);
+        WindowsUpdateManifest? highest;
+        lock (_sync) highest = _highestManifest;
+        if (highest is not null)
         {
-            var read = await ReadAsync(stream, buffer, token);
-            if (read == 0) break;
-            if (text.Length + read > ManifestMaxBytes) throw Failure("更新清单过大。");
-            text.Write(buffer, 0, read);
+            var comparison = CompareVersions(manifest.Version, highest.Version);
+            if (comparison < 0) manifest = highest; // Retain the newer verified offer rather than regress during mirror lag.
+            else if (comparison == 0) RequireSameBytes(manifest, highest);
         }
-        var manifest = ParseManifest(Encoding.UTF8.GetString(text.GetBuffer(), 0, checked((int)text.Length)));
+        lock (_sync) _highestManifest = manifest;
         token.ThrowIfCancellationRequested();
         var state = State;
         var checkedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
@@ -121,12 +135,75 @@ public sealed class UpdateService : IDisposable
         Publish(value => value with { Status = downloaded ? "downloaded" : "available", Manifest = manifest, Progress = downloaded ? 100 : null, CheckedAt = checkedAt });
     }, TimeSpan.FromSeconds(30));
 
+    private async Task<(WindowsUpdateManifest? Manifest, string? Error)> ReadSourceAsync(string url, CancellationToken token)
+    {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(TimeSpan.FromSeconds(12));
+        try { return (await ReadManifestAsync(url, budget.Token), null); }
+        catch (Exception error) when (!token.IsCancellationRequested && error is HttpRequestException or InvalidOperationException or IOException or OperationCanceledException or TimeoutException)
+        { return (null, ErrorMessage(error)); }
+    }
+
+    private async Task<WindowsUpdateManifest> ReadManifestAsync(string url, CancellationToken token)
+    {
+        using var response = await RequestAsync(new Uri(url), true, token);
+        var domestic = url == DomesticManifestUrl;
+        var maximum = domestic ? DomesticContentsMaxBytes : ManifestMaxBytes;
+        if (response.Content.Headers.ContentLength > maximum) throw Failure("更新清单过大。");
+        await using var stream = await response.Content.ReadAsStreamAsync(token);
+        using var text = new MemoryStream();
+        var buffer = new byte[8192];
+        while (true)
+        {
+            var read = await ReadAsync(stream, buffer, token);
+            if (read == 0) break;
+            if (text.Length + read > maximum) throw Failure("更新清单过大。");
+            text.Write(buffer, 0, read);
+        }
+        var json = Encoding.UTF8.GetString(text.GetBuffer(), 0, checked((int)text.Length));
+        return domestic ? ParseDomesticManifest(DecodeDomesticContents(json)) : ParseManifest(json);
+    }
+
+    private static void RequireSameBytes(WindowsUpdateManifest first, WindowsUpdateManifest other)
+    {
+        if (first.Version != other.Version || first.Artifact.Sha256 != other.Artifact.Sha256 || first.Artifact.Size != other.Artifact.Size)
+            throw Failure("同版本的更新文件不一致，已停止更新，请联系维护者。");
+    }
+
     public Task<UpdateState> DownloadAsync() => RunAsync(async token =>
     {
         var state = State;
         RequireInstallable(state);
         var manifest = state.Manifest as WindowsUpdateManifest;
         if (manifest is null || CompareVersions(manifest.Version, state.CurrentVersion) <= 0) throw Failure("请先检查是否有新版本。");
+        var candidates = manifest.Provider == "gitee" ? new[] { manifest, GitHubFallback(manifest) } : new[] { manifest };
+        for (var index = 0; index < candidates.Length; index++)
+        {
+            try
+            {
+                using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+                // A stalled domestic transfer must leave time for the fallback.
+                if (candidates[index].Provider == "gitee") budget.CancelAfter(TimeSpan.FromMinutes(3));
+                await DownloadVerifiedAsync(candidates[index], budget.Token);
+                Publish(value => value with { Manifest = candidates[index] });
+                return;
+            }
+            catch (Exception error) when (index + 1 < candidates.Length && !token.IsCancellationRequested
+                && error is HttpRequestException or InvalidOperationException or OperationCanceledException or TimeoutException)
+            {
+                Publish(value => value with { Progress = 0 });
+            }
+        }
+    }, TimeSpan.FromMinutes(15));
+
+    private static WindowsUpdateManifest GitHubFallback(WindowsUpdateManifest manifest) => manifest with
+    {
+        SchemaVersion = 1, Provider = null, Source = null,
+        Artifact = manifest.Artifact with { Url = ArtifactUrl(manifest.Version) }, ReleaseNotesUrl = ReleaseNotesUrl(manifest.Version),
+    };
+
+    private async Task DownloadVerifiedAsync(WindowsUpdateManifest manifest, CancellationToken token)
+    {
         var destination = FileFor(manifest);
         if (await VerifyUpdateFileAsync(destination, manifest, token))
         {
@@ -146,14 +223,14 @@ public sealed class UpdateService : IDisposable
                 using var response = await RequestAsync(new Uri(manifest.Artifact.Url), false, token);
                 var length = response.Content.Headers.ContentLength;
                 if (length is not null && length != manifest.Artifact.Size) throw Failure("安装包大小与更新清单不一致。");
-                await using var body = await response.Content.ReadAsStreamAsync(token);
+                await using var body = await OpenDownloadBodyAsync(response, token);
                 using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
                 var bytes = 0L;
                 var previousProgress = -1;
                 var buffer = new byte[81920];
                 while (true)
                 {
-                    var read = await ReadAsync(body, buffer, token);
+                    var read = await ReadDownloadBodyAsync(body, buffer, token);
                     if (read == 0) break;
                     bytes += read;
                     if (bytes > manifest.Artifact.Size) throw Failure("安装包超过预期大小。");
@@ -185,7 +262,7 @@ public sealed class UpdateService : IDisposable
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
-    }, TimeSpan.FromMinutes(15));
+    }
 
     public Task<UpdateState> InstallAsync() => RunAsync(async token =>
     {
@@ -269,7 +346,7 @@ public sealed class UpdateService : IDisposable
         var uri = initial;
         for (var redirects = 0; redirects <= 5; redirects++)
         {
-            if (!IsTrustedAddress(uri, manifest)) throw Failure("更新地址不受信任。");
+            if (!IsTrustedAddress(uri, manifest, initial)) throw Failure("更新地址不受信任。");
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             request.Headers.UserAgent.ParseAdd("Yuyin-Update/2");
             request.Headers.Accept.ParseAdd(manifest ? "application/json" : "application/octet-stream");
@@ -290,7 +367,7 @@ public sealed class UpdateService : IDisposable
             {
                 var notFound = response.StatusCode == HttpStatusCode.NotFound;
                 response.Dispose();
-                throw Failure(notFound ? "暂时没有可用的更新清单或安装包。" : "GitHub 更新服务暂时不可用，请稍后重试。");
+                throw Failure(notFound ? "暂时没有可用的更新清单或安装包。" : "更新服务暂时不可用，请稍后重试。");
             }
             if (response.Content.Headers.ContentEncoding.Any(encoding => !encoding.Equals("identity", StringComparison.OrdinalIgnoreCase)))
             {
@@ -304,6 +381,18 @@ public sealed class UpdateService : IDisposable
 
     private static async Task<int> ReadAsync(Stream stream, byte[] buffer, CancellationToken token)
         => await stream.ReadAsync(buffer.AsMemory(), token).AsTask().WaitAsync(TimeSpan.FromSeconds(30), token);
+    private static async Task<Stream> OpenDownloadBodyAsync(HttpResponseMessage response, CancellationToken token)
+    {
+        try { return await response.Content.ReadAsStreamAsync(token); }
+        catch (IOException error) { throw new HttpRequestException("更新下载传输中断，请稍后重试。", error); }
+    }
+    private static async Task<int> ReadDownloadBodyAsync(Stream stream, byte[] buffer, CancellationToken token)
+    {
+        try { return await ReadAsync(stream, buffer, token); }
+        // Only response reads are transport failures. Disk IO remains a local
+        // failure and must not trigger another provider/download.
+        catch (IOException error) { throw new HttpRequestException("更新下载传输中断，请稍后重试。", error); }
+    }
     private string FileFor(WindowsUpdateManifest manifest) => Path.Combine(_cacheDirectory, $"{manifest.Artifact.Sha256}-Yuyin-{manifest.Version}-Setup.exe");
     private static void RequireInstallable(UpdateState state) { if (!state.CanInstall) throw Failure(state.InstallDisabledReason ?? "此构建不支持应用内安装更新。"); }
     private static void RequireRegularDirectory(string path) { if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) throw Failure("更新缓存目录不合法。"); }
@@ -314,7 +403,7 @@ public sealed class UpdateService : IDisposable
         UnauthorizedAccessException => "无法写入更新缓存，请检查目录权限后重试。",
         IOException => "更新文件读写失败，请稍后重试。",
         TimeoutException or OperationCanceledException => "更新网络请求超时，请稍后重试。",
-        HttpRequestException => "GitHub 更新服务暂时无法连接，请稍后重试。",
+        HttpRequestException => "更新服务暂时无法连接，请稍后重试。",
         _ => "更新操作失败，请稍后重试。",
     };
 
@@ -351,6 +440,72 @@ public sealed class UpdateService : IDisposable
 
     public static string ArtifactUrl(string version) => $"https://github.com/panda472328/yuyin-music/releases/download/pc-v{version}/Yuyin-{version}-Setup.exe";
     public static string ReleaseNotesUrl(string version) => $"https://github.com/panda472328/yuyin-music/releases/tag/pc-v{version}";
+    public static string DomesticReleaseNotesUrl(string version) => $"https://gitee.com/openmusic/openmusic/releases/tag/pc-v{version}";
+    public static string DomesticArtifactUrl(int releaseId, int attachmentId)
+    {
+        if (releaseId < 1 || attachmentId < 1) throw Failure("国内更新附件标识不合法。");
+        return $"https://gitee.com/api/v5/repos/openmusic/openmusic/releases/{releaseId}/attach_files/{attachmentId}/download";
+    }
+
+    /// Decodes only the fixed public Contents API file; embedded URLs are never followed.
+    public static string DecodeDomesticContents(string json)
+    {
+        try
+        {
+            if (Encoding.UTF8.GetByteCount(json) > DomesticContentsMaxBytes) throw Failure("国内更新清单过大。");
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object || root.GetProperty("type").GetString() != "file"
+                || root.GetProperty("encoding").GetString() != "base64" || root.GetProperty("name").GetString() != "domestic.json"
+                || root.GetProperty("path").GetString() != "updates/domestic.json"
+                || !root.GetProperty("size").TryGetInt32(out var size) || size < 1 || size > ManifestMaxBytes)
+                throw Failure("国内更新文件响应不合法。");
+            var content = root.GetProperty("content").GetString() ?? throw Failure("国内更新文件缺少内容。");
+            if (content.Length > DomesticContentsMaxBytes) throw Failure("国内更新清单过大。");
+            var compact = content.Replace("\r", "").Replace("\n", "");
+            if (compact.Length > ((ManifestMaxBytes + 2) / 3) * 4 || compact.Length % 4 != 0
+                || !Regex.IsMatch(compact, @"\A[A-Za-z0-9+/]*={0,2}\z", RegexOptions.CultureInvariant))
+                throw Failure("国内更新文件编码不合法。");
+            var bytes = Convert.FromBase64String(compact);
+            if (bytes.Length != size || Convert.ToBase64String(bytes) != compact) throw Failure("国内更新文件大小或编码不合法。");
+            return new UTF8Encoding(false, true).GetString(bytes);
+        }
+        catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or DecoderFallbackException)
+        { throw Failure("国内更新文件响应不合法，请稍后重试。"); }
+    }
+
+    public static WindowsUpdateManifest ParseDomesticManifest(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object || root.GetProperty("schemaVersion").GetInt32() != 2
+                || root.GetProperty("provider").GetString() != "gitee" || root.GetProperty("platform").GetString() != "windows"
+                || root.TryGetProperty("versionCode", out _)) throw Failure("国内更新清单不合法，请稍后重试。");
+            var version = root.GetProperty("version").GetString();
+            var source = root.GetProperty("source");
+            var releaseId = source.GetProperty("releaseId").GetInt32();
+            var attachmentId = source.GetProperty("attachmentId").GetInt32();
+            var filename = source.GetProperty("filename").GetString();
+            var artifact = root.GetProperty("artifact");
+            var url = artifact.GetProperty("url").GetString();
+            var notesUrl = root.GetProperty("releaseNotesUrl").GetString();
+            if (!IsStableVersion(version) || filename != $"Yuyin-{version}-Setup.exe"
+                || url != DomesticArtifactUrl(releaseId, attachmentId) || notesUrl != DomesticReleaseNotesUrl(version!))
+                throw Failure("国内更新清单不合法，请稍后重试。");
+            // Share every size/digest/time/text validation with the legacy contract.
+            var common = ParseManifest(JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1, platform = "windows", version,
+                artifact = new { url = ArtifactUrl(version!), sha256 = artifact.GetProperty("sha256").GetString(), size = artifact.GetProperty("size").GetInt64() },
+                releaseNotesUrl = ReleaseNotesUrl(version!), notes = root.GetProperty("notes").GetString(), publishedAt = root.GetProperty("publishedAt").GetString(),
+            }));
+            return common with { SchemaVersion = 2, Provider = "gitee", Source = new(releaseId, attachmentId, filename!), Artifact = common.Artifact with { Url = url! }, ReleaseNotesUrl = notesUrl! };
+        }
+        catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or OverflowException)
+        { throw Failure("国内更新清单不合法，请稍后重试。"); }
+    }
 
     public static WindowsUpdateManifest ParseManifest(string json)
     {
@@ -380,12 +535,16 @@ public sealed class UpdateService : IDisposable
         }
     }
 
-    public static bool IsTrustedAddress(Uri uri, bool manifest)
+    public static bool IsTrustedAddress(Uri uri, bool manifest, Uri? initial = null)
     {
         if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Fragment)) return false;
-        if (manifest) return uri.AbsoluteUri == ManifestUrl;
-        if (uri.Host == "github.com") return uri.AbsolutePath.StartsWith("/panda472328/yuyin-music/releases/download/", StringComparison.Ordinal) && string.IsNullOrEmpty(uri.Query);
-        return uri.Host is "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
+        if (manifest) return (uri.AbsoluteUri == ManifestUrl || uri.AbsoluteUri == DomesticManifestUrl) && (initial is null || uri == initial);
+        if (initial?.Host == "gitee.com") return uri == initial && string.IsNullOrEmpty(uri.Query)
+            && Regex.IsMatch(uri.AbsoluteUri, @"\Ahttps://gitee\.com/api/v5/repos/openmusic/openmusic/releases/[1-9][0-9]{0,9}/attach_files/[1-9][0-9]{0,9}/download\z", RegexOptions.CultureInvariant);
+        if (uri.Host == "gitee.com") return initial is null && string.IsNullOrEmpty(uri.Query)
+            && Regex.IsMatch(uri.AbsoluteUri, @"\Ahttps://gitee\.com/api/v5/repos/openmusic/openmusic/releases/[1-9][0-9]{0,9}/attach_files/[1-9][0-9]{0,9}/download\z", RegexOptions.CultureInvariant);
+        if (uri.Host == "github.com") return uri.AbsolutePath.StartsWith("/panda472328/yuyin-music/releases/download/", StringComparison.Ordinal) && string.IsNullOrEmpty(uri.Query) && (initial is null || uri == initial);
+        return (initial is null || initial.Host == "github.com") && uri.Host is "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
     }
 
     public static async Task<bool> VerifyUpdateFileAsync(string file, WindowsUpdateManifest manifest, CancellationToken token = default)

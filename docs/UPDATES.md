@@ -2,6 +2,38 @@
 
 PC 版从本仓库的 `updates/stable.json` 检查正式版本。当前稳定清单为 **0.5.0**；[正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.0) 的唯一安装包已公开。Android 使用独立仓库和独立更新清单，不共享安装文件、版本号或用户数据。
 
+## 国内更新通道（源码已准备，尚未发布）
+
+后续 WebView2 客户端同时检查 Gitee 的固定公开 Contents API `https://gitee.com/api/v5/repos/openmusic/openmusic/contents/updates/domestic.json?ref=main` 与现有 GitHub `stable.json`，各源有独立 12 秒预算。Gitee 响应仅接收 `type=file`、`encoding=base64`、`name=domestic.json`、`path=updates/domestic.json` 的文件封装，外层最多 128 KiB、解码后的清单最多 64 KiB；校验大小、规范 Base64 与有效 UTF-8 后再解析清单，不使用封装里的 `download_url` 或其他地址。选择有效清单中的较新版本；同版本且大小、SHA-256 一致时优先 Gitee。一个源缺失、超时或格式不合法时可以使用另一个有效源；同版本字节校验值冲突则停止更新。已安装版本不会降级，同一宿主会话内也不会因镜像落后丢失已经验证的较新版提示，或接受同版本替换文件。安装仍须用户点击，检查过程不下载安装包、不自动重启。
+
+国内清单使用独立 schema 2，不覆盖 GitHub schema 1 的 `updates/stable.json`。旧客户端继续从 GitHub 升级；需要先安装一次含双源更新器的新版本，才能使用国内通道。2026-10-12 匿名读取 Gitee `openmusic/openmusic` 的 Releases API 返回空数组，尚无正式附件或 domestic 清单；本次源码准备不能写成国内线上更新已启用。
+
+同日匿名实测，网页 Raw 文件地址会 302 跳转到带短期签名的 `raw.giteeusercontent.com`，而官方 `/raw/{path}` API 对这个公开仓库仍返回 401。固定 Contents API 读取已存在的 `updates/stable.json` 为 200、Base64 文件响应，缺失的 `updates/domestic.json` 为 200 + `[]`；准备脚本仅将空数组或 404 视为尚无清单，其余错误拒绝推进。客户端将缺失或不合法的国内响应作为不可用源，继续检查 GitHub；无需使用用户账号或令牌。
+
+国内安装地址仅采用 [Gitee 官方 API 文档](https://gitee.com/api/v5/swagger_doc) 的 `GET /api/v5/repos/openmusic/openmusic/releases/{release_id}/attach_files/{attach_file_id}/download`，Release／附件 ID 必须为正整数，文件名称仍保留兼容值 `Yuyin-X.Y.Z-Setup.exe`。不含令牌、Cookie 或账号凭据。未知 CDN、跨来源、跨版本、带令牌查询或非 HTTPS 重定向均拒绝；当前不猜测或放宽 Gitee CDN 域名。如果 Gitee 返回尚未验证的跨域跳转、大小错误、字节摘要错误、断网或超时，客户端删除本次临时文件，再按相同版本、大小和 SHA-256 下载固定 GitHub 正式附件。备用文件也必须完成全部校验，不能回退到旧版本安装包。Gitee 普通仓库当前[单附件上限为 100 MB，总附件上限为 1 GB](https://help.gitee.com/repository/release/create)，发布时仍须以实际上传及匿名完整下载为准。
+
+### 每次准备 Gitee 国内发布
+
+1. 完成现有 GitHub 正式发布和稳定清单推进，保留一个最终安装附件。Gitee 创建相同 `pc-vX.Y.Z` 正式 Release，只上传该 GitHub 已公开文件的同一份字节；不重新构建、不替换旧版附件、不上传另一个修复包。官方 API 文档定义了 `POST .../releases/{release_id}/attach_files`（multipart 的 `file` 字段），但本仓库当前的准备脚本不会调用上传接口，也不读取个人令牌。
+2. 运行以下只读准备命令。它匿名读取两端公开清单、Gitee 对应标签与唯一附件元数据，再通过官方固定 API 完整下载附件，复核文件名、大小和 SHA-256，最后回读 Release／附件身份及远端通道。仅当字节与 GitHub 已公开文件一致、版本不回退且同版本附件不替换时才写本地候选。未知 CDN 跳转会停止生成；需以实际官方证据补齐精确白名单及回归后再启用，不从页面 HTML 或任意 `browser_download_url` 推测。
+
+   ```sh
+   node --test scripts/prepare-domestic-update.test.mjs
+   node scripts/prepare-domestic-update.mjs --prepare --output .qa/domestic-candidate.json
+   ```
+
+3. 审核候选后将其保存为 `updates/domestic.json`，提交并推送源码到 GitHub 和 Gitee；保留 `stable.json` 中的固定 GitHub 地址。发布前在绝对临时 `YUYIN_STATE_DIR`／`YUYIN_WEBVIEW2_USER_DATA_DIR` 下完成实际 Gitee 清单、完整附件、备用下载与用户选择安装验收。不要在 Gitee 附件未公开或完整下载未通过时推进 domestic 清单。
+
+公开清单与附件准备完成后，可以显式运行宿主的只下载验收：`dotnet run --project tests/windows-host/Yuyin.HostTests.csproj -c Release -- --live-update-probe X.Y.Z`（`X.Y.Z` 替换为正式版本；本机也可使用 `.tools/dotnet/dotnet.exe`）。该操作使用实际 `UpdateService`、受控旧版本 `0.5.0` 和新建临时缓存，要求选择 Gitee 并匿名完整下载、两次检查大小及 SHA-256；GitHub 回退不计为国内通过。不启动应用、不读取 profile、不调用安装接口，完成后只删除本次随机缓存。它不能代替用户选择安装及实际升级验收。
+
+国内清单比旧契约增加 `schemaVersion: 2`、`provider: "gitee"` 和 `source: { "releaseId": 12345, "attachmentId": 67890, "filename": "Yuyin-X.Y.Z-Setup.exe" }`。ID 例子仅说明结构；必须使用正式 Gitee Release API 回读的真实身份。artifact 的 URL 固定为上述同仓库附件下载 API，releaseNotesUrl 固定为同版本 `https://gitee.com/openmusic/openmusic/releases/tag/pc-vX.Y.Z`；其余版本、字节数、SHA-256、说明和发布时间沿用已校验的 GitHub 稳定清单。
+
+本次源码的类型检查与完整回归由正式发布流程重新验证。Contents API 修正后，国内准备脚本 5 组回归及实际原生更新器 110 项受控检查通过，覆盖 Base64 文件封装、路径／分支固定、空数组缺失、大小／摘要、来源冲突、版本回退、未知跳转、国内响应正文中断后备用下载，以及磁盘错误不触发网络备用；没有启动真实安装器或读取真实用户 profile。线上附件及显式只下载验收尚待正式发布后单独记录。
+
+以下保留现有 GitHub 稳定通道、0.5.0 发布证据和旧客户端的流程。
+
+## 当前 GitHub 稳定通道
+
 0.5.0 的 [正式标签 Actions 38133373433](https://github.com/panda472328/yuyin-music/actions/runs/38133373433) 已成功完成构建、发布及下载校验，再以提交 `4c620738cd425f8f48df28284c45ca39d58fc4ac` 推进 main 的稳定清单。清单指向 `Yuyin-0.5.0-Setup.exe`，大小为 `54235650` 字节，SHA-256 为 `4c8708594d01b5e5448e88c73b154322db39489b7841aa26e287fa9890b407cb`；完整构建与公开证据见 [RELEASE.md](RELEASE.md)。实际已安装 0.5.x 的应用内下载安装尚未完整验收，清单推进不等于这一用户流程已通过。
 
 0.5.0 起原生更新器是 `windows-host/UpdateService.cs`。安装器写入 `installed.marker`；开发／未安装的发布目录可检查新版，但不启动安装。检查、下载、安装采用同一稳定清单契约，下载安装仍由用户选择。安装程序等待当前宿主自然退出后写入文件，不强杀进程。此次架构迁移不提供旧 Electron 客户端数据或会话自动迁移；请使用新版独立安装目录。

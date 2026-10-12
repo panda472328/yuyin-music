@@ -20,9 +20,10 @@ public partial class MainWindow : Window
     private const long MaxBridgeRequestId = 9_007_199_254_740_991;
     private static readonly HashSet<string> AllowedMethods = new(StringComparer.Ordinal)
     {
-        "music.search", "music.suggestions", "music.play", "music.pause", "music.resume", "music.seek", "music.volume", "music.status", "music.lyrics", "music.lyricsCandidates", "music.source",
+        "music.search", "music.suggestions", "music.play", "music.pause", "music.resume", "music.seek", "music.volume", "music.status", "music.lyrics", "music.lyricsCandidates", "music.source", "music.mv",
         "account.login", "account.status", "account.guest", "account.profile",
         "favorites.folders", "favorites.items", "favorites.songs",
+        "comments.list", "comments.replies", "comments.like", "comments.create",
         "desktopLyrics.get", "desktopLyrics.settings", "desktopLyrics.publish", "desktopLyrics.window.get", "desktopLyrics.window.settings", "desktopLyrics.window.close",
         "update.getState", "update.check", "update.download", "update.install", "update.openRelease",
         "window.minimize", "window.maximize", "window.close", "window.drag",
@@ -222,7 +223,14 @@ public partial class MainWindow : Window
             case "favorites.folders": return await _bilibili.ListFavoriteFoldersAsync();
             case "favorites.items": return await _bilibili.ListFavoriteItemsAsync(ArgLong(args, 0), ArgInt(args, 1, 1));
             case "favorites.songs": return await _bilibili.ListFavoriteSongsAsync(ArgLong(args, 0));
+            case "comments.list": return await _bilibili.GetVideoCommentsAsync(ArgString(args, 0), ArgString(args, 1), ArgInt(args, 2, 1));
+            case "comments.replies": return await _bilibili.GetCommentRepliesAsync(ArgString(args, 0), ArgString(args, 1), ArgInt(args, 2, 1));
+            case "comments.like": return await _bilibili.SetCommentLikeAsync(ArgString(args, 0), ArgString(args, 1), ArgBool(args, 2), ArgLong(args, 3));
+            case "comments.create":
+                var commentRequest = JsonSerializer.Deserialize<CommentCreateRequest>(Arg(args, 0), _json) ?? throw new InvalidOperationException("评论请求不合法。");
+                return await _bilibili.CreateCommentAsync(commentRequest);
             case "music.source": await _player.ShowSourceAsync(); return null;
+            case "music.mv": await _player.ShowMVAsync(); return null;
             case "desktopLyrics.get": return _desktopLyrics.Snapshot;
             case "desktopLyrics.settings": return await _desktopLyrics.UpdateSettingsAsync(Arg(args, 0));
             case "desktopLyrics.publish":
@@ -471,6 +479,7 @@ public partial class MainWindow : Window
         return value;
     }
     private static long ArgLong(JsonElement args, int index) => Arg(args, index).TryGetInt64(out var value) ? value : throw new InvalidOperationException("参数不合法。");
+    private static bool ArgBool(JsonElement args, int index) => Arg(args, index).ValueKind is JsonValueKind.True or JsonValueKind.False ? Arg(args, index).GetBoolean() : throw new InvalidOperationException("布尔参数不合法。");
     private static double ArgDouble(JsonElement args, int index) => Arg(args, index).TryGetDouble(out var value) && double.IsFinite(value) ? value : throw new InvalidOperationException("参数不合法。");
     private static void Reply(CoreWebView2? core, long id, bool ok, object? value, string? error)
     {
@@ -499,6 +508,7 @@ public partial class MainWindow : Window
         {
             "music.search" => (1, 3), "music.suggestions" or "music.play" or "music.lyrics" or "music.lyricsCandidates" or "desktopLyrics.settings" or "desktopLyrics.publish" or "desktopLyrics.window.settings" or "library.export" => (1, 1),
             "music.seek" or "music.volume" or "favorites.items" => (1, 2), "favorites.songs" => (1, 1),
+            "comments.list" or "comments.replies" => (2, 3), "comments.like" => (4, 4), "comments.create" => (1, 1),
             _ => (0, 0),
         };
         if (length < minimum || length > maximum) throw new InvalidOperationException("原生操作参数数量不合法。");

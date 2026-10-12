@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -21,6 +22,7 @@ public sealed class PlayerHost : IAsyncDisposable
     private CoreWebView2? _core;
     private Window? _window;
     private DispatcherTimer? _pollTimer;
+    private DispatcherTimer? _mvPollTimer;
     private Task? _initializationTask;
     private Task? _disposeTask;
     private PlaybackWaiter? _waiter;
@@ -39,6 +41,13 @@ public sealed class PlayerHost : IAsyncDisposable
     private bool _desiredPlayback;
     private bool _startAttempted;
     private bool _sourceVisible;
+    private bool _mvVisible;
+    private bool _mvOpening;
+    private bool _mvPolling;
+    private bool _nativeFullscreen;
+    private long _nativeFullscreenRequest;
+    private WindowState _beforeNativeFullscreen;
+    private long _mvRequest;
     private bool _needsRecreate;
     private bool _disposed;
     private long? _missingSince;
@@ -63,6 +72,7 @@ public sealed class PlayerHost : IAsyncDisposable
     public Task<PlaybackStatus> SetVolumeAsync(double volume) => OnDispatcherAsync(() => SetVolumeCoreAsync(volume));
     public Task<PlaybackStatus> RefreshAsync() => OnDispatcherAsync(async () => { await PollAsync(); return _status; });
     public Task ShowSourceAsync() => OnDispatcherAsync(ShowSourceCoreAsync);
+    public Task ShowMVAsync() => OnDispatcherAsync(ShowMVCoreAsync);
 
     private async Task<PlaybackStatus> PlayCoreAsync(Song song)
     {
@@ -184,8 +194,141 @@ public sealed class PlayerHost : IAsyncDisposable
         ThrowIfDisposed();
         await EnsureAsync().WaitAsync(_lifetime.Token);
         ThrowIfDisposed();
+        var core = _core;
+        var bvid = _status.Song?.Bvid;
+        var wasMV = _mvVisible;
+        ResetMVMode();
+        var request = _mvRequest;
         if (_status.Song is null && string.IsNullOrEmpty(_core!.Source)) _core.Navigate("https://www.bilibili.com/");
         ShowSourceWindow();
+        if (_window is not null) _window.Title = "Bilibili · 音频来源";
+        // Present first: a later async exit must not re-show a window that the
+        // user closed or minimized while the page script was completing.
+        if (wasMV && core is not null && bvid is not null) await ExitMVPageAsync(core, bvid, request);
+        if (!_disposed && _mvRequest == request && _core == core && core?.ContainsFullScreenElement == true) await ExitNativePageFullscreenAsync(core, request);
+    }
+
+    private async Task ShowMVCoreAsync()
+    {
+        ThrowIfDisposed();
+        var song = _status.Song ?? throw Error("请先播放一个 Bilibili 视频，再打开 MV。", "NO_SONG");
+        var playbackRequest = _playbackRequest;
+        await EnsureAsync().WaitAsync(_lifetime.Token);
+        ThrowIfDisposed();
+        var core = _core!;
+        if (_playbackRequest != playbackRequest || _status.Song?.Bvid != song.Bvid) throw Interrupted();
+        var request = ++_mvRequest;
+        _mvVisible = true;
+        _mvOpening = true;
+        _mvPollTimer?.Stop();
+        ShowSourceWindow();
+        if (_window is not null) _window.Title = "Bilibili · MV（Esc 返回后台）";
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        budget.CancelAfter(TimeSpan.FromSeconds(6));
+        try
+        {
+            MVSnapshot? snapshot = null;
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                RequireMVRequest(core, song.Bvid, playbackRequest, request);
+                if (!_navigating && IsSongUri(core.Source, song.Bvid))
+                {
+                    snapshot = await ReadMVPageAsync(core, "enter", song.Bvid, request, budget.Token);
+                    RequireMVRequest(core, song.Bvid, playbackRequest, request);
+                    if (snapshot is { Found: true, WebFullscreen: true })
+                    {
+                        _mvOpening = false;
+                        StartMVPolling();
+                        return;
+                    }
+                    if (snapshot?.Blocked is { Length: > 0 } reason)
+                        throw Error($"Bilibili 提示「{reason}」，已打开普通源窗口，请先完成登录或验证后再打开 MV。", "SOURCE_RESTRICTED");
+                    if (snapshot?.State is "navigation-mismatch" or "stale") throw Interrupted();
+                    if (snapshot?.State == "controls-failed") break;
+                }
+                await Task.Delay(100, budget.Token);
+            }
+            throw Error(snapshot is { Found: true, Ready: true }
+                ? "Bilibili 网页全屏控件暂不可用，已保留普通源窗口；可在源视频手动打开网页全屏后再试。"
+                : "视频尚未就绪，已打开普通源窗口；请等待视频加载或完成验证后再打开 MV。", "MV_NOT_READY");
+        }
+        catch (Exception error)
+        {
+            if (_mvRequest == request)
+            {
+                ResetMVMode();
+                if (_window is not null) _window.Title = "Bilibili · 音频来源";
+                Observe(ExitMVPageAsync(core, song.Bvid, _mvRequest));
+            }
+            if (error is OperationCanceledException && !_disposed) throw Error("MV 展示超时，已保留普通源窗口；请等待视频加载或完成验证后再试。", "MV_NOT_READY");
+            throw;
+        }
+    }
+
+    private void RequireMVRequest(CoreWebView2 core, string bvid, long playbackRequest, long request)
+    {
+        ThrowIfDisposed();
+        if (!_mvVisible || _mvRequest != request || _core != core || _playbackRequest != playbackRequest || _status.Song?.Bvid != bvid) throw Interrupted();
+    }
+
+    private async Task<MVSnapshot?> ReadMVPageAsync(CoreWebView2 core, string command, string bvid, long request, CancellationToken token = default)
+    {
+        var json = await core.ExecuteScriptAsync(BilibiliMV.BuildScript(command, bvid, request)).WaitAsync(TimeSpan.FromSeconds(3), token.CanBeCanceled ? token : _lifetime.Token);
+        if (_disposed || _core != core) return null;
+        try { return JsonSerializer.Deserialize<MVSnapshot>(json, JsonOptions); }
+        catch (JsonException) { return null; }
+    }
+
+    private async Task ExitMVPageAsync(CoreWebView2 core, string bvid, long request)
+    {
+        try { await ReadMVPageAsync(core, "exit", bvid, request); }
+        catch { /* Window hiding already returns the same playing source to the background. */ }
+    }
+
+    private async Task ExitNativePageFullscreenAsync(CoreWebView2 core, long request)
+    {
+        try
+        {
+            await core.ExecuteScriptAsync("(() => { if (window.__yuyinMV && window.__yuyinMV.requestId > " + request.ToString(System.Globalization.CultureInfo.InvariantCulture) + ") return false; if (document.fullscreenElement && typeof document.exitFullscreen === 'function') { try { Promise.resolve(document.exitFullscreen()).catch(() => {}); } catch {} } return true; })()")
+                .WaitAsync(TimeSpan.FromSeconds(3), _lifetime.Token);
+        }
+        catch { /* Closing the presentation must never interrupt the existing audio. */ }
+    }
+
+    private void StartMVPolling()
+    {
+        _mvPollTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(150), DispatcherPriority.Background, MVTimer_Tick, _dispatcher);
+        _mvPollTimer.Start();
+    }
+    private void MVTimer_Tick(object? sender, EventArgs e) { if (!_mvPolling && _mvVisible && !_mvOpening && !_disposed) Observe(PollMVAsync()); }
+    private async Task PollMVAsync()
+    {
+        if (_core is not { } core || _status.Song?.Bvid is not { } bvid) return;
+        var request = _mvRequest;
+        _mvPolling = true;
+        try
+        {
+            var snapshot = await ReadMVPageAsync(core, "read", bvid, request);
+            if (_mvVisible && !_mvOpening && request == _mvRequest && snapshot is { Entered: true, WebFullscreen: false, NativeFullscreen: false }) ReturnMVToBackground();
+        }
+        catch { /* The normal source/timeline path reports renderer failures. */ }
+        finally { _mvPolling = false; }
+    }
+
+    private void ResetMVMode()
+    {
+        ++_mvRequest;
+        _mvVisible = false;
+        _mvOpening = false;
+        _mvPollTimer?.Stop();
+    }
+    private void ReturnMVToBackground()
+    {
+        if (_disposed || !_mvVisible) return;
+        var core = _core; var bvid = _status.Song?.Bvid;
+        ResetMVMode();
+        KeepSourceOffScreen();
+        if (core is not null && bvid is not null) Observe(ExitMVPageAsync(core, bvid, _mvRequest));
     }
 
     private Task EnsureAsync()
@@ -220,6 +363,7 @@ public sealed class PlayerHost : IAsyncDisposable
         window.Content = view;
         window.Closing += SourceWindow_Closing;
         window.StateChanged += SourceWindow_StateChanged;
+        window.PreviewKeyDown += SourceWindow_PreviewKeyDown;
         // A shown off-screen surface avoids suspension of a collapsed or
         // minimized WebView2. It is destroyed when the application exits.
         window.Show();
@@ -243,6 +387,7 @@ public sealed class PlayerHost : IAsyncDisposable
             core.PermissionRequested += Source_PermissionRequested;
             core.DownloadStarting += Source_DownloadStarting;
             core.ProcessFailed += Source_ProcessFailed;
+            core.ContainsFullScreenElementChanged += Source_ContainsFullScreenElementChanged;
             StartPolling();
         }
         catch
@@ -508,6 +653,9 @@ public sealed class PlayerHost : IAsyncDisposable
             if (!e.IsUserInitiated && e.Uri != _explicitNavigation && !(e.IsRedirected && e.NavigationId == _navigationId)) { e.Cancel = true; return; }
             Fail("Bilibili 跳转到了其他页面，请打开源视频检查登录或验证后重新播放。", "SOURCE_PAGE_CHANGED", _generation);
         }
+        ResetMVMode();
+        RestoreNativeFullscreenWindow();
+        if (_window is not null) _window.Title = "Bilibili · 音频来源";
         _navigationId = e.NavigationId;
         _explicitNavigation = null;
         _navigationRequest = _playbackRequest;
@@ -564,9 +712,52 @@ public sealed class PlayerHost : IAsyncDisposable
         _window.Activate();
     }
 
+    private void SourceWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (_disposed || !_mvVisible || e.Key != Key.Escape) return;
+        e.Handled = true;
+        var request = _mvRequest;
+        // WebView2 forwards accelerator keys through WPF. Defer script/window
+        // work until the synchronous native key callback has returned.
+        _ = _dispatcher.BeginInvoke(DispatcherPriority.Input, (Action)(() => { if (_mvRequest == request) ReturnMVToBackground(); }));
+    }
+
+    private void Source_ContainsFullScreenElementChanged(object? sender, object e)
+    {
+        if (_disposed || _core is not { } core || _window is not { } window) return;
+        var contains = core.ContainsFullScreenElement;
+        if (contains)
+        {
+            if (!_sourceVisible) { Observe(ExitNativePageFullscreenAsync(core, _mvRequest)); return; }
+            if (!_nativeFullscreen) _beforeNativeFullscreen = window.WindowState;
+            _nativeFullscreen = true;
+            _nativeFullscreenRequest = _mvVisible ? _mvRequest : 0;
+            ShowSourceWindow();
+            // A page request gets a normal maximized native window, never an
+            // unclosable borderless/system-exclusive fullscreen surface.
+            window.WindowState = WindowState.Maximized;
+        }
+        else
+        {
+            var fullscreenRequest = _nativeFullscreenRequest;
+            RestoreNativeFullscreenWindow();
+            // A late exit from an older presentation must not hide a newer MV.
+            if (_mvVisible && !_mvOpening && fullscreenRequest == _mvRequest) ReturnMVToBackground();
+        }
+    }
+    private void RestoreNativeFullscreenWindow()
+    {
+        if (!_nativeFullscreen) return;
+        _nativeFullscreen = false;
+        _nativeFullscreenRequest = 0;
+        if (_window is { } window) window.WindowState = _beforeNativeFullscreen == WindowState.Minimized ? WindowState.Normal : _beforeNativeFullscreen;
+    }
+
     private void KeepSourceOffScreen()
     {
         if (_window is null || _disposed) return;
+        if (_core is { ContainsFullScreenElement: true } core) Observe(ExitNativePageFullscreenAsync(core, _mvRequest));
+        RestoreNativeFullscreenWindow();
         _sourceVisible = false;
         _window.WindowState = WindowState.Normal;
         _window.ShowInTaskbar = false;
@@ -579,12 +770,17 @@ public sealed class PlayerHost : IAsyncDisposable
     {
         if (_disposed) return;
         e.Cancel = true;
-        KeepSourceOffScreen();
+        if (_mvVisible) ReturnMVToBackground();
+        else KeepSourceOffScreen();
     }
 
     private void SourceWindow_StateChanged(object? sender, EventArgs e)
     {
-        if (!_disposed && _window?.WindowState == WindowState.Minimized) KeepSourceOffScreen();
+        if (!_disposed && _window?.WindowState == WindowState.Minimized)
+        {
+            if (_mvVisible) ReturnMVToBackground();
+            else KeepSourceOffScreen();
+        }
     }
 
     private void CloseWindow()
@@ -592,6 +788,9 @@ public sealed class PlayerHost : IAsyncDisposable
         _pollTimer?.Stop();
         if (_pollTimer is not null) _pollTimer.Tick -= PollTimer_Tick;
         _pollTimer = null;
+        ResetMVMode();
+        if (_mvPollTimer is not null) _mvPollTimer.Tick -= MVTimer_Tick;
+        _mvPollTimer = null;
         var core = _core;
         _core = null;
         if (core is not null)
@@ -602,6 +801,7 @@ public sealed class PlayerHost : IAsyncDisposable
             core.PermissionRequested -= Source_PermissionRequested;
             core.DownloadStarting -= Source_DownloadStarting;
             core.ProcessFailed -= Source_ProcessFailed;
+            core.ContainsFullScreenElementChanged -= Source_ContainsFullScreenElementChanged;
             try { core.IsMuted = true; core.Stop(); }
             catch (ObjectDisposedException) { }
             catch (InvalidOperationException) { }
@@ -610,6 +810,7 @@ public sealed class PlayerHost : IAsyncDisposable
         {
             _window.Closing -= SourceWindow_Closing;
             _window.StateChanged -= SourceWindow_StateChanged;
+            _window.PreviewKeyDown -= SourceWindow_PreviewKeyDown;
             _window.Content = null;
         }
         _view?.Dispose();
@@ -617,6 +818,7 @@ public sealed class PlayerHost : IAsyncDisposable
         _window?.Close();
         _window = null;
         _sourceVisible = false;
+        _nativeFullscreen = false;
         _navigating = false;
         _navigationId = 0;
         _loadedPlaybackRequest = 0;
@@ -670,6 +872,7 @@ public sealed class PlayerHost : IAsyncDisposable
     }
     private sealed class PlaybackHostException(string message, string code) : InvalidOperationException(message) { public string Code { get; } = code; }
     private sealed record MediaSnapshot(bool Found, bool Paused, bool Ended, double CurrentTime, double Duration, int ReadyState, bool Playing, int MediaError, string? Blocked = null, string? PlayError = null, bool NavigationMismatch = false, bool Restarting = false, double? GuardPosition = null, bool Stale = false);
+    private sealed record MVSnapshot(bool Found, bool Ready, bool WebFullscreen, bool NativeFullscreen, bool Entered, string? Blocked, string? State);
 
     internal static string BuildPageScript(string command, string bvid, double volume, long requestId, long generation, long controlSequence, bool desiredPlaying, double? value = null)
     {

@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { compareVersions, parseUpdateManifest, updateArtifactUrl, updateReleaseUrl, WINDOWS_UPDATE_MANIFEST_URL, type UpdateManifest, type UpdateState } from '../src/shared/update'
+import { compareVersions, domesticArtifactUrl, domesticReleaseNotesUrl, parseDomesticUpdateManifest, parseUpdateManifest, updateArtifactUrl, updateReleaseUrl, WINDOWS_DOMESTIC_UPDATE_MANIFEST_URL, WINDOWS_UPDATE_MANIFEST_URL, type UpdateManifest, type UpdateState } from '../src/shared/update'
 import { AppUpdater, verifyUpdateFile } from '../electron/updater'
 import { isTrustedUpdateRedirect, type UpdateResponse, type UpdateTransport } from '../electron/update-transport'
 import { installationSupport, nsisUpdateArguments, prepareUpdateInstaller } from '../electron/update-installer'
@@ -57,6 +57,24 @@ test('manifest pins the platform, repository, tag, filename, digest and supporte
   assert.equal(compareVersions('0.10.0', '0.9.9'), 1)
   assert.equal(compareVersions('0.4.9', '0.4.9'), 0)
   assert.equal(compareVersions('0.4.8', '0.4.9'), -1)
+})
+
+test('domestic manifests pin the official attachment API and keep the legacy channel GitHub-only', () => {
+  assert.equal(WINDOWS_DOMESTIC_UPDATE_MANIFEST_URL, 'https://gitee.com/api/v5/repos/openmusic/openmusic/contents/updates/domestic.json?ref=main')
+  const base = manifest()
+  const domestic = { ...base, schemaVersion: 2, provider: 'gitee', source: { releaseId: 12345, attachmentId: 67890, filename: 'Yuyin-0.5.0-Setup.exe' },
+    artifact: { ...base.artifact, url: domesticArtifactUrl(12345, 67890) }, releaseNotesUrl: domesticReleaseNotesUrl('0.5.0') }
+  assert.deepEqual(parseDomesticUpdateManifest(domestic), domestic)
+  assert.throws(() => parseUpdateManifest(domestic, 'windows'))
+  for (const value of [
+    { ...domestic, provider: 'github' }, { ...domestic, schemaVersion: 1 }, { ...domestic, platform: 'android' },
+    { ...domestic, versionCode: 1 }, { ...domestic, source: { ...domestic.source, releaseId: 0 } },
+    { ...domestic, source: { ...domestic.source, attachmentId: -1 } }, { ...domestic, source: { ...domestic.source, filename: 'other.exe' } },
+    { ...domestic, artifact: { ...domestic.artifact, url: domestic.artifact.url + '?access_token=secret' } },
+    { ...domestic, artifact: { ...domestic.artifact, url: domestic.artifact.url.replace('openmusic/openmusic', 'other/repo') } },
+    { ...domestic, artifact: { ...domestic.artifact, size: 500000001 } }, { ...domestic, artifact: { ...domestic.artifact, sha256: 'bad' } },
+    { ...domestic, releaseNotesUrl: domesticReleaseNotesUrl('0.5.1') }, { ...domestic, notes: 'x'.repeat(8001) },
+  ]) assert.throws(() => parseDomesticUpdateManifest(value))
 })
 
 test('network redirects remain anonymous HTTPS on the fixed manifest or release CDN', () => {

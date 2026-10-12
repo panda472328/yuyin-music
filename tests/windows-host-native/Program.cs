@@ -43,7 +43,7 @@ internal static class NativePlayerTests
         player.StatusChanged += status => statuses.Add(status);
         player.Ended += () => ended++;
         var wave = SilentWave(45);
-        var html = "<!doctype html><meta charset=utf-8><title>Controlled silent media</title><video id=media preload=auto src='data:audio/wav;base64," + Convert.ToBase64String(wave) + "'></video>";
+        var html = ControlledHTML(wave);
         var streams = new List<Stream>();
         core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
         void Respond(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
@@ -72,10 +72,62 @@ internal static class NativePlayerTests
             await Task.Delay(1100);
             Assert(player.Status.CurrentTime > start + .65, "native playback continues after source close");
 
+            var beforeMVRequests = requests;
+            var beforeMV = player.Status.CurrentTime;
+            await core.ExecuteScriptAsync("document.querySelector('video').__fixtureIdentity='same-audio-source'; true");
+            await player.ShowMVAsync();
+            Assert(await BooleanAsync(core, "Boolean(document.querySelector('.bpx-state-web'))") && window.WindowState == WindowState.Normal && window.WindowStyle == WindowStyle.SingleBorderWindow, "MV uses webpage fullscreen inside the existing normal native window");
+            Assert(ReferenceEquals(core, typeof(PlayerHost).GetField("_core", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(player)) && requests == beforeMVRequests && await BooleanAsync(core, "document.querySelector('video').__fixtureIdentity==='same-audio-source' && document.querySelectorAll('video').length===1"), "MV reuses the exact native core/media without document load or second source");
+            await Task.Delay(700);
+            Assert(player.Status.CurrentTime > beforeMV + .45, "MV presentation preserves and advances listening position");
+            await player.ShowMVAsync();
+            Assert(await BooleanAsync(core, "window.__mvButtonClicks===1 && Boolean(document.querySelector('.bpx-state-web'))"), "opening already-full MV does not toggle back to normal page");
+            // Deliver an already-exited older native-fullscreen event after a
+            // new webpage-full presentation, without altering current media.
+            var mvRequest = (long)typeof(PlayerHost).GetField("_mvRequest", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(player)!;
+            typeof(PlayerHost).GetField("_nativeFullscreenRequest", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(player, mvRequest - 1);
+            typeof(PlayerHost).GetMethod("Source_ContainsFullScreenElementChanged", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(player, new object[] { core, EventArgs.Empty });
+            Assert(window.Left >= SystemParameters.WorkArea.Left && window.ShowInTaskbar && await BooleanAsync(core, "Boolean(document.querySelector('.bpx-state-web'))"), "late native fullscreen exit from an older request cannot hide newer MV");
+            window.Close();
+            await WaitAsync(() => window.Left < -1000 && !window.ShowInTaskbar, TimeSpan.FromSeconds(3));
+            await WaitBooleanAsync(core, "!document.querySelector('.bpx-state-web')", TimeSpan.FromSeconds(3));
+            beforeMV = player.Status.CurrentTime; await Task.Delay(900);
+            Assert(player.Status.State == "playing" && player.Status.CurrentTime > beforeMV + .6 && !core.IsMuted, "closing MV exits page mode and continues the same background audio");
+
+            await player.ShowMVAsync();
+            // A rejected navigation must leave the current presentation alone.
+            // The target is blocked before a request; all source traffic is
+            // still intercepted by the controlled response handler above.
+            core.Navigate("https://example.invalid/not-a-source");
+            await Task.Delay(180);
+            Assert(core.Source.Contains(song.Bvid, StringComparison.Ordinal) && await BooleanAsync(core, "Boolean(document.querySelector('.bpx-state-web'))"), "rejected external navigation cannot cancel active MV presentation");
+            await core.ExecuteScriptAsync("document.querySelector('.bpx-player-ctrl-web').click(); true");
+            await WaitAsync(() => window.Left < -1000, TimeSpan.FromSeconds(3));
+            Assert(player.Status.State == "playing" && !core.IsMuted, "source webpage fullscreen exit returns only an active MV session to background");
+
+            await player.ShowMVAsync();
+            await core.CallDevToolsProtocolMethodAsync("Runtime.evaluate", "{\"expression\":\"document.querySelector('.bpx-player-container').requestFullscreen()\",\"userGesture\":true}");
+            await WaitAsync(() => core.ContainsFullScreenElement, TimeSpan.FromSeconds(3));
+            Assert(window.WindowState == WindowState.Maximized && window.WindowStyle == WindowStyle.SingleBorderWindow, "native page fullscreen uses a closable maximized WPF window");
+            await core.ExecuteScriptAsync("document.exitFullscreen(); true");
+            await WaitAsync(() => !core.ContainsFullScreenElement && window.Left < -1000, TimeSpan.FromSeconds(3));
+            Assert(player.Status.State == "playing" && !core.IsMuted, "leaving native fullscreen from MV returns to uninterrupted background audio");
+
             await player.PauseAsync();
             var paused = player.Status.CurrentTime;
             await Task.Delay(800);
             Assert(player.Status.State == "paused" && Math.Abs(player.Status.CurrentTime - paused) < .15 && core.IsMuted, "pause stops both native clock and output");
+            await player.ShowMVAsync();
+            await Task.Delay(220);
+            Assert(player.Status.State == "paused" && Math.Abs(player.Status.CurrentTime - paused) < .15 && core.IsMuted, "viewing a paused MV never starts playback or resets position");
+            window.Close();
+            await WaitBooleanAsync(core, "!document.querySelector('.bpx-state-web')", TimeSpan.FromSeconds(3));
+            await core.ExecuteScriptAsync("window.__fixtureVideo=document.querySelector('video'); window.__fixtureVideo.remove(); const v=document.createElement('p'); v.id='verification'; v.textContent='安全验证'; document.body.appendChild(v); true");
+            try { await player.ShowMVAsync(); throw new Exception("FAIL native player: verification page unexpectedly entered MV"); }
+            catch (InvalidOperationException error) when (error.Message.Contains("安全验证", StringComparison.Ordinal)) { checks++; }
+            Assert(window.Left >= SystemParameters.WorkArea.Left && window.ShowInTaskbar && window.Title == "Bilibili · 音频来源", "unready/verification MV keeps a usable normal source window");
+            await core.ExecuteScriptAsync("document.getElementById('verification').remove(); document.querySelector('.bpx-player-video-wrap').appendChild(window.__fixtureVideo); true");
+            window.Close();
             await player.ResumeAsync().WaitAsync(TimeSpan.FromSeconds(15));
             await Task.Delay(1000);
             Assert(player.Status.State == "playing" && player.Status.CurrentTime > paused + .65, "resume preserves and advances native clock");
@@ -110,6 +162,24 @@ internal static class NativePlayerTests
             await Task.Delay(350);
             Assert(ended == 1 && core.IsMuted, "native ended emitted once and output stops");
             Assert(requests > 0, "all source documents served by controlled response handler");
+            if (Environment.GetEnvironmentVariable("YUYIN_NATIVE_MV_MANUAL_QA") == "1")
+            {
+                // Explicit test-only gate: the root agent targets this exact
+                // controlled source window with actual native mouse/keyboard.
+                // There is no production automation or real user profile here.
+                html = ControlledHTML(SilentWave(420));
+                await player.PlayAsync(song with { Duration = 420 }).WaitAsync(TimeSpan.FromSeconds(20));
+                foreach (var stage in new[] { "Escape", "Close", "Minimize" })
+                {
+                    await player.ShowMVAsync();
+                    Console.WriteLine($"MANUAL_MV_READY {stage}: title={window.Title}; profile={directory}; time={player.Status.CurrentTime:F2}");
+                    await WaitAsync(() => window.Left < -1000 && !window.ShowInTaskbar, TimeSpan.FromSeconds(120));
+                    var backgroundAt = player.Status.CurrentTime; await Task.Delay(1100);
+                    Assert(player.Status.State == "playing" && player.Status.CurrentTime > backgroundAt + .65 && !core.IsMuted, $"actual manual {stage} preserves advancing background playback");
+                    await WaitBooleanAsync(core, "!document.querySelector('.bpx-state-web') && !document.fullscreenElement", TimeSpan.FromSeconds(3));
+                    Console.WriteLine($"MANUAL_MV_PASSED {stage}: same source continues at {player.Status.CurrentTime:F2}");
+                }
+            }
             core.WebResourceRequested -= Respond;
             await player.DisposeAsync();
             Assert(!window.IsVisible && application.Windows.Count == 0, "dispose destroys source window and WebView2");
@@ -136,6 +206,22 @@ internal static class NativePlayerTests
         using var document = JsonDocument.Parse(await core.ExecuteScriptAsync("(() => { const v = document.querySelector('video'); return { currentTime: v.currentTime, volume: v.volume }; })()"));
         return (document.RootElement.GetProperty("currentTime").GetDouble(), document.RootElement.GetProperty("volume").GetDouble());
     }
+
+    private static async Task<bool> BooleanAsync(CoreWebView2 core, string expression) => JsonSerializer.Deserialize<bool>(await core.ExecuteScriptAsync(expression));
+    private static async Task WaitBooleanAsync(CoreWebView2 core, string expression, TimeSpan timeout)
+    {
+        var end = DateTime.UtcNow + timeout;
+        while (!await BooleanAsync(core, expression)) { if (DateTime.UtcNow >= end) throw new TimeoutException("Controlled MV page state timed out."); await Task.Delay(50); }
+    }
+
+    private static string ControlledHTML(byte[] wave) => """
+        <!doctype html><meta charset=utf-8><title>Controlled MV fixture</title>
+        <style>body{margin:0;background:#e8e8e8;font:16px sans-serif}.bpx-player-container{position:relative;width:640px;height:400px;margin:40px auto;background:#111;color:#fff}.bpx-player-video-wrap,video{width:100%;height:100%}.bpx-state-web{position:fixed;inset:0;width:100vw;height:100vh;margin:0}.bpx-player-control-bottom{position:absolute;bottom:16px;right:20px;display:flex;gap:12px}.bpx-player-control-bottom button{padding:12px 20px;color:#fff;background:#345446;border:1px solid #94a89d;border-radius:6px}.fixture-label{position:absolute;top:25px;left:25px;color:#ccc;pointer-events:none}</style>
+        <div class='bpx-player-container' data-screen='normal'><div class='bpx-player-video-wrap'><video id='media' preload='auto' src='data:audio/wav;base64,
+        """ + Convert.ToBase64String(wave) + """
+        '></video></div><span class='fixture-label'>Controlled silent MV · same source video</span><div class='bpx-player-control-bottom'><button class='bpx-player-ctrl-web' title='网页全屏'>网页全屏 / 返回</button><button id='native-fullscreen'>原生全屏</button></div></div>
+        <script>window.__mvButtonClicks=0; const c=document.querySelector('.bpx-player-container');document.querySelector('.bpx-player-ctrl-web').onclick=()=>{window.__mvButtonClicks++;const full=c.classList.toggle('bpx-state-web');c.dataset.screen=full?'web':'normal';};document.getElementById('native-fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else c.requestFullscreen();};</script>
+        """;
 
     private static async Task WaitAsync(Func<bool> condition, TimeSpan timeout)
     {

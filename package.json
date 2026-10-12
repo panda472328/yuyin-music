@@ -1,6 +1,6 @@
 {
   "name": "yuyin-music",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "openmusic · 基于 Bilibili 的桌面音乐播放器",
   "main": "out/main/index.js",
@@ -19,7 +19,7 @@
     "dist:installer": "npm run publish:webview2 && node scripts/build-webview2-installer.mjs",
     "dist:electron": "npm run build:electron && electron-builder --win nsis portable",
     "dist:portable": "npm run build:electron && electron-builder --win portable",
-    "test": "tsx --test tests/*.test.ts && node tests/player-races.cjs && node tests/webview2-player-page.cjs",
+    "test": "tsx --test tests/*.test.ts && node tests/player-races.cjs && node tests/webview2-player-page.cjs && node tests/webview2-mv-page.cjs",
     "test:host": "node scripts/webview2-host.mjs test",
     "test:host-native": "node scripts/webview2-host.mjs test-native",
     "test:installer": "node --test scripts/webview2-installer-guards.test.mjs scripts/webview2-installer-flow.test.mjs",

@@ -26,6 +26,34 @@ public static class UpdateTests
         try
         {
             Assert(UpdateService.ParseManifest(json) == manifest, "public manifest contract");
+            var domestic = Domestic(manifest);
+            var domesticJson = JsonSerializer.Serialize(domestic);
+            Assert(UpdateService.ParseDomesticManifest(domesticJson) == domestic, "separate domestic manifest contract");
+            var contents = Contents(domesticJson);
+            var contentsJson = JsonSerializer.Serialize(contents);
+            Assert(UpdateService.DecodeDomesticContents(contentsJson) == domesticJson, "fixed Contents API decodes bounded UTF-8 base64 manifest");
+            string ContentsChanged(Action<JsonObject> change) { var node = JsonNode.Parse(contentsJson)!.AsObject(); change(node); return node.ToJsonString(); }
+            foreach (var invalid in new[] {
+                "[]", domesticJson, ContentsChanged(value => value["type"] = "dir"), ContentsChanged(value => value["encoding"] = "utf8"),
+                ContentsChanged(value => value["path"] = "updates/stable.json"), ContentsChanged(value => value["name"] = "stable.json"),
+                ContentsChanged(value => value["size"] = 0), ContentsChanged(value => value["size"] = UpdateService.ManifestMaxBytes + 1),
+                ContentsChanged(value => value["size"] = 1), ContentsChanged(value => value["content"] = "a==="),
+                ContentsChanged(value => value["content"] = new string('A', UpdateService.DomesticContentsMaxBytes + 1)),
+                ContentsChanged(value => { value["size"] = 1; value["content"] = "/w=="; }),
+                ContentsChanged(value => { value["size"] = 1; value["content"] = "Zh=="; }),
+            }) Reject(() => UpdateService.DecodeDomesticContents(invalid), "Contents wrapper rejects path, bounds, base64 aliases and invalid UTF-8");
+            Assert(UpdateService.DecodeDomesticContents(ContentsChanged(value => value["content"] = Convert.ToBase64String(Encoding.UTF8.GetBytes(domesticJson)).Insert(20, "\r\n"))) == domesticJson, "Contents base64 line wrapping accepted");
+            string DomesticChanged(Action<JsonObject> change) { var node = JsonNode.Parse(domesticJson)!.AsObject(); change(node); return node.ToJsonString(); }
+            foreach (var invalid in new[]
+            {
+                DomesticChanged(value => value["schemaVersion"] = 1), DomesticChanged(value => value["provider"] = "github"),
+                DomesticChanged(value => value["versionCode"] = 1), DomesticChanged(value => value["source"]!["releaseId"] = 0),
+                DomesticChanged(value => value["source"]!["attachmentId"] = 2147483648L), DomesticChanged(value => value["source"]!["filename"] = "evil.exe"),
+                DomesticChanged(value => value["artifact"]!["url"] = domestic.Artifact.Url + "?access_token=hidden"),
+                DomesticChanged(value => value["artifact"]!["url"] = domestic.Artifact.Url.Replace("openmusic/openmusic", "evil/repo")),
+                DomesticChanged(value => value["releaseNotesUrl"] = domestic.ReleaseNotesUrl.Replace("0.5.1", "0.5.2")),
+                DomesticChanged(value => value["artifact"]!["sha256"] = "wrong"), DomesticChanged(value => value["artifact"]!["size"] = 0),
+            }) Reject(() => UpdateService.ParseDomesticManifest(invalid), "domestic schema pins identity and legacy validations");
             Assert(UpdateService.CompareVersions("0.5.1", "0.5.0") > 0 && UpdateService.CompareVersions("1.0.0", "0.999999.999999") > 0, "numeric version comparison");
             foreach (var version in new[] { "0.4.03", "1.2", "1.2.3.4", "1.2.3-beta", "9999999.0.0", "1.2.3\n" }) Assert(!UpdateService.IsStableVersion(version), "reject version " + version.Trim());
             Reject(() => UpdateService.ParseManifest(Changed(value => value["platform"] = "android")), "wrong platform");
@@ -39,6 +67,14 @@ public static class UpdateTests
             Reject(() => UpdateService.ParseManifest(Changed(value => value["notes"] = new string('x', 8001))), "bounded notes");
             Reject(() => UpdateService.ParseManifest(Changed(value => value["publishedAt"] = "2026-02-30T00:00:00Z")), "invalid date");
             Assert(UpdateService.IsTrustedAddress(new(UpdateService.ManifestUrl), true), "fixed public manifest allowed");
+            Assert(UpdateService.IsTrustedAddress(new(UpdateService.DomesticManifestUrl), true), "fixed domestic manifest allowed");
+            Assert(!UpdateService.IsTrustedAddress(new(UpdateService.DomesticManifestUrl + "?token=x"), true), "domestic manifest query refused");
+            Assert(!UpdateService.IsTrustedAddress(new(UpdateService.DomesticManifestUrl.Replace("ref=main", "ref=evil")), true), "domestic branch pinned");
+            Assert(!UpdateService.IsTrustedAddress(new("https://raw.giteeusercontent.com/openmusic/openmusic/raw/main/updates/domestic.json?metadata=x&signature=x"), true, new(UpdateService.DomesticManifestUrl)), "Contents manifest never follows raw signed CDN URLs");
+            Assert(UpdateService.IsTrustedAddress(new(domestic.Artifact.Url), false, new(domestic.Artifact.Url)), "official Gitee attachment download API allowed");
+            Assert(!UpdateService.IsTrustedAddress(new("https://unknown-cdn.example/download"), false, new(domestic.Artifact.Url)), "unknown domestic CDN never trusted");
+            Assert(!UpdateService.IsTrustedAddress(new(manifest.Artifact.Url), false, new(domestic.Artifact.Url)), "provider crossing cannot happen through redirect");
+            Assert(!UpdateService.IsTrustedAddress(new(UpdateService.ArtifactUrl("0.5.2")), false, new(manifest.Artifact.Url)), "GitHub redirect cannot switch versions");
             Assert(!UpdateService.IsTrustedAddress(new(UpdateService.ManifestUrl + "?token=x"), true), "manifest query refused");
             Assert(UpdateService.IsTrustedAddress(new("https://release-assets.githubusercontent.com/test?signature=controlled"), false), "GitHub release CDN allowed");
             foreach (var address in new[] { "http://github.com/panda472328/yuyin-music/releases/download/file", "https://github.com/other/repo/releases/download/file", "https://evil.example/file", "https://github.com:444/panda472328/yuyin-music/releases/download/file", "https://user:pass@release-assets.githubusercontent.com/file", "https://release-assets.githubusercontent.com/file#hash" })
@@ -135,6 +171,98 @@ public static class UpdateTests
                 var check = started.CheckAsync(); startupGate.SetResult(); await check;
                 Assert(startedCalls == 1, "startup check starts once");
             }
+
+            var domesticRequests = new List<string>();
+            using (var missingDomestic = new UpdateService(Path.Combine(directory, "domestic-api-missing"), (_, _) => throw new Exception("not authorized"), "0.5.0", true,
+                new ControlledHandler((request, _) => Task.FromResult(Text(request.RequestUri!.AbsoluteUri == UpdateService.DomesticManifestUrl ? "[]" : json)), acceptDomestic: true)))
+                Assert((WindowsUpdateManifest?)(await missingDomestic.CheckAsync()).Manifest == manifest, "Gitee missing file 200 empty array safely falls back to GitHub");
+            using (var preferred = new UpdateService(Path.Combine(directory, "domestic"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) =>
+            {
+                var uri = request.RequestUri!.AbsoluteUri; domesticRequests.Add(uri);
+                return Task.FromResult(uri == UpdateService.DomesticManifestUrl ? DomesticText(domesticJson) : uri == UpdateService.ManifestUrl ? Text(json) : Bytes(payload));
+            }, acceptDomestic: true)))
+            {
+                Assert((WindowsUpdateManifest?)(await preferred.CheckAsync()).Manifest == domestic, "same-version domestic source preferred");
+                Assert(domesticRequests.Count == 2, "both manifests checked without artifact download");
+                Assert((await preferred.DownloadAsync()).Status == "downloaded" && domesticRequests.Last() == domestic.Artifact.Url, "domestic attachment downloaded and verified");
+            }
+
+            var failoverCalls = new List<string>();
+            using (var failover = new UpdateService(Path.Combine(directory, "domestic-failover"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) =>
+            {
+                var uri = request.RequestUri!.AbsoluteUri; failoverCalls.Add(uri);
+                return Task.FromResult(uri == UpdateService.DomesticManifestUrl ? DomesticText(domesticJson) : uri == UpdateService.ManifestUrl ? Text(json) : Bytes(uri == domestic.Artifact.Url ? wrong : payload));
+            }, acceptDomestic: true)))
+            {
+                await failover.CheckAsync();
+                Assert((await failover.DownloadAsync()).Status == "downloaded", "corrupt domestic download falls back and verifies GitHub");
+                Assert((WindowsUpdateManifest?)failover.State.Manifest == manifest && failoverCalls.TakeLast(2).SequenceEqual(new[] { domestic.Artifact.Url, manifest.Artifact.Url }), "fallback pins same version and bytes");
+            }
+
+            var unknownCdnCalls = 0;
+            using (var unknownCdn = new UpdateService(Path.Combine(directory, "domestic-redirect"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) =>
+            {
+                var uri = request.RequestUri!.AbsoluteUri;
+                if (uri == UpdateService.DomesticManifestUrl) return Task.FromResult(DomesticText(domesticJson));
+                if (uri == UpdateService.ManifestUrl) return Task.FromResult(Text(json));
+                if (uri == domestic.Artifact.Url) { var response = new HttpResponseMessage(HttpStatusCode.Found); response.Headers.Location = new("https://unknown-cdn.example/download?secret=hidden"); return Task.FromResult(response); }
+                if (uri.Contains("unknown-cdn")) unknownCdnCalls++;
+                return Task.FromResult(Bytes(payload));
+            }, acceptDomestic: true)))
+            {
+                await unknownCdn.CheckAsync();
+                Assert((await unknownCdn.DownloadAsync()).Status == "downloaded" && unknownCdnCalls == 0, "unproven Gitee redirect blocked before request and GitHub used");
+            }
+
+            var interruptedCalls = new List<string>(); var interruptedBodyReads = 0;
+            using (var interrupted = new UpdateService(Path.Combine(directory, "domestic-body-interrupted"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) =>
+            {
+                var uri = request.RequestUri!.AbsoluteUri; interruptedCalls.Add(uri);
+                return Task.FromResult(uri == UpdateService.DomesticManifestUrl ? DomesticText(domesticJson) : uri == UpdateService.ManifestUrl ? Text(json)
+                    : uri == domestic.Artifact.Url ? InterruptedBytes(payload, () => interruptedBodyReads++) : Bytes(payload));
+            }, acceptDomestic: true)))
+            {
+                await interrupted.CheckAsync();
+                Assert((await interrupted.DownloadAsync()).Status == "downloaded" && interruptedBodyReads == 1 && interruptedCalls.TakeLast(2).SequenceEqual(new[] { domestic.Artifact.Url, manifest.Artifact.Url }), "response body IOException falls back to verified same bytes");
+                Assert(!Directory.EnumerateFiles(Path.Combine(directory, "domestic-body-interrupted"), "*.part").Any(), "interrupted domestic partial removed before fallback completes");
+            }
+
+            var diskFailurePath = Path.Combine(directory, "cache-is-a-file"); await File.WriteAllTextAsync(diskFailurePath, "controlled file");
+            var diskFailureArtifactCalls = 0;
+            using (var diskFailure = new UpdateService(diskFailurePath, (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) =>
+            {
+                var uri = request.RequestUri!.AbsoluteUri;
+                if (uri == UpdateService.DomesticManifestUrl) return Task.FromResult(DomesticText(domesticJson));
+                if (uri == UpdateService.ManifestUrl) return Task.FromResult(Text(json));
+                diskFailureArtifactCalls++; return Task.FromResult(Bytes(payload));
+            }, acceptDomestic: true)))
+            {
+                await diskFailure.CheckAsync();
+                Assert((await diskFailure.DownloadAsync()).Status == "error" && diskFailureArtifactCalls == 0, "local disk IO does not initiate provider fallback");
+                Assert(await File.ReadAllTextAsync(diskFailurePath) == "controlled file", "disk failure preserves unrelated cache-path file");
+            }
+
+            using (var offlineGitHub = new UpdateService(Path.Combine(directory, "github-offline"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) =>
+            {
+                if (request.RequestUri!.AbsoluteUri == UpdateService.ManifestUrl) throw new HttpRequestException("controlled offline");
+                return Task.FromResult(request.RequestUri.AbsoluteUri == UpdateService.DomesticManifestUrl ? DomesticText(domesticJson) : Bytes(payload));
+            }, acceptDomestic: true)))
+                Assert((WindowsUpdateManifest?)(await offlineGitHub.CheckAsync()).Manifest == domestic && (await offlineGitHub.DownloadAsync()).Status == "downloaded", "valid domestic source works with GitHub unavailable");
+
+            using (var staleMirror = new UpdateService(Path.Combine(directory, "stale-mirror"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) => Task.FromResult(request.RequestUri!.AbsoluteUri == UpdateService.DomesticManifestUrl ? DomesticText(JsonSerializer.Serialize(Domestic(Manifest("0.5.0", payload)))) : Text(json)), acceptDomestic: true)))
+                Assert((WindowsUpdateManifest?)(await staleMirror.CheckAsync()).Manifest == manifest, "stale domestic mirror cannot hide newer GitHub version");
+
+            using (var conflict = new UpdateService(Path.Combine(directory, "conflict"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) => Task.FromResult(request.RequestUri!.AbsoluteUri == UpdateService.DomesticManifestUrl ? DomesticText(JsonSerializer.Serialize(domestic with { Artifact = domestic.Artifact with { Sha256 = new string('a', 64) } })) : Text(json)), acceptDomestic: true)))
+                Assert((await conflict.CheckAsync()).Status == "error" && conflict.State.Error!.Contains("不一致"), "same-version providers must agree on immutable bytes");
+
+            var offered = manifest;
+            using (var monotonic = new UpdateService(Path.Combine(directory, "monotonic"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((_, _) => Task.FromResult(Text(JsonSerializer.Serialize(offered))))))
+            {
+                await monotonic.CheckAsync(); offered = Manifest("0.5.0", payload);
+                Assert(((await monotonic.CheckAsync()).Manifest as WindowsUpdateManifest)?.Version == "0.5.1", "mirror rollback retains highest verified offer this session");
+                offered = manifest with { Artifact = manifest.Artifact with { Sha256 = new string('b', 64) } };
+                Assert((await monotonic.CheckAsync()).Status == "error" && monotonic.State.Error!.Contains("不一致"), "same version replacement refused across checks");
+            }
             Assert(!Directory.EnumerateFiles(directory, "*.part", SearchOption.AllDirectories).Any(), "all partial files cleaned");
             Console.WriteLine($"{checks} native update checks passed using controlled responses; no update was launched.");
         }
@@ -142,10 +270,27 @@ public static class UpdateTests
     }
 
     private static WindowsUpdateManifest Manifest(string version, byte[] payload) => new(1, "windows", version, new(UpdateService.ArtifactUrl(version), Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant(), payload.Length), UpdateService.ReleaseNotesUrl(version), "受控更新测试", "2026-10-11T12:00:00.000Z");
+    private static WindowsUpdateManifest Domestic(WindowsUpdateManifest manifest) => manifest with { SchemaVersion = 2, Provider = "gitee", Source = new(12345, 67890, $"Yuyin-{manifest.Version}-Setup.exe"), Artifact = manifest.Artifact with { Url = UpdateService.DomesticArtifactUrl(12345, 67890) }, ReleaseNotesUrl = UpdateService.DomesticReleaseNotesUrl(manifest.Version) };
     private static HttpResponseMessage Text(string value) => new(HttpStatusCode.OK) { Content = new StringContent(value, Encoding.UTF8, "application/json") };
+    private static object Contents(string value) => new { type = "file", encoding = "base64", path = "updates/domestic.json", name = "domestic.json", size = Encoding.UTF8.GetByteCount(value), content = Convert.ToBase64String(Encoding.UTF8.GetBytes(value)) };
+    private static HttpResponseMessage DomesticText(string value) => Text(JsonSerializer.Serialize(Contents(value)));
     private static HttpResponseMessage Bytes(byte[] value) => new(HttpStatusCode.OK) { Content = new ByteArrayContent(value) };
-    private sealed class ControlledHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> response) : HttpMessageHandler
+    private static HttpResponseMessage InterruptedBytes(byte[] payload, Action interrupted)
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => response(request, cancellationToken);
+        var content = new StreamContent(new InterruptedBodyStream(payload[..8], interrupted));
+        content.Headers.ContentLength = payload.Length; // The declared size is valid; the body itself must fail after its first chunk.
+        return new(HttpStatusCode.OK) { Content = content };
+    }
+    private sealed class InterruptedBodyStream(byte[] prefix, Action interrupted) : MemoryStream(prefix)
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (Position < Length) return base.ReadAsync(buffer, cancellationToken);
+            interrupted(); return ValueTask.FromException<int>(new IOException("controlled response body interruption"));
+        }
+    }
+    private sealed class ControlledHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> response, bool acceptDomestic = false) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => !acceptDomestic && request.RequestUri!.AbsoluteUri == UpdateService.DomesticManifestUrl ? Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)) : response(request, cancellationToken);
     }
 }

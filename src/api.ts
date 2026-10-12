@@ -4,6 +4,7 @@ import { buildLyricsQueries, selectLyricsMatch } from './lyrics'
 import type { DesktopLyricsContent, DesktopLyricsSettings, DesktopLyricsSnapshot } from '../electron/desktop-lyrics-types'
 import { DESKTOP_LYRICS_DEFAULT_SETTINGS, DESKTOP_LYRICS_DEFAULT_CONTENT } from '../electron/desktop-lyrics-types'
 import type { UpdateState } from './shared/update'
+import type { CommentSort, VideoCommentsPage, VideoRepliesPage, CommentLikeResult, CommentCreateRequest, CommentCreateResult } from './shared/comments'
 import { bilibiliResultText, isSearchMode, normalizeSongName, parseSearchSuggestions, rankSongTitleResults, type SearchMode } from './shared/search-mode'
 import { createWebView2API, isWebView2Available } from './webview2-bridge'
 
@@ -35,7 +36,12 @@ export interface MusicAPI {
   getBilibiliFavoriteFolders(): Promise<BilibiliFavoriteFoldersResult>
   getBilibiliFavoriteItems(mediaId: number, page?: number): Promise<BilibiliFavoriteItemsResult>
   getBilibiliFavoriteSongs(mediaId: number): Promise<BilibiliFavoriteSongsResult>
+  getVideoComments(bvid: string, sort: CommentSort, page?: number): Promise<VideoCommentsPage>
+  getCommentReplies(bvid: string, rootId: string, page?: number): Promise<VideoRepliesPage>
+  setCommentLike(bvid: string, id: string, liked: boolean, expectedMid: number): Promise<CommentLikeResult>
+  createComment(request: CommentCreateRequest): Promise<CommentCreateResult>
   openSource(): Promise<void>
+  openMV(): Promise<void>
   minimize(): void
   maximize(): void
   close(): void
@@ -117,6 +123,10 @@ const previewAPI: MusicAPI = {
   async getBilibiliFavoriteFolders() { throw new Error('请在openmusic桌面客户端中读取 Bilibili 收藏夹。') },
   async getBilibiliFavoriteItems() { throw new Error('请在openmusic桌面客户端中读取 Bilibili 收藏夹。') },
   async getBilibiliFavoriteSongs() { throw new Error('请在openmusic桌面客户端中读取 Bilibili 收藏夹。') },
+  async getVideoComments() { throw new Error('请使用 Windows WebView2 客户端查看视频评论。') },
+  async getCommentReplies() { throw new Error('请使用 Windows WebView2 客户端查看评论回复。') },
+  async setCommentLike() { throw new Error('请在 Windows WebView2 客户端登录 Bilibili 后点赞。') },
+  async createComment() { throw new Error('请在 Windows WebView2 客户端登录 Bilibili 后发表评论。') },
   async getDesktopLyricsSnapshot() { return { settings: { ...DESKTOP_LYRICS_DEFAULT_SETTINGS }, content: { ...DESKTOP_LYRICS_DEFAULT_CONTENT }, error: null } },
   updateDesktopLyricsSettings: desktopRequired,
   async publishDesktopLyrics() {},
@@ -140,7 +150,7 @@ const previewAPI: MusicAPI = {
     } catch (error) { if (controller.signal.aborted) throw new Error('歌词查询超时，请稍后重试。'); throw error }
     finally { clearTimeout(timeout) }
   },
-  async setVolume() { return idle }, async getStatus() { return idle }, login: desktopRequired, openSource: desktopRequired,
+  async setVolume() { return idle }, async getStatus() { return idle }, login: desktopRequired, openSource: desktopRequired, openMV: desktopRequired,
   minimize() {}, maximize() {}, close() {}, onStatus() { return () => {} }, onEnded() { return () => {} },
   readLibrary() { return localStorage.getItem('yuyin-library-v1') },
   writeLibrary(data) { localStorage.setItem('yuyin-library-v1', data) },

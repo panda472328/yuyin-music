@@ -1,6 +1,6 @@
 /** Public update contract. Each platform publishes its own stable manifest. */
 export interface UpdateManifest {
-  schemaVersion: 1
+  schemaVersion: 1 | 2
   platform: 'windows' | 'android'
   version: string
   versionCode?: number
@@ -8,7 +8,13 @@ export interface UpdateManifest {
   releaseNotesUrl: string
   notes: string
   publishedAt: string
+  /** Source selected by the current updater. Legacy GitHub manifests omit it. */
+  provider?: UpdateProvider
+  /** Gitee release/attachment identity, present only in the domestic manifest. */
+  source?: { releaseId: number; attachmentId: number; filename: string }
 }
+
+export type UpdateProvider = 'github' | 'gitee'
 
 export type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error'
 
@@ -26,6 +32,8 @@ export interface UpdateState {
 
 export const UPDATE_REPOSITORIES = { windows: 'panda472328/yuyin-music', android: 'panda472328/yuyin-music-mobile' } as const
 export const WINDOWS_UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/panda472328/yuyin-music/main/updates/stable.json'
+/** Separate opt-in channel. The legacy stable.json remains GitHub-only. */
+export const WINDOWS_DOMESTIC_UPDATE_MANIFEST_URL = 'https://gitee.com/api/v5/repos/openmusic/openmusic/contents/updates/domestic.json?ref=main'
 export const MAX_UPDATE_BYTES = 500_000_000
 
 export function validStableVersion(value: unknown): value is string {
@@ -51,6 +59,29 @@ export function updateReleaseUrl(platform: UpdateManifest['platform'], version: 
 export function updateArtifactUrl(platform: UpdateManifest['platform'], version: string): string {
   const release = updateReleaseUrl(platform, version).replace('/tag/', '/download/')
   return `${release}/${platform === 'windows' ? `Yuyin-${version}-Setup.exe` : `Yuyin-Mobile-${version}.apk`}`
+}
+
+export function domesticReleaseNotesUrl(version: string): string {
+  if (!validStableVersion(version)) throw new Error('更新版本号格式不正确。')
+  return `https://gitee.com/openmusic/openmusic/releases/tag/pc-v${version}`
+}
+
+export function domesticArtifactUrl(releaseId: number, attachmentId: number): string {
+  if (!Number.isSafeInteger(releaseId) || releaseId < 1 || releaseId > 2147483647 || !Number.isSafeInteger(attachmentId) || attachmentId < 1 || attachmentId > 2147483647) throw new Error('国内更新附件标识不合法。')
+  return `https://gitee.com/api/v5/repos/openmusic/openmusic/releases/${releaseId}/attach_files/${attachmentId}/download`
+}
+
+export function parseDomesticUpdateManifest(value: unknown): UpdateManifest {
+  const input = record(value); const artifact = record(input?.artifact); const source = record(input?.source)
+  const version = input?.version
+  if (!input || input.schemaVersion !== 2 || input.platform !== 'windows' || input.provider !== 'gitee' || input.versionCode !== undefined || !validStableVersion(version) ||
+    !artifact || typeof artifact.url !== 'string' || !/^https:\/\/gitee\.com\/api\/v5\/repos\/openmusic\/openmusic\/releases\/[1-9][0-9]{0,9}\/attach_files\/[1-9][0-9]{0,9}\/download$/.test(artifact.url) ||
+    typeof artifact.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(artifact.sha256) || !Number.isSafeInteger(artifact.size) || (artifact.size as number) < 1 || (artifact.size as number) > MAX_UPDATE_BYTES ||
+    input.releaseNotesUrl !== domesticReleaseNotesUrl(version) || typeof input.notes !== 'string' || input.notes.length > 8000 ||
+    typeof input.publishedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(input.publishedAt) || !Number.isFinite(Date.parse(input.publishedAt)) ||
+    !source || !Number.isSafeInteger(source.releaseId) || (source.releaseId as number) < 1 || (source.releaseId as number) > 2147483647 || !Number.isSafeInteger(source.attachmentId) || (source.attachmentId as number) < 1 || (source.attachmentId as number) > 2147483647 ||
+    source.filename !== `Yuyin-${version}-Setup.exe` || artifact.url !== domesticArtifactUrl(source.releaseId as number, source.attachmentId as number)) throw new Error('国内更新清单不合法，请稍后重试。')
+  return { schemaVersion: 2, platform: 'windows', version, provider: 'gitee', source: { releaseId: source.releaseId as number, attachmentId: source.attachmentId as number, filename: source.filename as string }, artifact: { url: artifact.url, sha256: artifact.sha256, size: artifact.size as number }, releaseNotesUrl: input.releaseNotesUrl as string, notes: input.notes, publishedAt: input.publishedAt }
 }
 
 /** Reject paths, repositories and download filenames outside the maintained release. */

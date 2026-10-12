@@ -92,7 +92,7 @@ export function UpdateSettings({ compact = false }: { compact?: boolean }) {
     <div className="setting-row update-setting-row"><span><strong>openmusic v{version}</strong><small role="status">{updateMessage(state)}</small>{state?.installDisabledReason && <small>{state.installDisabledReason}</small>}</span><UpdateActions check /></div>
     {state?.status === 'downloading' && <progress className="update-progress" aria-label="更新下载进度" max={100} value={state.progress ?? undefined} />}
     {(failure || state?.status === 'error') && <p className="update-error" role="alert">{failure || state?.error}</p>}
-    {!compact && <p className="update-hint">自动发现 GitHub 正式新版，由你选择下载和安装。安装后继续使用原来的音乐库与设置。</p>}
+    {!compact && <p className="update-hint">自动发现正式新版，由你选择下载和安装。安装后继续使用原来的音乐库与设置。</p>}
   </section>
 }
 

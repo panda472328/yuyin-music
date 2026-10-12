@@ -1,6 +1,13 @@
 using System.IO;
 using Yuyin.WindowsHost;
 
+if (args.Length > 0)
+{
+    if (args.Length != 2 || args[0] != "--live-update-probe") throw new ArgumentException("Use --live-update-probe X.Y.Z only for an explicit public download verification.");
+    await LiveUpdateProbe.RunAsync(args[1]);
+    return;
+}
+
 var directory = Path.Combine(Path.GetTempPath(), "yuyin-host-test-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
 var checks = 0;
@@ -37,5 +44,6 @@ try {
     Console.WriteLine($"{checks} native storage checks passed.");
 } finally { Directory.Delete(directory, true); }
 await BilibiliTests.RunAsync();
+await CommentsTests.RunAsync();
 await UpdateTests.Run();
 DesktopSettingsTests.Run();

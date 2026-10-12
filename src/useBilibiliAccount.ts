@@ -8,6 +8,7 @@ export function useBilibiliAccount() {
   const [enteringGuest, setEnteringGuest] = useState(false)
   const [watchingLogin, setWatchingLogin] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
+  const [sessionKey, setSessionKey] = useState(0)
   const controller = useRef<AccountSession | null>(null)
   const loginOpening = useRef<Promise<void> | null>(null)
   const mounted = useRef(false)
@@ -16,7 +17,7 @@ export function useBilibiliAccount() {
     mounted.current = true
     const current = new AccountSession({ getAccount: () => api.getBilibiliAccount(), continueAsGuest: () => api.continueAsGuest(), pause: () => api.pause(), onState: setSession })
     controller.current = current
-    const unsubscribe = api.onBilibiliSessionChanged(() => { void current.check(true) })
+    const unsubscribe = api.onBilibiliSessionChanged(() => { setSessionKey(value => value + 1); void current.check(true) })
     const focus = () => { void current.check(true) }
     window.addEventListener('focus', focus)
     void current.check()
@@ -72,5 +73,5 @@ export function useBilibiliAccount() {
     return operation
   }, [])
 
-  return { ...session, error: loginError || session.error, openingLogin, watchingLogin, enteringGuest, refresh, openLogin, continueAsGuest }
+  return { ...session, sessionKey, error: loginError || session.error, openingLogin, watchingLogin, enteringGuest, refresh, openLogin, continueAsGuest }
 }

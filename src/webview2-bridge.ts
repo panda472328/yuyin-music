@@ -4,6 +4,7 @@ import type { LyricsLookupResult, LyricsRequest, LyricsTrack } from '../electron
 import { buildLyricsQueries, selectLyricsMatch } from './lyrics'
 import type { MusicAPI } from './api'
 import type { UpdateState } from './shared/update'
+import type { VideoCommentsPage, VideoRepliesPage, CommentLikeResult, CommentCreateResult } from './shared/comments'
 
 interface WebViewMessagePort {
   hostObjects?: { sync?: { localData?: NativeLocalData } }
@@ -191,9 +192,14 @@ export function createWebView2API(): MusicAPI | null {
     openBilibiliProfile: () => native.call<void>('account.profile'),
     onBilibiliSessionChanged: callback => native.on('account.changed', () => callback()),
     getBilibiliFavoriteFolders: () => native.call<BilibiliFavoriteFoldersResult>('favorites.folders'),
+    getVideoComments: (bvid, sort, page = 1) => native.call<VideoCommentsPage>('comments.list', [bvid, sort, page]),
+    getCommentReplies: (bvid, rootId, page = 1) => native.call<VideoRepliesPage>('comments.replies', [bvid, rootId, page]),
+    setCommentLike: (bvid, id, liked, expectedMid) => native.call<CommentLikeResult>('comments.like', [bvid, id, liked, expectedMid]),
+    createComment: request => native.call<CommentCreateResult>('comments.create', [request]),
     getBilibiliFavoriteItems: (mediaId, page) => native.call<BilibiliFavoriteItemsResult>('favorites.items', [mediaId, page]),
     getBilibiliFavoriteSongs: mediaId => native.call<BilibiliFavoriteSongsResult>('favorites.songs', [mediaId]),
     openSource: () => native.call<void>('music.source'),
+    openMV: () => native.call<void>('music.mv'),
     minimize: () => native.fire('window.minimize'),
     maximize: () => native.fire('window.maximize'),
     close: () => native.fire('window.close'),

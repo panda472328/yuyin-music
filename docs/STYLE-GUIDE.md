@@ -13,6 +13,8 @@
 | 登录页与账号菜单 | `src/BilibiliAccount.tsx` | `src/styles.css` 的 `login-*`、`account-*` |
 | 软件更新、登录页检查入口与新版本提示 | `src/Updates.tsx`，`src/App.tsx` 的顶层 provider | `src/styles.css` 的 `update-*`、`.login-update`；发布流程见 `docs/UPDATES.md` |
 | Bilibili 收藏夹导入 | `src/BilibiliFavoritesDialog.tsx` | `src/styles.css` 的 `bilibili-*`、`.modal` |
+| 当前视频评论、点赞与回复 | `src/CommentsView.tsx`、`src/useComments.ts`、`src/comments-controller.ts` | `src/comments.css`，组件直接导入；原生接口在 `windows-host/BilibiliComments.cs` |
+| 当前视频 MV 与后台源窗口 | `src/App.tsx` 的侧栏 MV／底栏评论；`src/api.ts`、`src/webview2-bridge.ts` | 沿用 `.nav-item`／`.icon-button`；宿主在 `windows-host/PlayerHost.cs`，网页全屏脚本在 `windows-host/BilibiliMV.cs` |
 | 主歌词页面 | `src/LyricsView.tsx` | `src/lyrics.css`，组件直接导入 |
 | 主窗的桌面歌词设置 | `src/DesktopLyricsSettings.tsx` | `src/styles.css` 的 `desktop-lyrics-*` 设置类 |
 | 独立桌面歌词 | `src/DesktopLyrics.tsx`、`src/desktop-lyrics-main.tsx` | **仅** `src/desktop-lyrics.css` |
@@ -100,11 +102,20 @@
 | 弹窗 | `.modal-backdrop`、`.modal`、`.bilibili-modal` | 焦点管理、Escape、表单、长收藏夹列表滚动 |
 | 提示 | `.toast`、`.playback-error`、`.error-state`、`.empty-state`、`.loading-state` | 错误不被静默隐藏，按钮可执行下一步 |
 | 主歌词 | `.lyrics-page`、`.lyrics-layout`、`.lyrics-scroll`、`.lyric-line`、`.lyrics-reading-footer` | `.is-bilibili`、`.is-current`、`.is-calibrating`、来源／偏移／刷新 |
+| 评论区 | `.comments-page`、`.comments-video`、`.comments-sort`、`.comment-composer`、`.comment-item`、`.comment-thread` | 热门／最新、游客／验证中、loading／empty／closed／error、点赞忙、发送／审核／结果未确认 |
 | 桌面歌词 | `.desktop-lyrics`、`.desktop-lyrics-toolbar`、`.desktop-lyrics-copy`、`.desktop-lyrics-caption` | `.toolbar-visible`／`.toolbar-hidden`、`.is-locked`、`.has-error`、`.is-placeholder` |
 
 主歌词的 `[data-active="true"]` 用于居中滚动，`aria-current` 表示当前句。Bilibili 来源的 `.lyric-line` 禁用颜色过渡，滚动为即时 `auto`；LRCLIB 保留平滑滚动。不要为了动画重新引入字幕延迟。校准中暂停自动跟随；普通点句跳转、校准点句只调整偏移，样式改动不得更改这一语义。
 
 PC 0.5.0 包含游客与搜索模式流程。登录页“暂不登录，先听歌”在检查账号期间也可使用；游客右上角 `.guest-login` 显示登录入口，真实登录后才显示 `.account-trigger` 与头像菜单。游客与真实账号切换复用主界面，不清空搜索或本地音乐库；账号收藏夹仍需真实登录。
+
+评论页入口为右下播放器工具栏的气泡按钮（`aria-label="显示评论"`），占用原源视频入口的位置，保留 `.active` 与 `aria-pressed`，点击进入评论并关闭队列，重复点击不重建评论页或清除草稿。始终对应 `PlaybackStatus.song.bvid`，切歌或账号会话变化清除旧列表、回复目标和草稿，旧请求不能更新新上下文。普通账号轮询不清除草稿。热门／最新按钮保留 `aria-pressed`，点赞保留 `aria-pressed` 与作者标签，楼中楼开关保留 `aria-expanded`／`aria-controls`；评论正文按纯文本换行显示，不渲染来源 HTML。输入框使用关联 label、长度提示与可见焦点。页面使用现有 `--canvas`、`--surface`、`--sidebar`、`--ink`、`--green`、`--line`、`--text-muted`、`--warning-text`，不新增全局配色。
+
+侧栏原评论位置改为“Bilibili · MV”。它是打开当前视频的动作，不是主页面导航，不清除当前评论草稿或重建评论页；沿用 `.nav-item`、`Video` 图标及 `no-drag`，无歌曲／加载／打开中禁用，打开中显示 spinner 与 `aria-busy`。`openMV()` 经受限 `music.mv` IPC 复用后台的同一个 WebView2 和视频，进入源站网页全屏；不可通过重新导航、重新播放或 seek 实现，也不能把 MV 点击当作播放器时间轴接管。评论页和播放错误中的“打开源视频”保留普通源网页，用于核对评论或完成验证，与 MV 入口分开。
+
+MV 使用可关闭的独立来源窗口，网页全屏铺满窗口内容，不强制系统独占全屏。Esc、关闭或最小化将同一源窗口返回屏外继续播放；网页全屏控件缺失／验证／未加载时保留普通来源窗口并提示。窗口命中和 Esc 必须在 WebView2 网页实际获得焦点后验收，不能以 React 预览或直接调用窗口处理函数代替。
+
+评论页及全部后代明确 `no-drag`，在 `.main-content` 内滚动，不新增覆盖播放器的浮层。评论、回复和点赞仅由明确点击提交至 Bilibili；游客只读，账号验证、列表读取或提交中禁用冲突动作。发送失败保留草稿，未知发送结果提示先核对源视频；不能用自动重试或乐观成功提示掩盖写入结果。CSRF 与 cookies 留在原生宿主，renderer 只传目标视频、评论字符串 ID、正文和预期账号 MID。外观修改不能改变这些约束或播放快捷键对 textarea 的保护。
 
 搜索框内 `.search-mode` 使用两个原生按钮组成 `role="group"`，以 `aria-pressed` 表示选择，保留 Tab／Enter 和焦点样式。歌名模式默认开启，输入标签为“搜索歌名或歌手”；视频模式为“搜索 Bilibili 视频”。歌名模式允许部分歌名、歌名加歌手或版本词；视频模式直接使用官方视频排序。选择写入 `library.json` 的 `settings.searchMode`，旧库缺失或非法值使用 `song`。切换模式时保留输入框原文，重新搜索使用当前模式和原文，并用请求序号和当前模式拒绝旧模式的晚到响应。联想下拉保持 combobox／listbox、选中项与键盘语义，不能因为样式修改丢失 IME 保护或 `no-drag` 命中规则；联想、搜索和选联想都不自动播放。
 

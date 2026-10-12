@@ -1,0 +1,97 @@
+.comments-page, .comments-page * { -webkit-app-region: no-drag; }
+.comments-page { min-width: 0; padding-bottom: 25px; }
+.comments-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 25px 0 24px; }
+.comments-heading h1 { font-size: 31px; color: var(--green); line-height: 1.5; }
+.comments-heading p { margin-top: 9px; font-size: 12px; color: var(--text-muted); line-height: 1.7; }
+.comments-source-badge { display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+.comments-video { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 17px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.comments-video > div { min-width: 0; }
+.comments-video strong { display: block; font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.comments-video p { color: var(--text-muted); font-size: 11px; margin-top: 8px; line-height: 1.7; }
+.comments-video > button { flex-shrink: 0; }
+.comments-toolbar { display: flex; align-items: center; gap: 18px; padding: 21px 0 16px; }
+.comments-sort { display: flex; gap: 4px; border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.comments-sort button { font-size: 12px; padding: 8px 13px; border-radius: 6px; color: var(--text-muted); }
+.comments-sort button[aria-pressed="true"] { background: var(--sidebar); color: var(--green); font-weight: 600; }
+.comments-sort button:hover:not(:disabled) { background: var(--sidebar); color: var(--green); }
+.comments-total { color: var(--text-muted); font-size: 11px; }
+.comments-toolbar > .text-button { margin-left: auto; }
+.comment-composer { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 17px 20px; margin-bottom: 14px; }
+.comment-composer-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.comment-composer-heading label, .comment-composer-heading strong { font-size: 13px; font-weight: 600; color: var(--ink); }
+.comment-composer-heading > span { color: var(--text-muted); font-size: 11px; overflow-wrap: anywhere; }
+.comment-composer textarea { display: block; width: 100%; min-height: 82px; max-height: 220px; resize: vertical; padding: 11px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); color: var(--ink); font: inherit; font-size: 13px; line-height: 1.7; }
+.comment-composer textarea::placeholder { color: var(--text-muted); }
+.comment-composer textarea:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.comment-composer textarea:disabled { opacity: .65; cursor: default; }
+.comment-composer-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 12px; }
+.comment-composer-footer > span { color: var(--text-muted); font-size: 11px; }
+.comment-composer-footer small { display: block; margin-top: 5px; font-size: 10px; line-height: 1.6; }
+.comment-composer-footer > button { flex-shrink: 0; }
+.comment-composer-footer > span.is-over-limit { color: var(--warning-text); }
+.comment-reply-target { display: flex; align-items: center; gap: 7px; margin: -1px 0 12px; color: var(--text-muted); font-size: 11px; }
+.comment-reply-target > span { min-width: 0; }
+.comment-reply-target button { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--green); font-size: 11px; padding: 4px 0; flex-shrink: 0; }
+.comment-login-hint { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.comment-login-hint p { font-size: 12px; color: var(--text-muted); line-height: 1.7; }
+.comment-login-hint > button { flex-shrink: 0; }
+.comments-write-error, .comments-write-notice { margin-top: 12px; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.comments-write-error { color: var(--warning-text); }
+.comments-write-notice { display: flex; align-items: center; gap: 6px; color: var(--green); }
+.comments-list { min-width: 0; }
+.comment-item { display: flex; align-items: flex-start; gap: 13px; padding: 21px 0; border-bottom: 1px solid var(--line); }
+.comment-avatar { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex-shrink: 0; overflow: hidden; border-radius: 50%; background: var(--sidebar); color: var(--text-muted); }
+.comment-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.comment-body { flex: 1; min-width: 0; }
+.comment-meta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; line-height: 1.7; }
+.comment-meta strong { font-size: 12px; color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.comment-meta time { font-size: 10px; color: var(--text-muted); }
+.comment-message { color: var(--ink); font-size: 13px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 7px; }
+.comment-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 15px; margin-top: 8px; }
+.comment-actions button { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); padding: 5px 0; border-radius: 4px; }
+.comment-actions button:hover:not(:disabled), .comment-actions button.is-liked { color: var(--green); }
+.comment-actions button:disabled { opacity: .65; }
+.comment-actions .comment-thread-toggle { color: var(--green); }
+.comment-thread { border: 1px solid var(--line); border-radius: 9px; background: var(--surface); margin-top: 12px; padding: 1px 14px 10px; }
+.comment-item-nested { gap: 10px; padding: 13px 0; }
+.comment-item-nested .comment-avatar { width: 28px; height: 28px; }
+.comment-item-nested .comment-message { font-size: 12px; margin-top: 4px; }
+.comment-thread > .comment-item:last-of-type { border-bottom: 0; }
+.comment-replies-more { margin: 7px 0 0 38px; }
+.comments-inline-status { display: flex; align-items: center; gap: 7px; color: var(--text-muted); font-size: 11px; padding: 12px 0 3px; line-height: 1.7; }
+.comments-inline-error { color: var(--warning-text); font-size: 11px; line-height: 1.8; margin-top: 9px; overflow-wrap: anywhere; }
+.comments-inline-error > button { margin-top: 6px; }
+.comments-placeholder { display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; gap: 12px; padding: 52px 24px; color: var(--text-muted); }
+.comments-placeholder > svg { color: var(--green); margin-bottom: 3px; }
+.comments-placeholder h2 { color: var(--ink); font-size: 17px; font-weight: 500; }
+.comments-placeholder p { font-size: 12px; line-height: 1.8; }
+.comments-error { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; padding: 17px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; color: var(--warning-text); }
+.comments-error > div { flex: 1 1 260px; min-width: 0; }
+.comments-error h2 { font-size: 14px; font-weight: 600; }
+.comments-error p { font-size: 12px; line-height: 1.8; margin-top: 7px; overflow-wrap: anywhere; }
+.comments-load-more { display: flex; margin: 24px auto 0; }
+@media (max-width: 1200px) {
+  .comments-heading { padding-top: 18px; padding-bottom: 19px; }
+  .comments-heading h1 { font-size: 28px; }
+  .comments-video { padding: 14px 16px; gap: 12px; }
+  .comment-composer { padding: 15px 16px; }
+  .comment-item { padding: 18px 0; }
+  .comments-placeholder { padding: 38px 20px; }
+}
+@media (max-height: 780px) {
+  .comments-heading { padding-top: 6px; padding-bottom: 10px; }
+  .comments-heading h1 { line-height: 1.25; }
+  .comments-heading p { display: none; }
+  .comments-toolbar { padding-top: 12px; padding-bottom: 10px; }
+  .comment-composer { padding-top: 12px; padding-bottom: 12px; }
+  .comment-composer-heading { margin-bottom: 8px; }
+  .comment-composer textarea { min-height: 66px; }
+  .comment-composer-footer { margin-top: 8px; }
+}
+@media (max-width: 800px) {
+  .comments-source-badge { display: none; }
+  .comments-toolbar { gap: 10px; flex-wrap: wrap; }
+  .comments-video { align-items: flex-start; flex-direction: column; }
+  .comment-login-hint { align-items: flex-start; flex-direction: column; }
+  .comment-composer-footer { gap: 10px; flex-wrap: wrap; }
+}

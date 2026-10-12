@@ -1,5 +1,7 @@
 # Windows 安装与重装
 
+当前 PC 源码版本为 **0.5.1**，继续使用 WPF + 系统 WebView2 和同一个安装身份／数据目录。正式下载文件以 [发布页](https://github.com/panda472328/yuyin-music/releases/latest) 为准；下方 0.5.0 的大小、校验和验收记录保留为该版本的历史证据，不作为 0.5.1 安装文件的校验值。
+
 PC **0.5.0 已正式发布**，采用 WPF + 系统 WebView2，正式脚本为 `build/webview2-installer.nsi`。唯一正式文件为 [Yuyin-0.5.0-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.0/Yuyin-0.5.0-Setup.exe)，大小 `54235650` 字节；校验值和成功构建记录见 [RELEASE.md](RELEASE.md)。当前用户默认目录为 `%LOCALAPPDATA%/Programs/YuyinMusic`，数据为独立 `%LOCALAPPDATA%/YuyinMusic`。安装包包含 .NET 运行文件；系统 WebView2 缺失时通过签名有效的微软官方小型引导程序联网安装，共享内核不随应用更新打包。运行时安装失败会先停止，不覆盖程序文件。
 
 安装前正常退出余音；文件占用或目录不可写时显示明确错误并停止。应用内选择安装更新时，安装器校验 `/YUYINPID=` 并有限等待该进程自然退出，不强杀。卸载按确切发行文件列表删除，保留应用外的数据和安装目录内无关文件。此轮不处理旧 Electron 客户端兼容／自动迁移；不要用新包覆盖旧端目录。下文保留 0.4.x 历史问题说明。
