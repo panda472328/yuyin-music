@@ -220,7 +220,7 @@ public sealed class UpdateService : IDisposable
         {
             await using (var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                using var response = await RequestAsync(new Uri(manifest.Artifact.Url), false, token);
+                using var response = await RequestAsync(new Uri(manifest.Artifact.Url), false, token, $"Yuyin-{manifest.Version}-Setup.exe");
                 var length = response.Content.Headers.ContentLength;
                 if (length is not null && length != manifest.Artifact.Size) throw Failure("安装包大小与更新清单不一致。");
                 await using var body = await OpenDownloadBodyAsync(response, token);
@@ -341,12 +341,12 @@ public sealed class UpdateService : IDisposable
         }
     }
 
-    private async Task<HttpResponseMessage> RequestAsync(Uri initial, bool manifest, CancellationToken token)
+    private async Task<HttpResponseMessage> RequestAsync(Uri initial, bool manifest, CancellationToken token, string? expectedFilename = null)
     {
         var uri = initial;
         for (var redirects = 0; redirects <= 5; redirects++)
         {
-            if (!IsTrustedAddress(uri, manifest, initial)) throw Failure("更新地址不受信任。");
+            if (!IsTrustedAddress(uri, manifest, initial, expectedFilename)) throw Failure("更新地址不受信任。");
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             request.Headers.UserAgent.ParseAdd("Yuyin-Update/2");
             request.Headers.Accept.ParseAdd(manifest ? "application/json" : "application/octet-stream");
@@ -359,7 +359,9 @@ public sealed class UpdateService : IDisposable
             {
                 var location = response.Headers.Location;
                 response.Dispose();
-                if (location is null || redirects == 5) throw Failure("更新下载重定向异常。");
+                // The observed official Gitee route is one API -> foruda hop.
+                // Never accept a second CDN hop or persist its expiring signature.
+                if (location is null || redirects == 5 || (IsDomesticAttachmentAddress(initial) && redirects != 0)) throw Failure("更新下载重定向异常。");
                 uri = location.IsAbsoluteUri ? location : new Uri(uri, location);
                 continue;
             }
@@ -535,16 +537,36 @@ public sealed class UpdateService : IDisposable
         }
     }
 
-    public static bool IsTrustedAddress(Uri uri, bool manifest, Uri? initial = null)
+    public static bool IsTrustedAddress(Uri uri, bool manifest, Uri? initial = null, string? expectedFilename = null)
     {
         if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Fragment)) return false;
         if (manifest) return (uri.AbsoluteUri == ManifestUrl || uri.AbsoluteUri == DomesticManifestUrl) && (initial is null || uri == initial);
-        if (initial?.Host == "gitee.com") return uri == initial && string.IsNullOrEmpty(uri.Query)
-            && Regex.IsMatch(uri.AbsoluteUri, @"\Ahttps://gitee\.com/api/v5/repos/openmusic/openmusic/releases/[1-9][0-9]{0,9}/attach_files/[1-9][0-9]{0,9}/download\z", RegexOptions.CultureInvariant);
-        if (uri.Host == "gitee.com") return initial is null && string.IsNullOrEmpty(uri.Query)
-            && Regex.IsMatch(uri.AbsoluteUri, @"\Ahttps://gitee\.com/api/v5/repos/openmusic/openmusic/releases/[1-9][0-9]{0,9}/attach_files/[1-9][0-9]{0,9}/download\z", RegexOptions.CultureInvariant);
+        if (IsDomesticAttachmentAddress(initial)) return uri == initial || IsDomesticAttachmentCdnAddress(uri, expectedFilename);
+        if (uri.Host == "gitee.com") return initial is null && IsDomesticAttachmentAddress(uri);
         if (uri.Host == "github.com") return uri.AbsolutePath.StartsWith("/panda472328/yuyin-music/releases/download/", StringComparison.Ordinal) && string.IsNullOrEmpty(uri.Query) && (initial is null || uri == initial);
         return (initial is null || initial.Host == "github.com") && uri.Host is "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
+    }
+
+    private static bool IsDomesticAttachmentAddress(Uri? uri) => uri is not null
+        && Regex.IsMatch(uri.AbsoluteUri, @"\Ahttps://gitee\.com/api/v5/repos/openmusic/openmusic/releases/[1-9][0-9]{0,9}/attach_files/[1-9][0-9]{0,9}/download\z", RegexOptions.CultureInvariant);
+
+    /// Official API-issued foruda attachment redirect observed 2026-10-12.
+    /// The token is a short-lived public download signature, never a user PAT.
+    private static bool IsDomesticAttachmentCdnAddress(Uri uri, string? expectedFilename)
+    {
+        if (expectedFilename is null || !Regex.IsMatch(expectedFilename, @"\AYuyin-(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})-Setup\.exe\z", RegexOptions.CultureInvariant)
+            || uri.Host != "foruda.gitee.com" || !Regex.IsMatch(uri.AbsolutePath, @"\A/attach_file/[1-9][0-9]{0,18}/" + Regex.Escape(expectedFilename) + @"\z", RegexOptions.CultureInvariant)) return false;
+        var fields = uri.Query.TrimStart('?').Split('&');
+        if (fields.Length != 3) return false;
+        var query = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var field in fields)
+        {
+            var pair = field.Split('=');
+            if (pair.Length != 2 || !query.TryAdd(pair[0], pair[1])) return false;
+        }
+        return query.TryGetValue("token", out var signature) && Regex.IsMatch(signature, @"\A[0-9a-f]{32}\z", RegexOptions.CultureInvariant)
+            && query.TryGetValue("ts", out var timestamp) && Regex.IsMatch(timestamp, @"\A[0-9]{10}\z", RegexOptions.CultureInvariant)
+            && query.TryGetValue("attname", out var name) && name == expectedFilename;
     }
 
     public static async Task<bool> VerifyUpdateFileAsync(string file, WindowsUpdateManifest manifest, CancellationToken token = default)

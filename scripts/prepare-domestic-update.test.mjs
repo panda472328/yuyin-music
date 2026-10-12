@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { assertDomesticAdvance, decodeDomesticContents, domesticArtifactUrl, domesticManifestUrl, prepareDomesticManifest, validateDomesticManifest } from './prepare-domestic-update.mjs'
+import { assertDomesticAdvance, decodeDomesticContents, domesticArtifactUrl, domesticManifestUrl, isDomesticAttachmentRedirect, prepareDomesticManifest, validateDomesticManifest } from './prepare-domestic-update.mjs'
 
 const payload = Buffer.from('MZ controlled fixture; never installed')
 const sha256 = createHash('sha256').update(payload).digest('hex')
@@ -13,6 +13,7 @@ const fixture = { githubManifest, release, attachments, fetcher: async (url, opt
   assert.equal('Authorization' in options.headers, false)
   return new Response(payload, { headers: { 'content-length': String(payload.length) } })
 } }
+const signedCdn = `https://foruda.gitee.com/attach_file/1662036200660558629/Yuyin-0.5.1-Setup.exe?token=${'a'.repeat(32)}&ts=1791780000&attname=Yuyin-0.5.1-Setup.exe`
 
 test('fixed Contents API decodes only the exact bounded domestic JSON file without following embedded URLs', () => {
   const bytes = Buffer.from(JSON.stringify(githubManifest))
@@ -33,6 +34,35 @@ test('candidate is generated only after byte-for-byte equivalence with immutable
   assert.equal(candidate.schemaVersion, 2); assert.equal(candidate.provider, 'gitee')
   assert.equal(candidate.artifact.sha256, sha256); assert.equal(candidate.artifact.size, payload.length)
   assert.equal(candidate.artifact.url, domesticArtifactUrl(12345, 67890)); validateDomesticManifest(candidate)
+})
+
+test('official API can redirect once to the observed foruda path with exact expected filename and public signature', async () => {
+  const seen = []
+  const candidate = await prepareDomesticManifest({ ...fixture, fetcher: async (url, options) => {
+    seen.push(url)
+    assert.equal(options.redirect, 'manual'); assert.equal(options.credentials, 'omit')
+    assert.equal('Authorization' in options.headers, false); assert.equal('Cookie' in options.headers, false)
+    return url === domesticArtifactUrl(release.id, attachments[0].id) ? new Response(null, { status: 302, headers: { location: signedCdn } }) : new Response(payload)
+  } })
+  assert.deepEqual(seen, [domesticArtifactUrl(release.id, attachments[0].id), signedCdn])
+  assert.equal(candidate.artifact.url, domesticArtifactUrl(release.id, attachments[0].id))
+  assert.equal(JSON.stringify(candidate).includes('token='), false, 'Expiring CDN URL never persists in the manifest')
+  assert.equal(isDomesticAttachmentRedirect(signedCdn, candidate.artifact.url, 'Yuyin-0.5.1-Setup.exe'), true)
+  for (const invalid of [signedCdn.replace('https:', 'http:'), signedCdn.replace('foruda.gitee.com', 'foruda.gitee.com.evil.example'),
+    signedCdn.replace('foruda.gitee.com', 'user:pass@foruda.gitee.com'), signedCdn.replace('foruda.gitee.com', 'foruda.gitee.com:444'),
+    signedCdn.replace('/attach_file/', '/other/'), signedCdn.replaceAll('0.5.1', '0.5.2'), signedCdn.replace('attname=Yuyin-0.5.1', 'attname=Yuyin-0.5.2'),
+    signedCdn + '&access_token=hidden', signedCdn + '&token=' + 'b'.repeat(32), signedCdn.replace('token=', 'unknown='),
+    signedCdn.replace('a'.repeat(32), 'invalid'), signedCdn.replace('ts=1791780000', 'ts=invalid'), signedCdn + '#fragment'])
+    assert.equal(isDomesticAttachmentRedirect(invalid, candidate.artifact.url, 'Yuyin-0.5.1-Setup.exe'), false)
+  assert.equal(isDomesticAttachmentRedirect(signedCdn, candidate.artifact.url.replace('openmusic/openmusic', 'evil/repo'), 'Yuyin-0.5.1-Setup.exe'), false)
+})
+
+test('second CDN redirect or an expired signature cannot advance a domestic candidate', async () => {
+  for (const second of [new Response(null, { status: 302, headers: { location: signedCdn.replace('1662036200660558629', '1662036200660558630') } }), new Response('expired signature', { status: 403 })]) {
+    let calls = 0
+    await assert.rejects(prepareDomesticManifest({ ...fixture, fetcher: async () => ++calls === 1 ? new Response(null, { status: 302, headers: { location: signedCdn } }) : second }))
+    assert.equal(calls, 2)
+  }
 })
 
 test('wrong tags, preview releases, absent/duplicate/wrong attachments stop before download', async () => {

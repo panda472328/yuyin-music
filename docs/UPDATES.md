@@ -10,12 +10,16 @@ PC 版从本仓库的 `updates/stable.json` 检查正式版本。当前稳定清
 
 同日匿名实测，网页 Raw 文件地址会 302 跳转到带短期签名的 `raw.giteeusercontent.com`，而官方 `/raw/{path}` API 对这个公开仓库仍返回 401。固定 Contents API 读取已存在的 `updates/stable.json` 为 200、Base64 文件响应，缺失的 `updates/domestic.json` 为 200 + `[]`；准备脚本仅将空数组或 404 视为尚无清单，其余错误拒绝推进。客户端将缺失或不合法的国内响应作为不可用源，继续检查 GitHub；无需使用用户账号或令牌。
 
-国内安装地址仅采用 [Gitee 官方 API 文档](https://gitee.com/api/v5/swagger_doc) 的 `GET /api/v5/repos/openmusic/openmusic/releases/{release_id}/attach_files/{attach_file_id}/download`，Release／附件 ID 必须为正整数，文件名称仍保留兼容值 `Yuyin-X.Y.Z-Setup.exe`。不含令牌、Cookie 或账号凭据。未知 CDN、跨来源、跨版本、带令牌查询或非 HTTPS 重定向均拒绝；当前不猜测或放宽 Gitee CDN 域名。如果 Gitee 返回尚未验证的跨域跳转、大小错误、字节摘要错误、断网或超时，客户端删除本次临时文件，再按相同版本、大小和 SHA-256 下载固定 GitHub 正式附件。备用文件也必须完成全部校验，不能回退到旧版本安装包。Gitee 普通仓库当前[单附件上限为 100 MB，总附件上限为 1 GB](https://help.gitee.com/repository/release/create)，发布时仍须以实际上传及匿名完整下载为准。
+国内安装地址仅采用 [Gitee 官方 API 文档](https://gitee.com/api/v5/swagger_doc) 的 `GET /api/v5/repos/openmusic/openmusic/releases/{release_id}/attach_files/{attach_file_id}/download`，Release／附件 ID 必须为正整数，文件名称仍保留兼容值 `Yuyin-X.Y.Z-Setup.exe`。清单只保存固定 API，不保存签名 CDN 地址、个人令牌、Cookie 或账号凭据。
+
+2026-10-12 匿名实测官方公开项目 `cxasm/notepad--` 的发行版 `248632`／附件 `1177556`：该文档下载 API 返回一次 302，目标为 `https://foruda.gitee.com/attach_file/<正整数>/<原附件文件名>`；查询恰有 `token`（32 位小写十六进制短期下载签名）、`ts`（10 位 Unix 秒）和 `attname`（原文件名），后续匿名响应为 200，声明大小与附件 API 一致，没有再次跳转。本次只检查公开元数据及响应头并取消正文，不把它计为本项目安装包完整校验。
+
+客户端和准备脚本据此只接受本仓库固定附件 API 发出的一次 `foruda.gitee.com` HTTPS 跳转，数字路径后缀和 `attname` 都必须是当前版本的精确 `Yuyin-X.Y.Z-Setup.exe`；只允许上述三个字段及已观测格式，禁止额外查询、账号凭据、非标准端口、片段和第二次 CDN 跳转。清单请求不能使用附件 CDN。签名只在本次请求内存中使用，不写日志或清单；每次显式重试重新从固定 API 取得签名。未知 CDN、跨版本或其他查询一律拒绝。如果国内附件返回错误、签名过期、大小／摘要不符、断网或超时，客户端删除本次临时文件，再按相同版本、大小和 SHA-256 下载固定 GitHub 正式附件。备用文件也必须完成全部校验，不能回退到旧版本安装包。Gitee 普通仓库当前[单附件上限为 100 MB，总附件上限为 1 GB](https://help.gitee.com/repository/release/create)，发布时仍须以实际上传及匿名完整下载为准。
 
 ### 每次准备 Gitee 国内发布
 
 1. 完成现有 GitHub 正式发布和稳定清单推进，保留一个最终安装附件。Gitee 创建相同 `pc-vX.Y.Z` 正式 Release，只上传该 GitHub 已公开文件的同一份字节；不重新构建、不替换旧版附件、不上传另一个修复包。官方 API 文档定义了 `POST .../releases/{release_id}/attach_files`（multipart 的 `file` 字段），但本仓库当前的准备脚本不会调用上传接口，也不读取个人令牌。
-2. 运行以下只读准备命令。它匿名读取两端公开清单、Gitee 对应标签与唯一附件元数据，再通过官方固定 API 完整下载附件，复核文件名、大小和 SHA-256，最后回读 Release／附件身份及远端通道。仅当字节与 GitHub 已公开文件一致、版本不回退且同版本附件不替换时才写本地候选。未知 CDN 跳转会停止生成；需以实际官方证据补齐精确白名单及回归后再启用，不从页面 HTML 或任意 `browser_download_url` 推测。
+2. 运行以下只读准备命令。它匿名读取两端公开清单、Gitee 对应标签与唯一附件元数据，再通过官方固定 API 及上述受限的一次 Foruda 跳转完整下载附件，复核文件名、大小和 SHA-256，最后回读 Release／附件身份及远端通道。仅当字节与 GitHub 已公开文件一致、版本不回退且同版本附件不替换时才写本地候选。未知 CDN 或第二次跳转会停止生成，不从页面 HTML 或任意 `browser_download_url` 推测；签名过期后重新运行脚本获取新签名。
 
    ```sh
    node --test scripts/prepare-domestic-update.test.mjs
@@ -28,7 +32,7 @@ PC 版从本仓库的 `updates/stable.json` 检查正式版本。当前稳定清
 
 国内清单比旧契约增加 `schemaVersion: 2`、`provider: "gitee"` 和 `source: { "releaseId": 12345, "attachmentId": 67890, "filename": "Yuyin-X.Y.Z-Setup.exe" }`。ID 例子仅说明结构；必须使用正式 Gitee Release API 回读的真实身份。artifact 的 URL 固定为上述同仓库附件下载 API，releaseNotesUrl 固定为同版本 `https://gitee.com/openmusic/openmusic/releases/tag/pc-vX.Y.Z`；其余版本、字节数、SHA-256、说明和发布时间沿用已校验的 GitHub 稳定清单。
 
-本次源码的类型检查与完整回归由正式发布流程重新验证。Contents API 修正后，国内准备脚本 5 组回归及实际原生更新器 110 项受控检查通过，覆盖 Base64 文件封装、路径／分支固定、空数组缺失、大小／摘要、来源冲突、版本回退、未知跳转、国内响应正文中断后备用下载，以及磁盘错误不触发网络备用；没有启动真实安装器或读取真实用户 profile。线上附件及显式只下载验收尚待正式发布后单独记录。
+本次源码的类型检查与完整回归由正式发布流程重新验证。Contents API 与 Foruda 修正后，国内准备脚本 7 组回归及实际原生更新器 136 项受控检查通过，覆盖 Base64 文件封装、路径／分支固定、空数组缺失、受限单次 CDN 跳转、签名过期后的新请求、大小／摘要、来源冲突、版本回退、未知跳转、国内响应正文中断后备用下载，以及磁盘错误不触发网络备用；没有启动真实安装器或读取真实用户 profile。线上附件及显式只下载验收尚待正式发布后单独记录。
 
 以下保留现有 GitHub 稳定通道、0.5.0 发布证据和旧客户端的流程。
 

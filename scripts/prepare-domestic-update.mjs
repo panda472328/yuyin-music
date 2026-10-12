@@ -16,10 +16,36 @@ export const domesticArtifactUrl = (releaseId, attachmentId) => {
   return `${api}/releases/${releaseId}/attach_files/${attachmentId}/download`
 }
 
-/** Only the documented attachment API is trusted. Unknown CDNs are not inferred. */
-async function publicRequest(url, maximum, fetcher = fetch, allowMissing = false) {
-  const response = await fetcher(url, { method: 'GET', redirect: 'manual', credentials: 'omit', signal: AbortSignal.timeout(maximum > contentsMaximum ? 15 * 60 * 1000 : 30000),
-    headers: { 'User-Agent': 'Yuyin-Release-Verify/1', 'Accept-Encoding': 'identity', 'Cache-Control': 'no-cache' } })
+/** Only the observed official API-issued attachment route is trusted. */
+export function isDomesticAttachmentRedirect(address, initial, expectedFilename) {
+  if (!/^https:\/\/gitee\.com\/api\/v5\/repos\/openmusic\/openmusic\/releases\/[1-9][0-9]{0,9}\/attach_files\/[1-9][0-9]{0,9}\/download$/.test(initial) ||
+    !/^Yuyin-(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})-Setup\.exe$/.test(expectedFilename)) return false
+  let url
+  try { url = new URL(address) } catch { return false }
+  if (url.protocol !== 'https:' || url.hostname !== 'foruda.gitee.com' || url.port || url.username || url.password || url.hash ||
+    !new RegExp('^/attach_file/[1-9][0-9]{0,18}/' + expectedFilename.replace(/\./g, '\\.') + '$').test(url.pathname)) return false
+  const fields = url.search.slice(1).split('&')
+  if (fields.length !== 3) return false
+  const query = new Map()
+  for (const field of fields) {
+    const pair = field.split('=')
+    if (pair.length !== 2 || query.has(pair[0])) return false
+    query.set(pair[0], pair[1])
+  }
+  return /^[0-9a-f]{32}$/.test(query.get('token') ?? '') && /^[0-9]{10}$/.test(query.get('ts') ?? '') && query.get('attname') === expectedFilename
+}
+
+async function publicRequest(url, maximum, fetcher = fetch, allowMissing = false, expectedFilename = null) {
+  const options = { method: 'GET', redirect: 'manual', credentials: 'omit', signal: AbortSignal.timeout(maximum > contentsMaximum ? 15 * 60 * 1000 : 30000),
+    headers: { 'User-Agent': 'Yuyin-Release-Verify/1', 'Accept-Encoding': 'identity', 'Cache-Control': 'no-cache' } }
+  let response = await fetcher(url, options)
+  if ([301, 302, 303, 307, 308].includes(response.status)) {
+    const location = response.headers.get('location')
+    await response.body?.cancel()
+    if (!expectedFilename || !isDomesticAttachmentRedirect(location, url, expectedFilename)) throw new Error('公开附件重定向不受信任。')
+    // One API -> foruda hop only; a subsequent redirect is rejected below.
+    response = await fetcher(location, options)
+  }
   if (allowMissing && response.status === 404) { await response.body?.cancel(); return null }
   if (response.status !== 200) { await response.body?.cancel(); throw new Error(`公开更新资源不可用（HTTP ${response.status}）。未知重定向不得用于发布。`) }
   const encoding = response.headers.get('content-encoding')
@@ -93,7 +119,7 @@ export async function prepareDomesticManifest({ githubManifest, release, attachm
     !Array.isArray(attachments) || attachments.length !== 1 || !positiveId(attachments[0].id) || attachments[0].name !== filename ||
     attachments[0].size !== githubManifest.artifact.size) throw new Error('Gitee 必须已有匹配标签的正式版本和唯一相同安装附件。')
   const url = domesticArtifactUrl(release.id, attachments[0].id)
-  const response = await publicRequest(url, githubManifest.artifact.size, fetcher)
+  const response = await publicRequest(url, githubManifest.artifact.size, fetcher, false, filename)
   const hash = createHash('sha256'); let bytes = 0
   const length = response.headers.get('content-length')
   if (length !== null && Number(length) !== githubManifest.artifact.size) { await response.body?.cancel(); throw new Error('Gitee 安装附件大小与 GitHub 不一致。') }

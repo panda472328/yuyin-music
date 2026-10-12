@@ -72,6 +72,18 @@ public static class UpdateTests
             Assert(!UpdateService.IsTrustedAddress(new(UpdateService.DomesticManifestUrl.Replace("ref=main", "ref=evil")), true), "domestic branch pinned");
             Assert(!UpdateService.IsTrustedAddress(new("https://raw.giteeusercontent.com/openmusic/openmusic/raw/main/updates/domestic.json?metadata=x&signature=x"), true, new(UpdateService.DomesticManifestUrl)), "Contents manifest never follows raw signed CDN URLs");
             Assert(UpdateService.IsTrustedAddress(new(domestic.Artifact.Url), false, new(domestic.Artifact.Url)), "official Gitee attachment download API allowed");
+            var expectedFilename = "Yuyin-0.5.1-Setup.exe";
+            var signedCdn = $"https://foruda.gitee.com/attach_file/1662036200660558629/{expectedFilename}?token={new string('a', 32)}&ts=1791780000&attname={expectedFilename}";
+            Assert(UpdateService.IsTrustedAddress(new(signedCdn), false, new(domestic.Artifact.Url), expectedFilename), "observed API-issued foruda redirect allowed for exact installer");
+            Assert(!UpdateService.IsTrustedAddress(new(signedCdn), false), "foruda is never an initial installer URL");
+            Assert(!UpdateService.IsTrustedAddress(new(signedCdn), true, new(UpdateService.DomesticManifestUrl), expectedFilename), "manifest cannot use attachment CDN");
+            foreach (var invalid in new[] {
+                signedCdn.Replace("https:", "http:"), signedCdn.Replace("foruda.gitee.com", "foruda.gitee.com.evil.example"),
+                signedCdn.Replace("foruda.gitee.com", "user:pass@foruda.gitee.com"), signedCdn.Replace("foruda.gitee.com", "foruda.gitee.com:444"),
+                signedCdn.Replace("/attach_file/", "/other/"), signedCdn.Replace("0.5.1", "0.5.2"),
+                signedCdn.Replace("attname=Yuyin-0.5.1", "attname=Yuyin-0.5.2"), signedCdn + "&access_token=hidden", signedCdn + "&token=" + new string('b', 32),
+                signedCdn.Replace("token=", "unknown="), signedCdn.Replace(new string('a', 32), "invalid"), signedCdn.Replace("ts=1791780000", "ts=invalid"), signedCdn + "#fragment",
+            }) Assert(!UpdateService.IsTrustedAddress(new(invalid), false, new(domestic.Artifact.Url), expectedFilename), "foruda redirect identity and signature fields pinned");
             Assert(!UpdateService.IsTrustedAddress(new("https://unknown-cdn.example/download"), false, new(domestic.Artifact.Url)), "unknown domestic CDN never trusted");
             Assert(!UpdateService.IsTrustedAddress(new(manifest.Artifact.Url), false, new(domestic.Artifact.Url)), "provider crossing cannot happen through redirect");
             Assert(!UpdateService.IsTrustedAddress(new(UpdateService.ArtifactUrl("0.5.2")), false, new(manifest.Artifact.Url)), "GitHub redirect cannot switch versions");
@@ -187,6 +199,49 @@ public static class UpdateTests
                 Assert((await preferred.DownloadAsync()).Status == "downloaded" && domesticRequests.Last() == domestic.Artifact.Url, "domestic attachment downloaded and verified");
             }
 
+            var cdnCalls = new List<string>();
+            using (var observedCdn = new UpdateService(Path.Combine(directory, "domestic-foruda"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) =>
+            {
+                var uri = request.RequestUri!.AbsoluteUri; cdnCalls.Add(uri);
+                Assert(request.Headers.Authorization is null && !request.Headers.Contains("Cookie"), "API and foruda requests remain anonymous");
+                return Task.FromResult(uri == UpdateService.DomesticManifestUrl ? DomesticText(domesticJson) : uri == UpdateService.ManifestUrl ? Text(json)
+                    : uri == domestic.Artifact.Url ? Redirect(signedCdn) : Bytes(payload));
+            }, acceptDomestic: true)))
+            {
+                await observedCdn.CheckAsync();
+                Assert((await observedCdn.DownloadAsync()).Status == "downloaded" && cdnCalls.TakeLast(2).SequenceEqual(new[] { domestic.Artifact.Url, signedCdn }), "one observed API to foruda redirect downloads verified bytes");
+                Assert(((WindowsUpdateManifest?)observedCdn.State.Manifest)?.Artifact.Url == domestic.Artifact.Url, "expiring signature is never persisted as artifact identity");
+            }
+
+            var secondCdn = signedCdn.Replace("1662036200660558629", "1662036200660558630"); var chainedCalls = new List<string>();
+            using (var chained = new UpdateService(Path.Combine(directory, "domestic-foruda-chain"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) =>
+            {
+                var uri = request.RequestUri!.AbsoluteUri; chainedCalls.Add(uri);
+                return Task.FromResult(uri == UpdateService.DomesticManifestUrl ? DomesticText(domesticJson) : uri == UpdateService.ManifestUrl ? Text(json)
+                    : uri == domestic.Artifact.Url ? Redirect(signedCdn) : uri == signedCdn ? Redirect(secondCdn) : Bytes(payload));
+            }, acceptDomestic: true)))
+            {
+                await chained.CheckAsync();
+                Assert((await chained.DownloadAsync()).Status == "downloaded" && !chainedCalls.Contains(secondCdn) && chainedCalls.Last() == manifest.Artifact.Url, "second foruda hop rejected before request then same bytes fallback verified");
+            }
+
+            var signatureCalls = new List<string>(); var apiAttempts = 0;
+            var refreshedCdn = signedCdn.Replace(new string('a', 32), new string('b', 32));
+            using (var expired = new UpdateService(Path.Combine(directory, "domestic-foruda-expired"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) =>
+            {
+                var uri = request.RequestUri!.AbsoluteUri; signatureCalls.Add(uri);
+                if (uri == manifest.Artifact.Url) throw new HttpRequestException("Controlled fallback unavailable.");
+                return Task.FromResult(uri == UpdateService.DomesticManifestUrl ? DomesticText(domesticJson) : uri == UpdateService.ManifestUrl ? Text(json)
+                    : uri == domestic.Artifact.Url ? Redirect(++apiAttempts == 1 ? signedCdn : refreshedCdn)
+                    : uri == signedCdn ? new HttpResponseMessage(HttpStatusCode.Forbidden) : Bytes(payload));
+            }, acceptDomestic: true)))
+            {
+                await expired.CheckAsync();
+                Assert((await expired.DownloadAsync()).Status == "error", "expired CDN signature cannot become a downloaded file");
+                Assert((await expired.DownloadAsync()).Status == "downloaded" && apiAttempts == 2 && signatureCalls.Last() == refreshedCdn, "explicit retry starts fixed API again to obtain a fresh signature");
+                Assert(!Directory.EnumerateFiles(Path.Combine(directory, "domestic-foruda-expired"), "*.part").Any(), "expired signature partials removed before fresh attempt");
+            }
+
             var failoverCalls = new List<string>();
             using (var failover = new UpdateService(Path.Combine(directory, "domestic-failover"), (_, _) => throw new Exception("not authorized"), "0.5.0", true, new ControlledHandler((request, _) =>
             {
@@ -274,6 +329,7 @@ public static class UpdateTests
     private static HttpResponseMessage Text(string value) => new(HttpStatusCode.OK) { Content = new StringContent(value, Encoding.UTF8, "application/json") };
     private static object Contents(string value) => new { type = "file", encoding = "base64", path = "updates/domestic.json", name = "domestic.json", size = Encoding.UTF8.GetByteCount(value), content = Convert.ToBase64String(Encoding.UTF8.GetBytes(value)) };
     private static HttpResponseMessage DomesticText(string value) => Text(JsonSerializer.Serialize(Contents(value)));
+    private static HttpResponseMessage Redirect(string location) { var response = new HttpResponseMessage(HttpStatusCode.Found); response.Headers.Location = new(location); return response; }
     private static HttpResponseMessage Bytes(byte[] value) => new(HttpStatusCode.OK) { Content = new ByteArrayContent(value) };
     private static HttpResponseMessage InterruptedBytes(byte[] payload, Action interrupted)
     {
