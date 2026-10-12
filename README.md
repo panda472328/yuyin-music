@@ -6,17 +6,17 @@
 
 使用 0.5.1 安装包升级时，会创建 openmusic 名称的快捷方式。旧「余音」快捷方式不会自动删除，以免影响独立安装的旧 Electron 版；确认旧快捷方式已不再使用后，可自行清理。
 
-当前正式版本为 **0.5.1**，新增当前视频评论区、MV 入口和双源更新器，继续使用 Windows 系统 WebView2，保留游客入口、双模式搜索、歌词及本地音乐库；详见 [版本记录](CHANGELOG.md)。[正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.1) 已公开，GitHub 稳定清单已推进至 0.5.1。Android 版在[独立仓库](https://github.com/panda472328/yuyin-music-mobile)维护，两端分别构建、存储数据和发布版本。
+当前正式版本为 **0.5.2**，修正 Gitee 官方附件下载路径的大小写兼容，保留 0.5.1 的当前视频评论区、MV 入口和双源更新器，继续使用 Windows 系统 WebView2；详见 [版本记录](CHANGELOG.md)。[GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.2) 和 [Gitee 正式发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2) 已公开，两端稳定清单均为 0.5.2，实际原生 Gitee 更新探针已通过。Android 版在[独立仓库](https://github.com/panda472328/yuyin-music-mobile)维护，两端分别构建、存储数据和发布版本。
 
 ## 下载与安装
 
-前往 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 下载正式版，0.5.1 只提供下列安装文件：
+前往 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 或 [Gitee 0.5.2 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2) 下载正式版，两端只提供同一份最终安装文件：
 
-| 0.5.1 正式文件 | 用途 |
+| 0.5.2 正式文件 | 用途 |
 | --- | --- |
-| [Yuyin-0.5.1-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.1/Yuyin-0.5.1-Setup.exe) | Windows x64 安装版，中文向导，可选择安装目录 |
+| [Yuyin-0.5.2-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.2/Yuyin-0.5.2-Setup.exe) | Windows x64 安装版，中文向导，可选择安装目录 |
 
-正式安装包为 **54,274,254 字节（约 54.3 MB）**，由 [Windows Actions 38201688304](https://github.com/panda472328/yuyin-music/actions/runs/38201688304) 从 `pc-v0.5.1` 构建并发布。SHA-256、实际构建提交和稳定清单证据见 [发布与文件管理](docs/RELEASE.md)，许可文本见 [第三方声明](THIRD_PARTY_NOTICES.md)。GitHub 自动生成的 Source code ZIP / TAR 是源码下载入口。
+正式安装包为 **54,264,043 字节（约 54.3 MB）**，由 [Windows Actions 38206256264](https://github.com/panda472328/yuyin-music/actions/runs/38206256264) 从 `pc-v0.5.2` 构建并发布；Gitee 上传同一份文件。[国内候选准备 Actions 38247735370](https://github.com/panda472328/yuyin-music/actions/runs/38247735370) 和 [国内清单／原生探针 Actions 38249178605](https://github.com/panda472328/yuyin-music/actions/runs/38249178605) 均已成功完成匿名完整下载及大小／SHA-256 校验。实际构建提交和稳定清单证据见 [发布与文件管理](docs/RELEASE.md)，许可文本见 [第三方声明](THIRD_PARTY_NOTICES.md)。发布页自动生成的 Source code ZIP / TAR 是源码下载入口。
 
 支持 Windows 10 1903（build 18362）及 Windows 11 x64。安装包包含 .NET 运行文件，使用系统 Microsoft Edge WebView2 Evergreen Runtime；若系统缺少 WebView2，安装器通过微软官方小型引导程序联网安装共享运行时，不把内核装进每份应用。此架构版本使用新数据目录，不自动读取旧 Electron 客户端资料。
 
@@ -28,7 +28,7 @@
 
 0.4.10 起支持自动检查正式新版，由用户选择下载和安装。0.4.9 及更早版本需要先手动覆盖安装一次当前正式版；提交代码不会直接更新已安装软件。维护者的 GitHub Actions 配置和标签发布步骤见 [更新与发布](docs/UPDATES.md)。0.5.0 是新宿主架构，旧 Electron 客户端不会自动迁移数据或会话。
 
-0.5.1 更新器支持 Gitee 与 GitHub 独立清单和官方附件，同版本文件一致时优先国内源，失败可回退到相同大小和 SHA-256 的 GitHub 文件。旧客户端需先升级到 0.5.1 才能使用双源更新器。[Gitee 0.5.1 预定发布入口](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.1) 的附件发布与匿名完整下载核验尚待完成，目前正式下载以 GitHub 为准。
+0.5.1 起更新器支持 Gitee 与 GitHub 独立清单和官方附件，同版本文件一致时优先国内源，失败可回退到相同大小和 SHA-256 的 GitHub 文件。0.5.2 修正官方附件路径的大小写兼容，建议升级至当前正式版。国内通道已启用：Gitee 正式附件、公开国内清单和实际原生 Gitee 下载探针均已验证，大小和 SHA-256 与 GitHub 文件一致。旧客户端需先安装含双源更新器的版本；更新仍由用户选择下载和安装。
 
 ## 功能
 
@@ -133,7 +133,7 @@ npm run dist
 
 ## 验证范围
 
-0.5.1 的隔离回归通过 173 项 TypeScript 业务测试、287 项宿主契约检查（其中 136 项更新检查）、34 项受控原生媒体检查、22 项 WebView2 页面检查、26 项 MV 脚本检查、11 项安装保护／受控流程检查、83 项发布工具检查和 7 组国内清单准备检查；锁文件元数据检查覆盖 435 个包。正式标签的 Actions 流程已成功完成测试、最终构建、安装保护、公开附件下载校验和 GitHub 稳定清单推进。0.5.0 及更早版本的验证和发布证据保留在 [docs/QA.md](docs/QA.md) 与 [docs/RELEASE.md](docs/RELEASE.md)；0.4.x Electron 历史检查不代表新宿主已通过同一项验收。
+0.5.2 的正式标签 Actions 已成功完成业务／宿主回归、最终构建、安装保护、公开附件下载校验和 GitHub 稳定清单推进；国内候选准备另通过 Gitee 匿名完整下载和大小／SHA-256 校验，国内清单已推送，实际原生 Gitee 更新探针已通过。本机宿主受控回归通过 289 项检查，其中 138 项为更新检查。历史 0.5.1 的隔离回归通过 173 项 TypeScript 业务测试、287 项宿主契约检查（其中 136 项更新检查）、34 项受控原生媒体检查、22 项 WebView2 页面检查、26 项 MV 脚本检查、11 项安装保护／受控流程检查、83 项发布工具检查和 7 组国内清单准备检查；锁文件元数据检查覆盖 435 个包。各版本证据保留在 [docs/QA.md](docs/QA.md) 与 [docs/RELEASE.md](docs/RELEASE.md)；0.4.x Electron 历史检查不代表新宿主已通过同一项验收。
 
 桌面歌词已在真实 WPF/WebView2 窗口通过歌词正文拖动、位置写盘、字号按钮、工具栏隐藏与重新显示检查；锁定后禁止拖动和设置重启恢复仍未完整验收。字体／颜色／透明度控件、两个规定尺寸的完整原生页面状态、正式安装向导、桌面／开始菜单快捷方式、卸载、缺失 WebView2 Runtime 的联网引导、真实 Bilibili 登录／音源和评论写入、源站网页全屏兼容性、跨机器 UAC，以及实际已安装 0.5.x 的应用内更新也尚未完整验收。网页预览和受控响应不能替代这些检查。
 

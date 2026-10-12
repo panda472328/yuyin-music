@@ -1,14 +1,16 @@
 # 应用更新与正式发布
 
-PC 版从本仓库的 `updates/stable.json` 检查正式版本。当前稳定清单为 **0.5.0**；[正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.0) 的唯一安装包已公开。Android 使用独立仓库和独立更新清单，不共享安装文件、版本号或用户数据。
+PC 版通过本仓库的 GitHub `updates/stable.json` 和 Gitee `updates/domestic.json` 检查正式版本。当前两份清单为 **0.5.2**；[GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.2) 和 [Gitee 正式发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2) 的唯一安装包已公开。Android 使用独立仓库和独立更新清单，不共享安装文件、版本号或用户数据。
 
-## 国内更新通道（源码已准备，尚未发布）
+## 国内更新通道（0.5.2 已启用）
 
-后续 WebView2 客户端同时检查 Gitee 的固定公开 Contents API `https://gitee.com/api/v5/repos/openmusic/openmusic/contents/updates/domestic.json?ref=main` 与现有 GitHub `stable.json`，各源有独立 12 秒预算。Gitee 响应仅接收 `type=file`、`encoding=base64`、`name=domestic.json`、`path=updates/domestic.json` 的文件封装，外层最多 128 KiB、解码后的清单最多 64 KiB；校验大小、规范 Base64 与有效 UTF-8 后再解析清单，不使用封装里的 `download_url` 或其他地址。选择有效清单中的较新版本；同版本且大小、SHA-256 一致时优先 Gitee。一个源缺失、超时或格式不合法时可以使用另一个有效源；同版本字节校验值冲突则停止更新。已安装版本不会降级，同一宿主会话内也不会因镜像落后丢失已经验证的较新版提示，或接受同版本替换文件。安装仍须用户点击，检查过程不下载安装包、不自动重启。
+0.5.2 的 Gitee 正式 Release／唯一附件 ID 为 `1200021`／`3371613`，文件为 `Yuyin-0.5.2-Setup.exe`，大小 `54264043` 字节，SHA-256 为 `12b818df22cc804faaf1295f5774a84a8cb24c0577ea5edf760a3bfe228a0d6c`。[候选准备 Actions 38247735370](https://github.com/panda472328/yuyin-music/actions/runs/38247735370) 与本机匿名准备脚本均完整下载并核验上述附件；本机候选严格审核与 GitHub stable 一致后，以提交 `a94c428` 保存 `updates/domestic.json` 并推送两个远程。[国内清单／原生探针 Actions 38249178605](https://github.com/panda472328/yuyin-music/actions/runs/38249178605) 已成功复核候选元数据并运行原生 Gitee 探针。本机实际原生 Gitee 更新探针已通过：实际 `UpdateService` 选择 Gitee，匿名完整下载并两次核验同一大小与 SHA-256，输出 `Public native Gitee probe passed`，退出码为 0。国内通道已启用；探针未启动安装器，不代表实际已安装客户端完整升级通过。
 
-国内清单使用独立 schema 2，不覆盖 GitHub schema 1 的 `updates/stable.json`。旧客户端继续从 GitHub 升级；需要先安装一次含双源更新器的新版本，才能使用国内通道。2026-10-12 匿名读取 Gitee `openmusic/openmusic` 的 Releases API 返回空数组，尚无正式附件或 domestic 清单；本次源码准备不能写成国内线上更新已启用。
+0.5.1 起 WebView2 客户端同时检查 Gitee 的固定公开 Contents API `https://gitee.com/api/v5/repos/openmusic/openmusic/contents/updates/domestic.json?ref=main` 与现有 GitHub `stable.json`，各源有独立 12 秒预算。Gitee 响应仅接收 `type=file`、`encoding=base64`、`name=domestic.json`、`path=updates/domestic.json` 的文件封装，外层最多 128 KiB、解码后的清单最多 64 KiB；校验大小、规范 Base64 与有效 UTF-8 后再解析清单，不使用封装里的 `download_url` 或其他地址。选择有效清单中的较新版本；同版本且大小、SHA-256 一致时优先 Gitee。一个源缺失、超时或格式不合法时可以使用另一个有效源；同版本字节校验值冲突则停止更新。已安装版本不会降级，同一宿主会话内也不会因镜像落后丢失已经验证的较新版提示，或接受同版本替换文件。安装仍须用户点击，检查过程不下载安装包、不自动重启。
 
-同日匿名实测，网页 Raw 文件地址会 302 跳转到带短期签名的 `raw.giteeusercontent.com`，而官方 `/raw/{path}` API 对这个公开仓库仍返回 401。固定 Contents API 读取已存在的 `updates/stable.json` 为 200、Base64 文件响应，缺失的 `updates/domestic.json` 为 200 + `[]`；准备脚本仅将空数组或 404 视为尚无清单，其余错误拒绝推进。客户端将缺失或不合法的国内响应作为不可用源，继续检查 GitHub；无需使用用户账号或令牌。
+国内清单使用独立 schema 2，不覆盖 GitHub schema 1 的 `updates/stable.json`。旧客户端继续从 GitHub 升级；需要先安装一次含双源更新器的新版本，建议使用已修正附件路径兼容的 0.5.2，才能使用国内通道。历史准备记录：2026-10-12 发布前匿名读取 Gitee `openmusic/openmusic` 的 Releases API 返回空数组，当时尚无正式附件或 domestic 清单；该观察不代表目前公开状态。
+
+同日发布前的历史匿名实测：网页 Raw 文件地址会 302 跳转到带短期签名的 `raw.giteeusercontent.com`，而官方 `/raw/{path}` API 对这个公开仓库返回 401。固定 Contents API 读取已存在的 `updates/stable.json` 为 200、Base64 文件响应，当时缺失的 `updates/domestic.json` 为 200 + `[]`；准备脚本仅将空数组或 404 视为尚无清单，其余错误拒绝推进。客户端将缺失或不合法的国内响应作为不可用源，继续检查 GitHub；无需使用用户账号或令牌。
 
 国内安装地址仅采用 [Gitee 官方 API 文档](https://gitee.com/api/v5/swagger_doc) 的 `GET /api/v5/repos/openmusic/openmusic/releases/{release_id}/attach_files/{attach_file_id}/download`，Release／附件 ID 必须为正整数，文件名称仍保留兼容值 `Yuyin-X.Y.Z-Setup.exe`。清单只保存固定 API，不保存签名 CDN 地址、个人令牌、Cookie 或账号凭据。
 
@@ -28,19 +30,21 @@ PC 版从本仓库的 `updates/stable.json` 检查正式版本。当前稳定清
 
 3. 审核候选后将其保存为 `updates/domestic.json`，提交并推送源码到 GitHub 和 Gitee；保留 `stable.json` 中的固定 GitHub 地址。发布前在绝对临时 `YUYIN_STATE_DIR`／`YUYIN_WEBVIEW2_USER_DATA_DIR` 下完成实际 Gitee 清单、完整附件、备用下载与用户选择安装验收。不要在 Gitee 附件未公开或完整下载未通过时推进 domestic 清单。
 
-本机公共 API 限流时，可使用 GitHub Actions 的 `Verify public Gitee update channel` 工作流从独立网络执行相同匿名准备脚本。该工作流只在本仓库 `main` 上运行，权限为 `contents: read`；不会上传安装包或修改清单，仅保存已验证的候选 JSON 七天。没有 `updates/domestic.json` 时只生成候选，明确不声称原生探针通过；清单提交后会再次生成候选、核对版本和附件身份，再运行下面的原生下载探针。公共 API 限流、下载或摘要校验失败都会使工作流失败，不能当作国内通道已通过。
+本机公共 API 限流时，可使用 GitHub Actions 的 `Verify public Gitee update channel` 工作流从独立网络执行相同匿名准备脚本。该工作流只在本仓库 `main` 上运行，权限为 `contents: read`；不会上传安装包或修改清单，仅保存已验证的候选 JSON 七天。没有 `updates/domestic.json` 时只生成候选，明确不声称原生探针通过；清单提交后会再次生成候选、核对版本和附件身份，再运行下面的原生下载探针。0.5.2 已由 Actions 38249178605 完成这套独立复核并成功。公共 API 限流、下载或摘要校验失败都会使工作流失败，不能当作国内通道已通过。
 
 公开清单与附件准备完成后，可以显式运行宿主的只下载验收：`dotnet run --project tests/windows-host/Yuyin.HostTests.csproj -c Release -- --live-update-probe X.Y.Z`（`X.Y.Z` 替换为正式版本；本机也可使用 `.tools/dotnet/dotnet.exe`）。该操作使用实际 `UpdateService`、受控旧版本 `0.5.0` 和新建临时缓存，要求选择 Gitee 并匿名完整下载、两次检查大小及 SHA-256；GitHub 回退不计为国内通过。不启动应用、不读取 profile、不调用安装接口，完成后只删除本次随机缓存。它不能代替用户选择安装及实际升级验收。
 
 国内清单比旧契约增加 `schemaVersion: 2`、`provider: "gitee"` 和 `source: { "releaseId": 12345, "attachmentId": 67890, "filename": "Yuyin-X.Y.Z-Setup.exe" }`。ID 例子仅说明结构；必须使用正式 Gitee Release API 回读的真实身份。artifact 的 URL 固定为上述同仓库附件下载 API，releaseNotesUrl 固定为同版本 `https://gitee.com/openmusic/openmusic/releases/tag/pc-vX.Y.Z`；其余版本、字节数、SHA-256、说明和发布时间沿用已校验的 GitHub 稳定清单。
 
-本次源码的类型检查与完整回归由正式发布流程重新验证。Contents API 与 Foruda 修正后，国内准备脚本 7 组回归及实际原生更新器 136 项受控检查通过，覆盖 Base64 文件封装、路径／分支固定、空数组缺失、受限单次 CDN 跳转、签名过期后的新请求、大小／摘要、来源冲突、版本回退、未知跳转、国内响应正文中断后备用下载，以及磁盘错误不触发网络备用；没有启动真实安装器或读取真实用户 profile。线上附件及显式只下载验收尚待正式发布后单独记录。
+0.5.2 的类型检查与完整回归已由正式发布流程重新验证，本机宿主受控回归另通过 138 项更新检查，线上附件的匿名候选下载和实际原生只下载探针均已通过，命令与结果见 [QA.md](QA.md)。历史 0.5.1 的 Contents API 与 Foruda 修正后，国内准备脚本 7 组回归及实际原生更新器 136 项受控检查通过，覆盖 Base64 文件封装、路径／分支固定、空数组缺失、受限单次 CDN 跳转、签名过期后的新请求、大小／摘要、来源冲突、版本回退、未知跳转、国内响应正文中断后备用下载，以及磁盘错误不触发网络备用；没有启动真实安装器或读取真实用户 profile。
 
-以下保留现有 GitHub 稳定通道、0.5.0 发布证据和旧客户端的流程。
+以下说明当前 GitHub 稳定通道，并保留 0.5.0 的历史发布证据和旧客户端流程。
 
 ## 当前 GitHub 稳定通道
 
-0.5.0 的 [正式标签 Actions 38133373433](https://github.com/panda472328/yuyin-music/actions/runs/38133373433) 已成功完成构建、发布及下载校验，再以提交 `4c620738cd425f8f48df28284c45ca39d58fc4ac` 推进 main 的稳定清单。清单指向 `Yuyin-0.5.0-Setup.exe`，大小为 `54235650` 字节，SHA-256 为 `4c8708594d01b5e5448e88c73b154322db39489b7841aa26e287fa9890b407cb`；完整构建与公开证据见 [RELEASE.md](RELEASE.md)。实际已安装 0.5.x 的应用内下载安装尚未完整验收，清单推进不等于这一用户流程已通过。
+0.5.2 的 [正式标签 Actions 38206256264](https://github.com/panda472328/yuyin-music/actions/runs/38206256264) 成功完成构建、发布及下载校验，再以提交 `4ffca3e6f81c7aa96448aebdb470be274a9e133a` 推进 main 的稳定清单。当前 GitHub 清单指向 `Yuyin-0.5.2-Setup.exe`，大小为 `54264043` 字节，SHA-256 为 `12b818df22cc804faaf1295f5774a84a8cb24c0577ea5edf760a3bfe228a0d6c`；实际构建提交为 `c07be63cb6c933da50f0d76c3185f312b41e7a46`，Release／附件 ID 为 `410191409`／`632727070`。完整构建与公开证据见 [RELEASE.md](RELEASE.md)。实际已安装 0.5.x 的应用内下载安装尚未完整验收，清单推进不等于这一用户流程已通过。
+
+历史 0.5.0 的 [正式标签 Actions 38133373433](https://github.com/panda472328/yuyin-music/actions/runs/38133373433) 已成功完成构建、发布及下载校验，再以提交 `4c620738cd425f8f48df28284c45ca39d58fc4ac` 推进当时 main 的稳定清单。该版文件为 `Yuyin-0.5.0-Setup.exe`，大小为 `54235650` 字节，SHA-256 为 `4c8708594d01b5e5448e88c73b154322db39489b7841aa26e287fa9890b407cb`；此记录不用于校验当前版本。
 
 0.5.0 起原生更新器是 `windows-host/UpdateService.cs`。安装器写入 `installed.marker`；开发／未安装的发布目录可检查新版，但不启动安装。检查、下载、安装采用同一稳定清单契约，下载安装仍由用户选择。安装程序等待当前宿主自然退出后写入文件，不强杀进程。此次架构迁移不提供旧 Electron 客户端数据或会话自动迁移；请使用新版独立安装目录。
 

@@ -2,7 +2,28 @@
 
 PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码位于本仓库；Android 源码位于 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。不要把其中一个工程嵌套进另一个仓库。
 
-## PC 0.5.1（openmusic，2026-10-12 正式发布）
+## PC 0.5.2（openmusic，2026-10-12 正式发布）
+
+[GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.2) 和 [Gitee 正式发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2) 已公开。两端只上传同一份最终安装附件 [Yuyin-0.5.2-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.2/Yuyin-0.5.2-Setup.exe)，不另发修复包、便携包或 blockmap；发布页自动生成的 Source code ZIP／TAR 为源码入口。本版修正 Gitee 官方附件下载路径的大小写兼容，继续严格限制固定 API、单次官方跳转、版本文件名、签名格式、大小与 SHA-256。0.5.1 及更早版本的标签和安装文件保持不可变。
+
+| 项目 | 值 |
+| --- | --- |
+| 安装包实际构建及标签提交 | `c07be63cb6c933da50f0d76c3185f312b41e7a46` |
+| 安装包 SHA-256 | `12b818df22cc804faaf1295f5774a84a8cb24c0577ea5edf760a3bfe228a0d6c` |
+| 安装包字节数 | `54264043` |
+| GitHub Release／唯一附件 ID | `410191409`／`632727070` |
+| GitHub 正式发布时间（UTC） | `2026-10-12T05:07:01.000Z` |
+| GitHub 稳定清单更新提交 | `4ffca3e6f81c7aa96448aebdb470be274a9e133a` |
+| Gitee Release／唯一附件 ID | `1200021`／`3371613` |
+| 国内清单更新提交 | `a94c428`（已推送 GitHub 和 Gitee） |
+
+[正式标签 Actions 38206256264](https://github.com/panda472328/yuyin-music/actions/runs/38206256264) 成功完成业务／宿主回归、WebView2 安装文件构建、安装保护和正式发布；发布器完整下载并核验唯一 GitHub 附件后，将 `updates/stable.json` 推进至 0.5.2。安装包继续使用系统 WebView2，沿用既有安装身份和本地数据目录，不携带浏览器内核。
+
+国内通道状态：已启用。Gitee 正式页与唯一安装附件已发布，[候选准备 Actions 38247735370](https://github.com/panda472328/yuyin-music/actions/runs/38247735370) 和本机匿名准备脚本均完整下载官方附件，确认大小和 SHA-256 与上述 GitHub 文件一致；[国内清单／原生探针 Actions 38249178605](https://github.com/panda472328/yuyin-music/actions/runs/38249178605) 也已成功完成候选元数据审核和原生 Gitee 下载探针。候选审核确认真实 Release／附件身份并严格匹配 stable。`updates/domestic.json` 以提交 `a94c428` 推送两个远程后，本机实际 `UpdateService` 原生探针选择 Gitee、完整下载并两次校验大小与摘要，输出 `Public native Gitee probe passed`，退出码为 0，GitHub 回退未计为通过。本机宿主受控回归通过 289 项检查（14 存储、69 Bilibili／歌词、51 评论、138 更新、17 桌面设置）。
+
+原生探针使用随机临时缓存，不启动安装器、不读取用户 profile 或 cookies；它证明公开国内清单与附件的实际下载链路，实际已安装客户端的用户选择安装和完整升级仍需单独验收。命令与结果见 [QA.md](QA.md)，发布顺序见 [UPDATES.md](UPDATES.md)。
+
+## PC 0.5.1（历史，openmusic，2026-10-12 正式发布）
 
 [GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.1) 已公开，唯一安装附件为 [Yuyin-0.5.1-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.1/Yuyin-0.5.1-Setup.exe)。本版新增当前视频评论区和 MV 入口，展示品牌改为 openmusic，并加入 Gitee／GitHub 双源更新器；继续使用 WPF、自包含 .NET 与系统 WebView2，沿用 0.5.0 的安装身份和本地数据目录。安装前先正常退出播放器，升级不会自动迁移旧 Electron 数据或删除旧“余音”快捷方式。完整许可见 [MIT](../LICENSE) 和 [第三方声明](../THIRD_PARTY_NOTICES.md)。
 
@@ -21,7 +42,7 @@ PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码�
 
 国内通道状态：待发布与核验。[Gitee 0.5.1 预定发布入口](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.1) 尚不作为可用下载证明；须在正式附件公开、匿名完整下载与 SHA-256／大小一致、公开国内清单验证通过后，补记 Gitee Release／附件 ID 及验收证据。目前正式下载和稳定通道的已确认发布证据为上述 GitHub 记录。
 
-## PC 0.5.0（WebView2，2026-10-11 正式发布）
+## PC 0.5.0（历史，WebView2，2026-10-11 正式发布）
 
 [正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.0) 已公开，唯一安装附件为 [Yuyin-0.5.0-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.0/Yuyin-0.5.0-Setup.exe)。默认 `npm run dist:installer` 构建 React renderer、自包含 .NET WPF 宿主和单个安装 EXE，只使用系统 WebView2，不分发 Electron／Chromium。运行时缺失时使用微软官方联网引导安装器。`electron/` 历史宿主代码保留在源码中供参考，不进入新包；发行许可文本见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
 
