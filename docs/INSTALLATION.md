@@ -2,7 +2,7 @@
 
 当前 PC 正式版本为 **0.5.2**，继续使用 WPF + 系统 WebView2 和同一个安装身份／数据目录。正式下载文件见 [GitHub 0.5.2 发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.2) 和 [Gitee 0.5.2 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2)；各版本的大小、SHA-256 和构建记录见 [RELEASE.md](RELEASE.md)。
 
-PC **0.5.2 已正式发布**，正式脚本为 `build/webview2-installer.nsi`。两端唯一正式文件为 [Yuyin-0.5.2-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.2/Yuyin-0.5.2-Setup.exe)，大小 `54264043` 字节，SHA-256 为 `12b818df22cc804faaf1295f5774a84a8cb24c0577ea5edf760a3bfe228a0d6c`。当前用户默认目录为 `%LOCALAPPDATA%/Programs/YuyinMusic`，数据为独立 `%LOCALAPPDATA%/YuyinMusic`。安装包包含 .NET 运行文件；系统 WebView2 缺失时通过签名有效的微软官方小型引导程序联网安装，共享内核不随应用更新打包。运行时安装失败会先停止，不覆盖程序文件。0.5.1 的 `54274254` 字节和 0.5.0 的 `54235650` 字节安装文件及其校验记录作为历史证据保留，不用来校验 0.5.2 下载。
+PC **0.5.2 已正式发布**，正式脚本为 `build/webview2-installer.nsi`。GitHub 与 Gitee 均提供同一份唯一正式文件 [Yuyin-0.5.2-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.2/Yuyin-0.5.2-Setup.exe)，大小 `54264043` 字节，SHA-256 为 `12b818df22cc804faaf1295f5774a84a8cb24c0577ea5edf760a3bfe228a0d6c`。当前用户默认目录为 `%LOCALAPPDATA%/Programs/YuyinMusic`，数据为独立 `%LOCALAPPDATA%/YuyinMusic`。安装包包含 .NET 运行文件；系统 WebView2 缺失时通过签名有效的微软官方小型引导程序联网安装，共享内核不随应用更新打包。运行时安装失败会先停止，不覆盖程序文件。0.5.1 的 `54274254` 字节和 0.5.0 的 `54235650` 字节安装文件及其校验记录作为历史证据保留，不用来校验 0.5.2 下载。
 
 安装前正常退出 openmusic（旧版显示余音）；文件占用或目录不可写时显示明确错误并停止。应用内选择安装更新时，安装器校验 `/YUYINPID=` 并有限等待该进程自然退出，不强杀。卸载按确切发行文件列表删除，保留应用外的数据和安装目录内无关文件。0.5.2 沿用 WebView2 0.5.0／0.5.1 的收藏和设置；不自动迁移旧 Electron 客户端的数据或会话，不要用新包覆盖旧端目录。下文保留 0.4.x 历史问题说明。
 
