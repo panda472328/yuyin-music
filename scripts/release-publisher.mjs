@@ -102,7 +102,7 @@ export async function publishRelease({ config, manifest, artifact, notes, commit
         // A newly created draft may not immediately be visible by tag or in lists.
         // Keep the creation response ID and read that exact resource instead.
         const created = api('releases', { tag_name: config.tag, target_commitish: commit, draft: true, prerelease: false,
-          name: `余音 ${config.platform === 'windows' ? 'PC' : 'Android'} ${config.version}`, body }, 'POST')
+          name: `${config.platform === 'windows' ? 'openmusic PC' : '余音 Android'} ${config.version}`, body }, 'POST')
         const id = releaseId(created)
         release = readRelease(id)
         if (!release?.draft || release.prerelease || release.assets?.length !== 0) throw new Error('新建草稿回读异常，禁止覆盖附件。')

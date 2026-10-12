@@ -23,7 +23,7 @@ export function isDomesticAttachmentRedirect(address, initial, expectedFilename)
   let url
   try { url = new URL(address) } catch { return false }
   if (url.protocol !== 'https:' || url.hostname !== 'foruda.gitee.com' || url.port || url.username || url.password || url.hash ||
-    !new RegExp('^/attach_file/[1-9][0-9]{0,18}/' + expectedFilename.replace(/\./g, '\\.') + '$').test(url.pathname)) return false
+    !new RegExp('^/attach_file/[1-9][0-9]{0,18}/' + expectedFilename.replace(/\./g, '\\.') + '$', 'i').test(url.pathname)) return false
   const fields = url.search.slice(1).split('&')
   if (fields.length !== 3) return false
   const query = new Map()

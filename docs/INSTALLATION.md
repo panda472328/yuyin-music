@@ -1,10 +1,12 @@
 # Windows 安装与重装
 
-当前 PC 源码版本为 **0.5.1**，继续使用 WPF + 系统 WebView2 和同一个安装身份／数据目录。正式下载文件以 [发布页](https://github.com/panda472328/yuyin-music/releases/latest) 为准；下方 0.5.0 的大小、校验和验收记录保留为该版本的历史证据，不作为 0.5.1 安装文件的校验值。
+当前 PC 正式版本为 **0.5.1**，继续使用 WPF + 系统 WebView2 和同一个安装身份／数据目录。正式下载文件以 [0.5.1 发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.1) 为准；各版本的大小、SHA-256 和构建记录见 [RELEASE.md](RELEASE.md)。
 
-PC **0.5.0 已正式发布**，采用 WPF + 系统 WebView2，正式脚本为 `build/webview2-installer.nsi`。唯一正式文件为 [Yuyin-0.5.0-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.0/Yuyin-0.5.0-Setup.exe)，大小 `54235650` 字节；校验值和成功构建记录见 [RELEASE.md](RELEASE.md)。当前用户默认目录为 `%LOCALAPPDATA%/Programs/YuyinMusic`，数据为独立 `%LOCALAPPDATA%/YuyinMusic`。安装包包含 .NET 运行文件；系统 WebView2 缺失时通过签名有效的微软官方小型引导程序联网安装，共享内核不随应用更新打包。运行时安装失败会先停止，不覆盖程序文件。
+PC **0.5.1 已正式发布**，正式脚本为 `build/webview2-installer.nsi`。唯一正式文件为 [Yuyin-0.5.1-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.1/Yuyin-0.5.1-Setup.exe)，大小 `54274254` 字节。当前用户默认目录为 `%LOCALAPPDATA%/Programs/YuyinMusic`，数据为独立 `%LOCALAPPDATA%/YuyinMusic`。安装包包含 .NET 运行文件；系统 WebView2 缺失时通过签名有效的微软官方小型引导程序联网安装，共享内核不随应用更新打包。运行时安装失败会先停止，不覆盖程序文件。0.5.0 的 `54235650` 字节安装文件及其校验记录作为历史证据保留，不用来校验 0.5.1 下载。
 
-安装前正常退出余音；文件占用或目录不可写时显示明确错误并停止。应用内选择安装更新时，安装器校验 `/YUYINPID=` 并有限等待该进程自然退出，不强杀。卸载按确切发行文件列表删除，保留应用外的数据和安装目录内无关文件。此轮不处理旧 Electron 客户端兼容／自动迁移；不要用新包覆盖旧端目录。下文保留 0.4.x 历史问题说明。
+安装前正常退出 openmusic（旧版显示余音）；文件占用或目录不可写时显示明确错误并停止。应用内选择安装更新时，安装器校验 `/YUYINPID=` 并有限等待该进程自然退出，不强杀。卸载按确切发行文件列表删除，保留应用外的数据和安装目录内无关文件。0.5.1 沿用 WebView2 0.5.0 的收藏和设置；不自动迁移旧 Electron 客户端的数据或会话，不要用新包覆盖旧端目录。下文保留 0.4.x 历史问题说明。
+
+0.5.1 支持 Gitee／GitHub 双源更新器，但国内附件和公开清单仍待发布及匿名完整下载核验。当前正式下载使用上方 GitHub 文件；Gitee 通道的最终状态记录在 [RELEASE.md](RELEASE.md)。
 
 安装保护从 PC 0.4.12 起随正常版本提供，不另发修复包；0.4.11 构建失败，没有公开安装文件。以对应版本的 GitHub Release 和 SHA-256 为准，不用重新构建的不同文件替换历史附件。
 
@@ -18,7 +20,7 @@ PC **0.5.0 已正式发布**，采用 WPF + 系统 WebView2，正式脚本为 `b
 4. 普通安装选择“仅为我安装”及默认目录。`Program Files` 或其他管理员管理的目录需要选择“为所有用户安装”并由用户允许管理员权限。管理员权限不能代替退出仍在使用文件的程序。
 5. 使用当前正式版完整安装包重新安装，再从快捷方式启动。如果仍失败，提供版本、安装目录和完整错误文本。不要提供账号 Cookie、个人音乐库或 profile。
 
-如果此前点过“忽略”，程序文件可能没有安装完整，应重新运行完整安装包。0.5.0 收藏和设置保存于 `%LOCALAPPDATA%/YuyinMusic`；旧 0.4.x Electron 版使用 `%APPDATA%/YuyinMusic`。数据与安装目录分开，不通过删除数据目录处理安装文件占用。
+如果此前点过“忽略”，程序文件可能没有安装完整，应重新运行完整安装包。WebView2 0.5.x 的收藏和设置保存于 `%LOCALAPPDATA%/YuyinMusic`；旧 0.4.x Electron 版使用 `%APPDATA%/YuyinMusic`。数据与安装目录分开，不通过删除数据目录处理安装文件占用。
 
 ## 0.4.12 的安装检查
 
@@ -42,4 +44,6 @@ npm run test:installer
 
 0.5.0 的原生测试用 NSIS 编译仓库保护与无害进程，在 `.qa/webview2-installer-guards-*` 和 `.qa/webview2-installer-flow-*` 的受控目录中验证占用、更新退出等待、精确文件删除及无关文件保留，共 11 项检查通过。流程测试只使用独立 QA 注册键，测试卸载清除该登记；不创建真实快捷方式，不读取或修改真实用户数据。正式标签 Actions 已在打包后强制通过这些检查。非 Windows 或缺少编译器的本地运行会明确标为跳过；CI 用 `YUYIN_REQUIRE_INSTALLER_TESTS=1` 使缺失依赖成为失败。
 
-真实安装向导、桌面／开始菜单快捷方式、正式卸载、缺失 WebView2 Runtime 的联网引导、跨用户管理员权限，以及实际已安装 0.5.x 的应用内更新仍需在独立 Windows 环境验收。0.5.0 不提供旧 Electron 客户端兼容／自动迁移；受控安装回归和发布文件校验不能替代这些生命周期测试，详见 [QA.md](QA.md)。
+0.5.1 的 [正式标签 Actions 38201688304](https://github.com/panda472328/yuyin-music/actions/runs/38201688304) 重新完成上述 11 项安装保护／受控流程检查，并在 Windows runner 完整下载公开的唯一安装附件、校验大小和 SHA-256 后推进 GitHub 稳定清单。该结果验证受控保护和发布文件，不代表完成真实安装生命周期验收。
+
+真实安装向导、桌面／开始菜单快捷方式、正式卸载、缺失 WebView2 Runtime 的联网引导、跨用户管理员权限，以及实际已安装 0.5.x 的应用内更新仍需在独立 Windows 环境验收。WebView2 0.5.x 不提供旧 Electron 客户端兼容／自动迁移；受控安装回归和发布文件校验不能替代这些生命周期测试，详见 [QA.md](QA.md)。

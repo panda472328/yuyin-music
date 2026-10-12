@@ -2,6 +2,25 @@
 
 PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码位于本仓库；Android 源码位于 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。不要把其中一个工程嵌套进另一个仓库。
 
+## PC 0.5.1（openmusic，2026-10-12 正式发布）
+
+[GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.1) 已公开，唯一安装附件为 [Yuyin-0.5.1-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.1/Yuyin-0.5.1-Setup.exe)。本版新增当前视频评论区和 MV 入口，展示品牌改为 openmusic，并加入 Gitee／GitHub 双源更新器；继续使用 WPF、自包含 .NET 与系统 WebView2，沿用 0.5.0 的安装身份和本地数据目录。安装前先正常退出播放器，升级不会自动迁移旧 Electron 数据或删除旧“余音”快捷方式。完整许可见 [MIT](../LICENSE) 和 [第三方声明](../THIRD_PARTY_NOTICES.md)。
+
+| 项目 | 值 |
+| --- | --- |
+| 安装包实际构建及标签提交 | `d00992dccec11f9600d51f69c74f699cf3dd56ac` |
+| 安装包 SHA-256 | `2384bb10c85a14ca16d36e99fff93a580b6df66dfebd7a636b2f107ee8225138` |
+| 安装包字节数 | `54274254` |
+| GitHub Release／唯一附件 ID | `410142763`／`632599293` |
+| 正式发布时间（UTC） | `2026-10-12T03:59:01Z` |
+| GitHub 稳定清单更新提交 | `041dc0438b6ea613f4e6a61ac57e84d7c07e199d` |
+
+[正式标签 Actions 38201688304](https://github.com/panda472328/yuyin-music/actions/runs/38201688304) 整体成功，完成测试、WebView2 安装文件构建、安装保护、备份和正式发布。发布器在 Windows runner 完整下载并核验唯一附件的大小及 SHA-256，公开后推进 `updates/stable.json` 至 0.5.1；清单版本、文件地址、摘要、大小和时间与公开附件一致。后续文档整理不会移动标签或重建、替换该安装文件。
+
+本版隔离回归通过 173 项 TypeScript 业务测试、287 项宿主契约检查（含 136 项更新检查）、34 项受控原生媒体检查、22 项 WebView2 页面检查、26 项 MV 脚本检查、11 项安装保护／受控流程检查、83 项发布工具检查和 7 组国内清单准备检查。评论写入使用受控响应，真实账号评论发送和源站网页全屏兼容性尚未完整验收；原生媒体检查不能替代真实音源的听觉验收。完整安装、跨机器及已安装客户端的更新生命周期限制仍见 [QA.md](QA.md) 与 [INSTALLATION.md](INSTALLATION.md)。
+
+国内通道状态：待发布与核验。[Gitee 0.5.1 预定发布入口](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.1) 尚不作为可用下载证明；须在正式附件公开、匿名完整下载与 SHA-256／大小一致、公开国内清单验证通过后，补记 Gitee Release／附件 ID 及验收证据。目前正式下载和稳定通道的已确认发布证据为上述 GitHub 记录。
+
 ## PC 0.5.0（WebView2，2026-10-11 正式发布）
 
 [正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.0) 已公开，唯一安装附件为 [Yuyin-0.5.0-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.0/Yuyin-0.5.0-Setup.exe)。默认 `npm run dist:installer` 构建 React renderer、自包含 .NET WPF 宿主和单个安装 EXE，只使用系统 WebView2，不分发 Electron／Chromium。运行时缺失时使用微软官方联网引导安装器。`electron/` 历史宿主代码保留在源码中供参考，不进入新包；发行许可文本见 [第三方声明](../THIRD_PARTY_NOTICES.md)。

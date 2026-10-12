@@ -555,7 +555,7 @@ public sealed class UpdateService : IDisposable
     private static bool IsDomesticAttachmentCdnAddress(Uri uri, string? expectedFilename)
     {
         if (expectedFilename is null || !Regex.IsMatch(expectedFilename, @"\AYuyin-(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})-Setup\.exe\z", RegexOptions.CultureInvariant)
-            || uri.Host != "foruda.gitee.com" || !Regex.IsMatch(uri.AbsolutePath, @"\A/attach_file/[1-9][0-9]{0,18}/" + Regex.Escape(expectedFilename) + @"\z", RegexOptions.CultureInvariant)) return false;
+            || uri.Host != "foruda.gitee.com" || !Regex.IsMatch(uri.AbsolutePath, @"\A/attach_file/[1-9][0-9]{0,18}/" + Regex.Escape(expectedFilename) + @"\z", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)) return false;
         var fields = uri.Query.TrimStart('?').Split('&');
         if (fields.Length != 3) return false;
         var query = new Dictionary<string, string>(StringComparer.Ordinal);

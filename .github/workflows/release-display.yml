@@ -1,0 +1,113 @@
+name: Correct published PC release display name
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/release-display.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-stable-release
+  cancel-in-progress: false
+
+jobs:
+  correct-display-name:
+    if: github.repository == 'panda472328/yuyin-music' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Verify final stable release and update its title only
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { releaseConfig, validateManifest, assertReleaseAsset } from './scripts/release-utils.mjs'
+
+          const repository = 'panda472328/yuyin-music'
+          const tag = 'pc-v0.5.1'
+          const buildCommit = 'd00992dccec11f9600d51f69c74f699cf3dd56ac'
+          const expectedName = 'openmusic PC 0.5.1'
+          assert.equal(process.env.GITHUB_REPOSITORY, repository)
+          assert.equal(process.env.GITHUB_REF, 'refs/heads/main')
+          assert.equal(process.env.GITHUB_EVENT_NAME, 'push')
+          const config = releaseConfig(process.cwd(), tag)
+          const apiRoot = `https://api.github.com/repos/${repository}/`
+          async function api(route, name) {
+            const mutation = name !== undefined
+            const response = await fetch(apiRoot + route, {
+              method: mutation ? 'PATCH' : 'GET', redirect: 'error', signal: AbortSignal.timeout(30000),
+              headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28',
+                ...(mutation ? { Authorization: `Bearer ${process.env.GH_TOKEN}`, 'Content-Type': 'application/json' } : {}) },
+              ...(mutation ? { body: JSON.stringify({ name }) } : {}),
+            })
+            if (!response.ok) throw new Error(`GitHub ${mutation ? 'title update' : 'public verification'} failed: HTTP ${response.status}`)
+            return response.json()
+          }
+          async function publicFile(file) {
+            const contents = await api(`contents/${file}?ref=main`)
+            assert.equal(contents.type, 'file')
+            assert.equal(contents.path, file)
+            assert.equal(contents.encoding, 'base64')
+            assert.match(contents.sha, /^[a-f0-9]{40}$/)
+            assert.ok(typeof contents.content === 'string' && contents.content.length < 128 * 1024)
+            return { sha: contents.sha, value: JSON.parse(Buffer.from(contents.content, 'base64').toString('utf8')) }
+          }
+          async function verifyTag() {
+            let object = (await api(`git/ref/tags/${tag}`)).object
+            const visited = new Set()
+            while (object?.type === 'tag') {
+              assert.match(object.sha, /^[a-f0-9]{40}$/)
+              assert.ok(!visited.has(object.sha) && visited.size < 8)
+              visited.add(object.sha)
+              object = (await api(`git/tags/${object.sha}`)).object
+            }
+            assert.equal(object?.type, 'commit')
+            assert.equal(object.sha, buildCommit)
+          }
+          const stable = await publicFile('updates/stable.json')
+          const pkg = await publicFile('package.json')
+          assert.equal(pkg.value.name, 'yuyin-music')
+          assert.equal(pkg.value.version, config.version)
+          const manifest = validateManifest(stable.value, config)
+          assert.equal(manifest.version, config.version)
+          await verifyTag()
+          const release = await api(`releases/tags/${tag}`)
+          assert.ok(Number.isSafeInteger(release.id) && release.id > 0)
+          assert.equal(release.draft, false)
+          assert.equal(release.prerelease, false)
+          assert.ok(release.published_at)
+          assert.equal(new Date(release.published_at).toISOString(), new Date(manifest.publishedAt).toISOString())
+          assertReleaseAsset(release, config, manifest)
+          const asset = release.assets[0]
+          assert.ok(Number.isSafeInteger(asset.id) && asset.id > 0)
+          assert.equal(asset.digest, `sha256:${manifest.artifact.sha256}`)
+          assert.equal(release.name === '余音 PC 0.5.1' || release.name === expectedName, true)
+          const markers = [...release.body.matchAll(/^实际构建提交：`([a-f0-9]{40})`\r?$/gm)]
+          assert.equal(markers.length, 1)
+          assert.equal(markers[0][1], buildCommit)
+          if (release.name !== expectedName) await api(`releases/${release.id}`, expectedName)
+          const after = await api(`releases/${release.id}`)
+          assert.equal(after.name, expectedName)
+          for (const key of ['id', 'tag_name', 'target_commitish', 'draft', 'prerelease', 'body', 'created_at', 'published_at', 'html_url']) {
+            assert.deepEqual(after[key], release[key], `Title update changed protected field: ${key}`)
+          }
+          assertReleaseAsset(after, config, manifest)
+          for (const key of ['id', 'name', 'size', 'digest', 'state', 'browser_download_url', 'created_at']) {
+            assert.deepEqual(after.assets[0][key], asset[key], `Title update changed attachment identity: ${key}`)
+          }
+          assert.equal((await publicFile('updates/stable.json')).sha, stable.sha)
+          assert.equal((await publicFile('package.json')).sha, pkg.sha)
+          await verifyTag()
+          console.log(`Verified ${tag}: title=${expectedName}; build=${buildCommit}; asset=${asset.id}; bytes=${asset.size}; sha256=${manifest.artifact.sha256}. No binary, tag, body or manifest changes.`)
+          NODE

@@ -48,6 +48,9 @@ test('official API can redirect once to the observed foruda path with exact expe
   assert.equal(candidate.artifact.url, domesticArtifactUrl(release.id, attachments[0].id))
   assert.equal(JSON.stringify(candidate).includes('token='), false, 'Expiring CDN URL never persists in the manifest')
   assert.equal(isDomesticAttachmentRedirect(signedCdn, candidate.artifact.url, 'Yuyin-0.5.1-Setup.exe'), true)
+  const lowercasePath = signedCdn.replace('/Yuyin-0.5.1-Setup.exe?', '/yuyin-0.5.1-setup.exe?')
+  assert.equal(isDomesticAttachmentRedirect(lowercasePath, candidate.artifact.url, 'Yuyin-0.5.1-Setup.exe'), true, 'Foruda path filename comparison ignores case')
+  assert.equal(isDomesticAttachmentRedirect(lowercasePath.replace('attname=Yuyin-0.5.1-Setup.exe', 'attname=yuyin-0.5.1-setup.exe'), candidate.artifact.url, 'Yuyin-0.5.1-Setup.exe'), false, 'attname remains exact')
   for (const invalid of [signedCdn.replace('https:', 'http:'), signedCdn.replace('foruda.gitee.com', 'foruda.gitee.com.evil.example'),
     signedCdn.replace('foruda.gitee.com', 'user:pass@foruda.gitee.com'), signedCdn.replace('foruda.gitee.com', 'foruda.gitee.com:444'),
     signedCdn.replace('/attach_file/', '/other/'), signedCdn.replaceAll('0.5.1', '0.5.2'), signedCdn.replace('attname=Yuyin-0.5.1', 'attname=Yuyin-0.5.2'),

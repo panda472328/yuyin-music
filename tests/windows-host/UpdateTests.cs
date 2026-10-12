@@ -75,6 +75,9 @@ public static class UpdateTests
             var expectedFilename = "Yuyin-0.5.1-Setup.exe";
             var signedCdn = $"https://foruda.gitee.com/attach_file/1662036200660558629/{expectedFilename}?token={new string('a', 32)}&ts=1791780000&attname={expectedFilename}";
             Assert(UpdateService.IsTrustedAddress(new(signedCdn), false, new(domestic.Artifact.Url), expectedFilename), "observed API-issued foruda redirect allowed for exact installer");
+            var lowercasePath = signedCdn.Replace($"/{expectedFilename}?", $"/{expectedFilename.ToLowerInvariant()}?");
+            Assert(UpdateService.IsTrustedAddress(new(lowercasePath), false, new(domestic.Artifact.Url), expectedFilename), "foruda path filename comparison ignores case");
+            Assert(!UpdateService.IsTrustedAddress(new(lowercasePath.Replace($"attname={expectedFilename}", $"attname={expectedFilename.ToLowerInvariant()}")), false, new(domestic.Artifact.Url), expectedFilename), "foruda attname remains exact");
             Assert(!UpdateService.IsTrustedAddress(new(signedCdn), false), "foruda is never an initial installer URL");
             Assert(!UpdateService.IsTrustedAddress(new(signedCdn), true, new(UpdateService.DomesticManifestUrl), expectedFilename), "manifest cannot use attachment CDN");
             foreach (var invalid in new[] {
