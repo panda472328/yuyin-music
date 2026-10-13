@@ -84,6 +84,22 @@ test('saved song and video search choices survive favorite edits and restart', (
   }
 })
 
+test('public search metadata survives restart while malformed optional fields are discarded', () => {
+  const storage = memoryStorage()
+  const enriched = { ...song(1), uploaderMid: 3493093607213343, searchTags: '单曲,原版,高音质' }
+  assert.equal(saveLibrary(toggleFavorite(loadLibrary(storage), enriched), storage).ok, true)
+  assert.deepEqual(loadLibrary(storage).favorites[0], enriched)
+  for (const uploaderMid of [-1, 0, 1.5, '123', Number.MAX_SAFE_INTEGER + 1, null]) {
+    const state = { ...loadLibrary(memoryStorage()), favorites: [{ ...song(2), uploaderMid, searchTags: 5 }] }
+    const loaded = loadLibrary(memoryStorage(JSON.stringify(state)))
+    assert.deepEqual(loaded.favorites[0], song(2))
+  }
+  const state = { ...loadLibrary(memoryStorage()), favorites: [{ ...song(3), searchTags: '音乐\u0000' + '长'.repeat(2500) }] }
+  const tag = loadLibrary(memoryStorage(JSON.stringify(state))).favorites[0].searchTags!
+  assert.equal(tag.length, 2000)
+  assert.equal(tag.includes('\u0000'), false)
+})
+
 test('favorites and playlist edits preserve the input library and avoid duplicates', () => {
   const initial = loadLibrary(memoryStorage())
   const favorite = toggleFavorite(initial, song())

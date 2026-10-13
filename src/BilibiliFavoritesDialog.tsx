@@ -76,9 +76,9 @@ export default function BilibiliFavoritesDialog({ onImport }: { onImport: (resul
     <span className="modal-symbol"><FolderHeart size={26} /></span>
     <h2>收藏夹变成歌单</h2>
     <p>选择你 Bilibili 账号的收藏夹，把其中的视频收进本地歌单。再次导入会合并新歌曲。</p>
-    {!isDesktop ? <p className="bilibili-favorites-message">请在openmusic桌面客户端中使用 Bilibili 收藏夹。</p> : <>
+    {!isDesktop ? <p className="bilibili-favorites-message">请在open音乐桌面客户端中使用 Bilibili 收藏夹。</p> : <>
       <div className="bilibili-favorites-account">
-        <span>{data ? `当前账号：${data.username}` : '使用openmusic中已登录的 Bilibili 账号'}</span>
+        <span>{data ? `当前账号：${data.username}` : '使用open音乐中已登录的 Bilibili 账号'}</span>
         <button className="text-button" type="button" disabled={loading || importing} onClick={() => void refresh()}><RefreshCw size={14} />刷新收藏夹</button>
       </div>
       <button className="text-button" type="button" disabled={importing} onClick={() => void api.login().then(() => { if (active.current) setError('登录完成后，点击“刷新收藏夹”。') }).catch(failure => { if (active.current) setError(errorText(failure)) })}><ExternalLink size={14} />打开 Bilibili 登录 / 切换账号</button>

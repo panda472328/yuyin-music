@@ -110,8 +110,8 @@ public partial class MainWindow : Window
         {
             var runtimeMissing = error is WebView2RuntimeNotFoundException;
             StatusText.Text = runtimeMissing
-                ? "系统缺少 Microsoft Edge WebView2 运行时。openmusic直接使用系统运行时，请安装后重新打开openmusic。"
-                : $"无法启动openmusic：{error.Message}";
+                ? "系统缺少 Microsoft Edge WebView2 运行时。open音乐直接使用系统运行时，请安装后重新打开open音乐。"
+                : $"无法启动open音乐：{error.Message}";
             RuntimeDownloadButton.Visibility = runtimeMissing ? Visibility.Visible : Visibility.Collapsed;
             StatusText.Foreground = System.Windows.Media.Brushes.DarkRed;
         }
@@ -195,7 +195,7 @@ public partial class MainWindow : Window
             case "music.status": return _player.Status;
             case "library.export":
                 LocalDataStore.ValidateLibrary(ArgString(args, 0));
-                var save = new Microsoft.Win32.SaveFileDialog { Filter = "JSON 音乐库|*.json", FileName = "openmusic音乐库.json", DefaultExt = ".json" };
+                var save = new Microsoft.Win32.SaveFileDialog { Filter = "JSON 音乐库|*.json", FileName = "open音乐音乐库.json", DefaultExt = ".json" };
                 if (save.ShowDialog(this) != true) return false;
                 LocalDataStore.AtomicWrite(save.FileName, ArgString(args, 0));
                 return true;
@@ -408,7 +408,7 @@ public partial class MainWindow : Window
     private async Task ShutdownAsync()
     {
         ++_playEntryRevision;
-        async Task Cleanup(Func<Task> operation) { try { await operation(); } catch (Exception error) { Debug.WriteLine("openmusic关闭清理失败：" + error.Message); } }
+        async Task Cleanup(Func<Task> operation) { try { await operation(); } catch (Exception error) { Debug.WriteLine("open音乐关闭清理失败：" + error.Message); } }
         SaveWindowState();
         await Cleanup(() => { if (_updater is not null) { _updater.StateChanged -= Updater_StateChanged; _updater.Dispose(); } return Task.CompletedTask; });
         await Cleanup(() => { CloseLoginWindow(); return Task.CompletedTask; });
@@ -434,7 +434,8 @@ public partial class MainWindow : Window
     private static void ValidateSong(Song song)
     {
         if (song is null || !System.Text.RegularExpressions.Regex.IsMatch(song.Bvid ?? "", "^BV[0-9A-Za-z]{10}$") || song.Url != $"https://www.bilibili.com/video/{song.Bvid}/" ||
-            string.IsNullOrWhiteSpace(song.Title) || song.Title.Length > 1000 || song.Artist is null || song.Artist.Length > 500 || !double.IsFinite(song.Duration) || song.Duration < 0 || song.Duration > 86400)
+            string.IsNullOrWhiteSpace(song.Title) || song.Title.Length > 1000 || song.Artist is null || song.Artist.Length > 500 || !double.IsFinite(song.Duration) || song.Duration < 0 || song.Duration > 86400 ||
+            (song.UploaderMid is { } mid && (mid <= 0 || mid > 9_007_199_254_740_991)) || song.SearchTags?.Length > 2000)
             throw new InvalidOperationException("歌曲信息不合法。");
     }
     private static void DenyPermission(object? sender, CoreWebView2PermissionRequestedEventArgs e) { e.State = CoreWebView2PermissionState.Deny; e.Handled = true; }

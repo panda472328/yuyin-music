@@ -5,7 +5,7 @@ import type { DesktopLyricsContent, DesktopLyricsSettings, DesktopLyricsSnapshot
 import { DESKTOP_LYRICS_DEFAULT_SETTINGS, DESKTOP_LYRICS_DEFAULT_CONTENT } from '../electron/desktop-lyrics-types'
 import type { UpdateState } from './shared/update'
 import type { CommentSort, VideoCommentsPage, VideoRepliesPage, CommentLikeResult, CommentCreateRequest, CommentCreateResult } from './shared/comments'
-import { bilibiliResultText, isSearchMode, normalizeSongName, parseSearchSuggestions, rankSongTitleResults, type SearchMode } from './shared/search-mode'
+import { bilibiliResultText, isSearchMode, normalizeSongName, parseSearchSuggestions, rankSongSearchResults, type SearchMode } from './shared/search-mode'
 import { createWebView2API, isWebView2Available } from './webview2-bridge'
 
 export interface MusicAPI {
@@ -58,10 +58,10 @@ export interface MusicAPI {
 
 declare global { interface Window { musicAPI?: MusicAPI } }
 
-const desktopRequired = async (): Promise<never> => { throw new Error('请在openmusic桌面客户端中播放，网页预览仅提供界面和音乐库功能。') }
+const desktopRequired = async (): Promise<never> => { throw new Error('请在open音乐桌面客户端中播放，网页预览仅提供界面和音乐库功能。') }
 const idle: PlaybackStatus = { state: 'idle', song: null, currentTime: 0, duration: 0, volume: .7, error: null }
 const previewUpdate: UpdateState = { status: 'idle', currentVersion: '预览', manifest: null, progress: null, error: null,
-  checkedAt: null, canInstall: false, installDisabledReason: '网页预览不支持软件更新，请使用openmusic Windows 安装版。' }
+  checkedAt: null, canInstall: false, installDisabledReason: '网页预览不支持软件更新，请使用open音乐 Windows 安装版。' }
 
 const previewAPI: MusicAPI = {
   async getUpdateState() { return { ...previewUpdate } },
@@ -95,12 +95,14 @@ const previewAPI: MusicAPI = {
         artist: bilibiliResultText(item.author) || 'Bilibili UP 主', cover,
         duration: parts.every(Number.isFinite) ? parts.reduce((total, part) => total * 60 + Math.max(0, part), 0) : 0,
         playCount: Math.max(0, Number(item.play) || 0), source: 'bilibili', url: `https://www.bilibili.com/video/${bvid}/`,
+        ...(Number.isSafeInteger(Number(item.mid)) && Number(item.mid) > 0 ? { uploaderMid: Number(item.mid) } : {}),
+        ...(typeof item.tag === 'string' ? { searchTags: bilibiliResultText(item.tag).slice(0, 2000) } : {}),
       }
     })
     const total = Math.max(0, Number(data.numResults) || songs.length)
     const pageSize = Math.max(1, Number(data.pagesize) || 20)
     const pages = Number(data.numPages) || Math.ceil(total / pageSize)
-    return { query: keyword, mode, songs: mode === 'song' ? rankSongTitleResults(songs, keyword) : songs,
+    return { query: keyword, mode, songs: mode === 'song' ? rankSongSearchResults(songs, keyword) : songs,
       page, pageSize, total, hasMore: page < pages }
   },
   async searchSuggestions(query) {
@@ -120,9 +122,9 @@ const previewAPI: MusicAPI = {
   async continueAsGuest() { return { loggedIn: false, account: null, guest: true } },
   openBilibiliProfile: desktopRequired,
   onBilibiliSessionChanged() { return () => {} },
-  async getBilibiliFavoriteFolders() { throw new Error('请在openmusic桌面客户端中读取 Bilibili 收藏夹。') },
-  async getBilibiliFavoriteItems() { throw new Error('请在openmusic桌面客户端中读取 Bilibili 收藏夹。') },
-  async getBilibiliFavoriteSongs() { throw new Error('请在openmusic桌面客户端中读取 Bilibili 收藏夹。') },
+  async getBilibiliFavoriteFolders() { throw new Error('请在open音乐桌面客户端中读取 Bilibili 收藏夹。') },
+  async getBilibiliFavoriteItems() { throw new Error('请在open音乐桌面客户端中读取 Bilibili 收藏夹。') },
+  async getBilibiliFavoriteSongs() { throw new Error('请在open音乐桌面客户端中读取 Bilibili 收藏夹。') },
   async getVideoComments() { throw new Error('请使用 Windows WebView2 客户端查看视频评论。') },
   async getCommentReplies() { throw new Error('请使用 Windows WebView2 客户端查看评论回复。') },
   async setCommentLike() { throw new Error('请在 Windows WebView2 客户端登录 Bilibili 后点赞。') },
@@ -132,7 +134,7 @@ const previewAPI: MusicAPI = {
   async publishDesktopLyrics() {},
   onDesktopLyricsSnapshot() { return () => {} },
   async getLyrics(request) {
-    if (request.provider === 'bilibili') throw new Error('请在openmusic桌面客户端中获取 Bilibili 字幕，桌面端会使用你的 Bilibili 登录状态。')
+    if (request.provider === 'bilibili') throw new Error('请在open音乐桌面客户端中获取 Bilibili 字幕，桌面端会使用你的 Bilibili 登录状态。')
     const queries = buildLyricsQueries(request)
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 20_000)
@@ -158,7 +160,7 @@ const previewAPI: MusicAPI = {
   writeLocalPreference(key, value) { localStorage.setItem(key, value) },
   onPreferenceError() { return () => {} },
   async exportLibrary(data) {
-    const anchor = document.createElement('a'); anchor.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); anchor.download = 'openmusic音乐库.json'; anchor.click(); URL.revokeObjectURL(anchor.href); return true
+    const anchor = document.createElement('a'); anchor.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); anchor.download = 'open音乐音乐库.json'; anchor.click(); URL.revokeObjectURL(anchor.href); return true
   },
   async importLibrary() {
     return new Promise(resolve => {

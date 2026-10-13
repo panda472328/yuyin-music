@@ -14,6 +14,10 @@ export interface Song {
   url: string;
   /** Original search text helps match lyrics; artist is the video's UP name. */
   searchQuery?: string;
+  /** Public uploader ID; optional for existing saved songs. */
+  uploaderMid?: number;
+  /** Public video tags used only for search classification. */
+  searchTags?: string;
 }
 
 export interface SearchResult {

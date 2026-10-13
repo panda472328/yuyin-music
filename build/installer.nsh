@@ -213,14 +213,14 @@ Function ${YUYIN_FUNCTION_PREFIX}YuyinCheckFile
     ${EndIf}
     ${If} $1 == 32
     ${OrIf} $1 == 33
-      StrCpy $YuyinFailureMessage "程序文件仍在使用，安装或卸载已停止。$\r$\n请先正常退出openmusic（包括桌面歌词窗口），并关闭此前的安装或卸载窗口，再点击重试。$\r$\n$YuyinProbePath"
+      StrCpy $YuyinFailureMessage "程序文件仍在使用，安装或卸载已停止。$\r$\n请先正常退出open音乐（包括桌面歌词窗口），并关闭此前的安装或卸载窗口，再点击重试。$\r$\n$YuyinProbePath"
       ${IfNot} ${Silent}
         MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$YuyinFailureMessage" IDRETRY checkFileAgain
         SetErrorLevel 2
         Quit
       ${EndIf}
     ${Else}
-      StrCpy $YuyinFailureMessage "无法写入程序文件，安装或卸载已停止（Windows 错误 $1）。$\r$\n$YuyinProbePath$\r$\n请先退出openmusic和此前的安装或卸载程序。请使用当前用户默认目录；安装到 Program Files 时请选择为所有用户安装并允许管理员权限。也请检查只读属性和安全软件限制。"
+      StrCpy $YuyinFailureMessage "无法写入程序文件，安装或卸载已停止（Windows 错误 $1）。$\r$\n$YuyinProbePath$\r$\n请先退出open音乐和此前的安装或卸载程序。请使用当前用户默认目录；安装到 Program Files 时请选择为所有用户安装并允许管理员权限。也请检查只读属性和安全软件限制。"
     ${EndIf}
     Call ${YUYIN_FUNCTION_PREFIX}YuyinStop
   fileChecked:
@@ -266,17 +266,17 @@ FunctionEnd
   ; Inspect ExecWait's Errors/$R0 before another operation can change them.
   ; Upstream ignores some launch failures; our hook must stop before extraction.
   ${If} ${Errors}
-    StrCpy $YuyinFailureMessage "无法启动旧版卸载程序，安装已停止，尚未覆盖程序文件。$\r$\n请先退出openmusic和此前的安装或卸载窗口，再重新运行安装包。"
+    StrCpy $YuyinFailureMessage "无法启动旧版卸载程序，安装已停止，尚未覆盖程序文件。$\r$\n请先退出open音乐和此前的安装或卸载窗口，再重新运行安装包。"
     Call YuyinStop
   ${EndIf}
   ${If} $R0 != 0
-    StrCpy $YuyinFailureMessage "旧版卸载未完成，安装已停止，尚未覆盖程序文件（退出码 $R0）。$\r$\n请先正常退出openmusic；旧目录需要管理员权限时，请为所有用户安装。"
+    StrCpy $YuyinFailureMessage "旧版卸载未完成，安装已停止，尚未覆盖程序文件（退出码 $R0）。$\r$\n请先正常退出open音乐；旧目录需要管理员权限时，请为所有用户安装。"
     Call YuyinStop
   ${EndIf}
   ${If} "${DIRECTORY}" != ""
     ; Some old uninstallers return zero after cancellation of the close dialog.
     ${If} ${FileExists} "${DIRECTORY}\${APP_EXECUTABLE_FILENAME}"
-      StrCpy $YuyinFailureMessage "旧版程序仍在安装目录中，卸载尚未完成。安装已停止，尚未覆盖程序文件。$\r$\n请先正常退出openmusic和此前的安装或卸载窗口，再重试。$\r$\n${DIRECTORY}"
+      StrCpy $YuyinFailureMessage "旧版程序仍在安装目录中，卸载尚未完成。安装已停止，尚未覆盖程序文件。$\r$\n请先正常退出open音乐和此前的安装或卸载窗口，再重试。$\r$\n${DIRECTORY}"
       Call YuyinStop
     ${EndIf}
     ; In-place uninstall may leave its own file behind; overwrite it only once

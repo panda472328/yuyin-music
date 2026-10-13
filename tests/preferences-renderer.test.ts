@@ -32,11 +32,41 @@ function bridge(t: TestContext, disk = memoryStorage(), legacy = memoryStorage()
 
 test('UI settings restore muted volume and future sleep deadline while expired timers stay cleared', () => {
   const storage = memoryStorage()
-  const settings = { version: 1 as const, volumeBeforeMute: .37, sleepUntil: 2000 }
+  const settings = { version: 1 as const, volumeBeforeMute: .37, sleepUntil: 2000, theme: 'system' as const }
   assert.deepEqual(saveUISettings(settings, storage), { ok: true })
   assert.deepEqual(loadUISettings(0, storage, 1000).settings, settings)
   assert.deepEqual(loadUISettings(0, storage, 3000).settings, { ...settings, sleepUntil: null })
-  assert.deepEqual(loadUISettings(.23, memoryStorage()).settings, { version: 1, volumeBeforeMute: .23, sleepUntil: null })
+  assert.deepEqual(loadUISettings(.23, memoryStorage()).settings, { version: 1, volumeBeforeMute: .23, sleepUntil: null, theme: 'classic' })
+})
+
+test('older UI preferences retain volume and sleep timer while adopting the classic theme', () => {
+  const storage = memoryStorage()
+  storage.setItem(UI_SETTINGS_KEY, JSON.stringify({ version: 1, volumeBeforeMute: .35, sleepUntil: 5000 }))
+  const loaded = loadUISettings(0, storage, 1000)
+  assert.equal(loaded.error, null)
+  assert.deepEqual(loaded.settings, { version: 1, volumeBeforeMute: .35, sleepUntil: 5000, theme: 'classic' })
+  assert.deepEqual(JSON.parse(storage.getItem(UI_SETTINGS_KEY)!), loaded.settings)
+})
+
+test('an unsupported theme falls back to classic without resetting other UI preferences', () => {
+  const storage = memoryStorage()
+  storage.setItem(UI_SETTINGS_KEY, JSON.stringify({ version: 1, volumeBeforeMute: .42, sleepUntil: 5000, theme: 'unknown' }))
+  const loaded = loadUISettings(0, storage, 1000)
+  assert.equal(loaded.error, null)
+  assert.deepEqual(loaded.settings, { version: 1, volumeBeforeMute: .42, sleepUntil: 5000, theme: 'classic' })
+  assert.deepEqual(JSON.parse(storage.getItem(UI_SETTINGS_KEY)!), loaded.settings)
+})
+
+test('failed theme save leaves the previous preference available', () => {
+  const storage = memoryStorage()
+  const previous = { version: 1 as const, volumeBeforeMute: .5, sleepUntil: null, theme: 'bilibili' as const }
+  assert.deepEqual(saveUISettings(previous, storage), { ok: true })
+  const failed = saveUISettings({ ...previous, theme: 'pixel' }, {
+    getItem: storage.getItem,
+    setItem() { throw new Error('磁盘只读') },
+  })
+  assert.equal(failed.ok, false)
+  assert.deepEqual(loadUISettings(0, storage).settings, previous)
 })
 
 test('startup migrates all old lyric preferences and expired calibrations before any song is opened', t => {
@@ -84,7 +114,7 @@ test('fixed preferences are authoritative over stale browser values and failed d
   legacy.setItem('yuyin-lyrics-source-v1', 'lrclib')
   assert.equal(preferenceStorage().getItem('yuyin-lyrics-source-v1'), 'bilibili')
   window.musicAPI!.writeLocalPreference = () => { throw new Error('磁盘只读') }
-  const result = saveUISettings({ version: 1, volumeBeforeMute: .2, sleepUntil: null })
+  const result = saveUISettings({ version: 1, volumeBeforeMute: .2, sleepUntil: null, theme: 'classic' })
   assert.equal(result.ok, false)
   if (!result.ok) assert.match(result.error, /磁盘只读/)
   assert.equal(legacy.getItem(UI_SETTINGS_KEY), null)

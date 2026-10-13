@@ -281,7 +281,7 @@ export class DesktopLyricsController extends EventEmitter {
       overlaySession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
       overlaySession.setPermissionCheckHandler(() => false)
       const window = new BrowserWindow({
-        ...bounds, title: 'openmusic · 桌面歌词', show: false, frame: false, thickFrame: false, transparent: true,
+        ...bounds, title: 'open音乐 · 桌面歌词', show: false, frame: false, thickFrame: false, transparent: true,
         backgroundColor: '#00000000', alwaysOnTop: true, skipTaskbar: true,
         resizable: false, maximizable: false, minimizable: false, fullscreenable: false,
         webPreferences: {

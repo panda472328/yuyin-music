@@ -73,7 +73,7 @@ public sealed class LocalDataStore : ILocalDataStore
             throw new InvalidOperationException("音乐库格式不正确。");
     }
     private static void ValidateKey(string key) { if (!Keys.Contains(key)) throw new InvalidOperationException("不支持的设置项目。"); }
-    private static void ValidateValue(string key, string value)
+    private static void ValidateValue(string key, string value, bool allowUnknownTheme = false)
     {
         ValidateKey(key);
         if (key == "yuyin-lyrics-source-v1") {
@@ -85,7 +85,10 @@ public sealed class LocalDataStore : ILocalDataStore
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("version", out var v) || !v.TryGetInt32(out var version) || version != 1)
             throw new InvalidOperationException("设置数据格式不正确。");
         if (key == "yuyin-ui-settings-v1") {
-            if (!Fields(root, "version", "volumeBeforeMute", "sleepUntil") || !root.GetProperty("volumeBeforeMute").TryGetDouble(out var volume) || !double.IsFinite(volume) || volume < 0 || volume > 1 ||
+            var hasTheme = root.TryGetProperty("theme", out var theme);
+            if (!(hasTheme ? Fields(root, "version", "volumeBeforeMute", "sleepUntil", "theme") : Fields(root, "version", "volumeBeforeMute", "sleepUntil")) ||
+                (hasTheme && (theme.ValueKind != JsonValueKind.String || (!allowUnknownTheme && theme.GetString() is not ("classic" or "bilibili" or "system" or "pixel")))) ||
+                !root.GetProperty("volumeBeforeMute").TryGetDouble(out var volume) || !double.IsFinite(volume) || volume < 0 || volume > 1 ||
                 (root.GetProperty("sleepUntil").ValueKind != JsonValueKind.Null && (!root.GetProperty("sleepUntil").TryGetInt64(out var sleep) || sleep < 0 || sleep > 9007199254740991)))
                 throw new InvalidOperationException("播放界面设置格式不正确。");
         } else if (key == "yuyin-window-state-v1") {
@@ -105,7 +108,7 @@ public sealed class LocalDataStore : ILocalDataStore
             throw new InvalidOperationException("设置文件格式不正确。");
         foreach (var p in root.GetProperty("values").EnumerateObject()) {
             if (p.Value.ValueKind != JsonValueKind.String) throw new InvalidOperationException("设置项目不是有效文本。");
-            ValidateValue(p.Name, p.Value.GetString()!);
+            ValidateValue(p.Name, p.Value.GetString()!, allowUnknownTheme: true);
         }
     }
     private string? Read(string name, Action<string> validate)

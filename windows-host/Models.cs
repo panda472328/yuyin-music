@@ -14,7 +14,9 @@ public sealed record Song(
     [property: JsonPropertyName("playCount")] double PlayCount,
     [property: JsonPropertyName("source")] string Source,
     [property: JsonPropertyName("url")] string Url,
-    [property: JsonPropertyName("searchQuery")] string? SearchQuery = null);
+    [property: JsonPropertyName("searchQuery")] string? SearchQuery = null,
+    [property: JsonPropertyName("uploaderMid")] long? UploaderMid = null,
+    [property: JsonPropertyName("searchTags")] string? SearchTags = null);
 
 public sealed record PlaybackStatus(
     [property: JsonPropertyName("state")] string State,

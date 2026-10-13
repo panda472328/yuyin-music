@@ -1,14 +1,14 @@
-# openmusic PC 样式标准
+# open音乐 PC 样式标准
 
-本标准帮助维护者与 agent 快速定位、修改和验证外观。基线是 PC 0.5.0 的米白／鼠尾草绿视觉，当前 PC 展示品牌改为小写 `openmusic`；Android 位于独立仓库，本次未修改其品牌。下文区分现有实现与新增主题时需要补齐的工作，不假定已存在运行时主题切换。
+本标准帮助维护者与 agent 快速定位、修改和验证外观。`classic` 沿用 PC 0.5.0 的米白／鼠尾草绿视觉；当前 0.5.3 源码新增 `bilibili`、`system`、`pixel` 三种可选主窗主题，展示品牌为 `open音乐`（open 为小写，尚未发布）。Android 位于独立仓库，本次未修改其品牌或主题。
 
-展示改名覆盖主界面、登录页、窗口标题、账号页面授权说明、导出对话框、安装向导与快捷方式名称。兼容技术标识不随之替换：宿主命名空间／程序集、`YUYIN_*` 环境变量、`%LOCALAPPDATA%/YuyinMusic`、本地存储键、安装／卸载登记、更新文件名及既有 GitHub／Android 仓库地址保留原值。已发布安装包、标签、版本号、校验值与历史验收记录保留原名；不能把展示改名写成数据迁移或已发布新版本。改名后的安装器管理新的 openmusic 快捷方式，升级时不自动删除旧「余音」快捷方式，以免影响独立安装的旧 Electron 版；旧快捷方式可能需要用户确认后手动清理。
+展示改名覆盖主界面、登录页、窗口标题、账号页面授权说明、导出对话框、安装向导与快捷方式名称。兼容技术标识不随之替换：宿主命名空间／程序集、`YUYIN_*` 环境变量、`%LOCALAPPDATA%/YuyinMusic`、本地存储键、安装／卸载登记、更新文件名及既有 GitHub／Android 仓库地址保留原值。已发布安装包、标签、版本号、校验值与历史验收记录保留原名；不能把展示改名写成数据迁移或已发布新版本。桌面快捷方式显示名称恰为 `open音乐`；新版安装器读取已知旧链接的实际目标，仅迁移指向本次安装的链接，保留其他安装及自建链接。实现位于 `build/webview2-installer-shortcuts.nsh`，规则与受控原生验证见 [INSTALLATION.md](INSTALLATION.md)。
 
 ## 1. 修改入口与范围
 
 | 要改什么 | 组件／逻辑入口 | 样式／配置入口 |
 | --- | --- | --- |
-| 整体配色 | `src/main.tsx` | `src/theme.css` → `src/styles.css` |
+| 整体配色与切换 | `src/main.tsx`、`src/App.tsx`、`src/ui-settings.ts` | `src/theme.css` → `src/styles.css`、`src/lyrics.css`、`src/comments.css` → 最终覆盖 `src/themes.css` |
 | 侧栏、品牌、搜索、页面、播放器、队列、歌单弹窗 | `src/App.tsx`、`src/SearchBox.tsx` | `src/styles.css` |
 | 登录页与账号菜单 | `src/BilibiliAccount.tsx` | `src/styles.css` 的 `login-*`、`account-*` |
 | 软件更新、登录页检查入口与新版本提示 | `src/Updates.tsx`，`src/App.tsx` 的顶层 provider | `src/styles.css` 的 `update-*`、`.login-update`；发布流程见 `docs/UPDATES.md` |
@@ -23,13 +23,13 @@
 | 桌面歌词原生窗口与指针检测 | `windows-host/DesktopLyricsHost.cs` | 固定尺寸、透明、置顶与工作区定位 |
 | 桌面歌词设置校验／保存 | `windows-host/DesktopSettingsStore.cs` | 允许字段、枚举、范围与有效备份 |
 
-主 renderer 导入 `styles.css`，其首行导入 `theme.css`。桌面歌词有自己的 HTML、入口、CSS 和受限 WebView2 bridge，不能给它导入主窗的全局 `body` 背景。`src/ui-settings.ts` 目前保存静音前音量及睡眠定时，**不是**通用主题设置文件。
+主 renderer 的 `styles.css` 首行导入 `theme.css`；`main.tsx` 再导入 `themes.css`，其规则位于组件样式之后，是可选主题的最终覆盖。桌面歌词有自己的 HTML、入口、CSS 和受限 WebView2 bridge，不能给它导入主窗的全局 `body` 背景。`src/ui-settings.ts` 的既有 `yuyin-ui-settings-v1` 记录保存静音前音量、睡眠定时及主窗主题；扩展字段时保持旧记录兼容，不能重命名存储键来实现展示改名。
 
 先用 `rg` 查类名，再查看文件末尾和媒体查询。`styles.css` 后段存在字号、封面比例和 hero 尺寸的覆盖，例如导航最后为 14px、卡片封面最后为 `aspect-ratio: 1.35`。修改前段相同选择器可能不生效；编辑最终适用规则，避免在文件末尾反复追加同义覆盖。
 
 ## 2. 视觉颜色与 token
 
-现有主界面基础变量位于 `src/theme.css`：
+主界面的基础变量位于 `src/theme.css`。下表是 `classic` 的基线值；`--green` 是历史变量名，在新主题中仍表示强调色，不要求实际为绿色：
 
 | 变量 | 默认值 | 含义／使用 |
 | --- | --- | --- |
@@ -55,9 +55,33 @@
 | 温和错误／警告 | `#f5eee7`、`#8b715b`：`.error-state` |
 | 主窗底部半透明表面 | `#fcfdf9f5`：`.player-bar` |
 
-新增公共颜色使用语义名，如 `--surface`、`--text-muted`、`--accent-hover`、`--danger`，并在这里登记默认值与消费者。不要用 `--color1` 或把同一用途的新十六进制值散落在多个组件。替换现有硬编码时逐项确认角色，装饰渐变／唱片纹理可保留组件内定义。
+可选主题额外使用以下语义 token，在 `src/theme.css` 中按主题定义，由 `src/themes.css` 的共享覆盖消费。新增角色时先选语义名并同步此表，不把同一用途的新颜色散落在组件中。
 
-独立桌面歌词通过 `DesktopLyrics.tsx` 内联设置 `--lyrics-font`、`--lyrics-color`、`--lyrics-opacity`，CSS 消费这些值。默认月白 `#ffffff`，薄荷 `#b9f2d0`，暖金 `#ffe39c`。深色工具栏与文字描边服务于桌面可读性，不随主窗米白底色一起替换。透明度只作用于歌词副本与曲名，工具栏仍需可见和可点。
+| token | 角色／典型消费者 |
+| --- | --- |
+| `--ui-subtle`、`--ui-field` | 搜索框、设置小区域；可输入的字段表面 |
+| `--ui-hover`、`--ui-selected`、`--ui-zebra` | 悬停、选中、歌曲列表隔行背景 |
+| `--ui-faint`、`--ui-border-strong` | 占位文字；输入聚焦和强调边框 |
+| `--ui-button`、`--ui-button-hover`、`--ui-on-button` | 主按钮和播放按钮及其文字 |
+| `--ui-hero`、`--ui-hero-ink`、`--ui-cover` | 首页主视觉和无封面图片背景 |
+| `--ui-player`、`--ui-track` | 播放栏和进度／音量轨道 |
+| `--ui-shadow`、`--ui-overlay` | 浮层阴影和弹窗遮罩 |
+| `--ui-error-bg`、`--ui-warning-bg`、`--ui-danger` | 错误、警告、危险动作 |
+| `--ui-focus`、`--ui-decoration` | 键盘焦点与小面积装饰 |
+
+| 主题 | 背景／侧栏／表面 | 文字／强调色 | 形态 |
+| --- | --- | --- | --- |
+| `classic` | 米白、浅鼠尾草、暖白 | 深绿灰、鼠尾草绿 | 既有圆角、唱片与封面设计 |
+| `bilibili` | 冷白、白色、淡粉 | 深灰、粉色强调 | 粉白主体，保留音乐播放器的可扫描布局 |
+| `system` 浅色 | 浅灰、灰白、白色 | 深灰、Windows 蓝 | 跟随系统浅色状态 |
+| `system` 深色 | 深炭灰、深灰、深表面 | 近白、浅蓝 | 跟随系统深色状态，字段、遮罩和焦点也同步变暗 |
+| `pixel` | 浅绿白、格线背景 | 深绿、珊瑚焦点 | 方角、整像素边框与短阴影；不改变命中面积 |
+
+`themes.css` 覆盖导航、搜索、登录、首页、歌单与歌曲行、设置、弹窗、播放栏、主窗歌词、评论、更新和空／错／加载状态。调整组件时检查该文件中相同选择器的最终规则；新增页面要接入共享 token 和所有四个主题，而不只给默认界面加色。渐变或唱片纹理可留在组件内，但浅底／深底文字、边框、焦点、禁用和选中状态必须逐一检查。
+
+`classic` 的上述八个基础 token 必须保持既有值；选择经典时删除 `html` 上的 `data-theme` 和 `data-system-scheme`，让原有选择器自然生效。旧版偏好没有主题字段时默认经典，非法主题值也回退经典而不清除音量或睡眠定时。主题选择先经既有偏好存储保存，成功后才更改根节点；保存失败保持当前主题并显示错误。`system` 的明暗切换和弹窗开合有短暂 CSS 过渡，验收截图应等待过渡结束，再判断对比度与遮挡。
+
+独立桌面歌词通过 `DesktopLyrics.tsx` 内联设置 `--lyrics-font`、`--lyrics-color`、`--lyrics-opacity`，CSS 消费这些值。默认月白 `#ffffff`，薄荷 `#b9f2d0`，暖金 `#ffe39c`。工具栏无底板，白色文字配深色细描边与阴影，SVG 用细阴影增强桌面可读性，不随主窗米白底色一起替换。工具栏内部 token `--desktop-toolbar-ink: #fff` 用于文字与悬停图标，`--desktop-toolbar-icon: #ffffffdb` 用于普通图标；不要为了提亮控件增加色块底色。透明度只作用于歌词副本与曲名，可见的工具栏控件仍需清晰和可点。
 
 ## 3. 字体、图标与尺寸
 
@@ -65,7 +89,7 @@
 
 | 内容 | 当前桌面参考尺寸 |
 | --- | --- |
-| 品牌 `openmusic` | `.brand-name` 为 20px／字间距 0.3px，登录标题栏 22px；`.brand-subtitle` 为 8px／字间距 1px |
+| 品牌 `open音乐` | `.brand-name` 为 20px／字间距 0.3px，登录标题栏 22px；`.brand-subtitle` 为 8px／字间距 1px |
 | 侧栏导航 | 最终覆盖为 14px；歌单标题 13px／补充 11px |
 | 搜索框 | 最终覆盖为 12px |
 | 歌曲标题 | 表格 13px；次要字段 11px |
@@ -76,16 +100,16 @@
 
 现有间距多为 4／8／12／16px 附近，主要圆角 7–12px，主卡片 17–19px。延续当前节奏，新组件避免任意增加不同圆角和字重。字体扩大时同步检查行高、网格最小宽度、长标题省略和最小窗口，而不是只改 `font-size`。
 
-`openmusic` 比原来的两个中文字宽。品牌字标需完整显示、保持小写，不使用中文标题的 4px 字间距，不靠裁切或省略号掩盖溢出。主侧栏在 222px 与紧凑 195px 两种宽度下都要保留图标大小、字标与间距；`.brand` 水平外边距为 8px，`.brand-icon` 为 `flex-shrink: 0`。优先调整品牌自身字号、字间距和外边距，不扩大侧栏挤压搜索与主内容。主窗与登录页均使用 `.brand-name`／`.brand-subtitle`，登录标题栏共用品牌语义并单独确认宽度，仍保留 `.brand` 的 `drag` 和关闭按钮的 `no-drag`。字标旁的英文补充不能继续使用旧品牌 `YUYIN MUSIC`；文案与选择器变更需两处同步。独立桌面歌词同步修改窗口标题、工具栏、空闲占位、曲名提示及 aria 文案中的品牌，保留独立 CSS，不套用主品牌布局。
+`open音乐` 字标需完整显示，open 保持小写，不使用中文标题的 4px 字间距，不靠裁切或省略号掩盖溢出。主侧栏在 222px 与紧凑 195px 两种宽度下都要保留图标大小、字标与间距；`.brand` 水平外边距为 8px，`.brand-icon` 为 `flex-shrink: 0`。优先调整品牌自身字号、字间距和外边距，不扩大侧栏挤压搜索与主内容。主窗与登录页均使用 `.brand-name`／`.brand-subtitle`，登录标题栏共用品牌语义并单独确认宽度，仍保留 `.brand` 的 `drag` 和关闭按钮的 `no-drag`。字标旁的英文补充不能继续使用旧品牌 `YUYIN MUSIC`；文案与选择器变更需两处同步。独立桌面歌词同步修改窗口标题、空闲占位、曲名提示及 aria 文案中的品牌；工具栏不重复展示品牌文字。保留独立 CSS，不套用主品牌布局。
 
-正文和图标应可辨认，新增主题特别检查浅底／深底文字、禁用态、选中态和焦点。不要因全局 `outline: none` 删除现有 `:focus-visible` 轮廓；hover 不得成为唯一可访问操作。
+正文和图标应可辨认，新增主题特别检查浅底／深底文字、禁用态、选中态和焦点。所有键盘可操作控件保留清晰的 `:focus-visible` 指示；可以使用轮廓、图标提亮或色点光晕等与控件形态相符的方式，不强制使用 `outline`。hover 不得成为唯一可访问操作。
 
 ## 4. 组件与状态选择器
 
 | 区域 | 主要选择器 | 必须保留的状态／行为 |
 | --- | --- | --- |
 | 应用骨架 | `.app-shell`、`.sidebar`、`.main-shell`、`.main-content` | 单独内容滚动、侧栏可滚动、底部播放器留白 |
-| 品牌与导航 | `.brand`、`.brand-icon`、`.brand-name`、`.brand-subtitle`、`.nav-item`、`.sidebar-playlist` | 完整小写字标、图标不收缩、`.selected`、hover、数量、省略长歌单名 |
+| 品牌与导航 | `.brand`、`.brand-icon`、`.brand-name`、`.brand-subtitle`、`.nav-item`、`.sidebar-playlist` | 完整 open音乐 字标、图标不收缩、`.selected`、hover、数量、省略长歌单名 |
 | 顶栏 | `.topbar`、`.search-box`、`.search-mode`、`.topbar-right` | 输入焦点、快捷键、模式按钮的 `aria-pressed`、窗口拖动与控件命中 |
 | 歌名联想 | `src/SearchBox.tsx`；`.search-suggestions`、`.search-suggestions-list`、`.search-suggestions-status` | combobox／listbox、选中候选、最多 10 条／250ms、IME、慢请求拒绝、联想失败仍可搜索、选联想不自动播放 |
 | 账号 | `.account-menu-anchor`、`.account-trigger`、`.account-avatar`、`.account-menu-position` | `.expanded`、头像失败降级、hover／键盘菜单、从头像移入菜单的关闭缓冲 |
@@ -93,6 +117,7 @@
 | 首页 | `.hero`、`.hero-content`、`.hero-art`、`.record`、`.song-cards`、`.playlist-cards` | 唱片与封面不覆盖按钮，卡片收藏与播放 |
 | 通用按钮 | `.icon-button`、`.button-primary`、`.button-secondary`、`.button-danger` | `.active`、disabled、hover、focus-visible |
 | 歌曲列表 | `.song-table-header`、`.song-row`、`.song-identity`、`.song-actions` | `.current`、hover、长标题、省略、点击／双击播放 |
+| 歌名搜索结果 | `.song-table`、`.song-table-header`、`.song-row` | 单个连续列表、无分类标题或空分类占位、内部单曲／合集／其他优先级、连续编号、完整播放队列、整体空状态 |
 | 歌曲操作菜单 | `.song-menu-anchor`、`.dropdown-menu` | 右侧定位、危险动作、内容滚动时不被误挡 |
 | 收藏／历史／歌单 | `.collection-header`、`.collection-art`、`.collection-toolbar` | 不同封面色、长标题、空状态 |
 | 播放器 | `.player-bar`、`.now-playing`、`.playback-center`、`.main-play`、`.timeline`、`.player-tools` | playing／paused／loading／error，拖进度和音量 |
@@ -103,7 +128,7 @@
 | 提示 | `.toast`、`.playback-error`、`.error-state`、`.empty-state`、`.loading-state` | 错误不被静默隐藏，按钮可执行下一步 |
 | 主歌词 | `.lyrics-page`、`.lyrics-layout`、`.lyrics-scroll`、`.lyric-line`、`.lyrics-reading-footer` | `.is-bilibili`、`.is-current`、`.is-calibrating`、来源／偏移／刷新 |
 | 评论区 | `.comments-page`、`.comments-video`、`.comments-sort`、`.comment-composer`、`.comment-item`、`.comment-thread` | 热门／最新、游客／验证中、loading／empty／closed／error、点赞忙、发送／审核／结果未确认 |
-| 桌面歌词 | `.desktop-lyrics`、`.desktop-lyrics-toolbar`、`.desktop-lyrics-copy`、`.desktop-lyrics-caption` | `.toolbar-visible`／`.toolbar-hidden`、`.is-locked`、`.has-error`、`.is-placeholder` |
+| 桌面歌词 | `.desktop-lyrics`、`.desktop-lyrics-toolbar`、`.desktop-settings-trigger`、`.desktop-settings-panel`、`.desktop-lyrics-copy`、`.desktop-lyrics-caption` | `.toolbar-visible`／`.toolbar-hidden`、`.settings-open`、设置按钮的 `aria-expanded`／`aria-controls`、面板 `hidden`、`.is-locked`、`.has-error`、`.is-placeholder` |
 
 主歌词的 `[data-active="true"]` 用于居中滚动，`aria-current` 表示当前句。Bilibili 来源的 `.lyric-line` 禁用颜色过渡，滚动为即时 `auto`；LRCLIB 保留平滑滚动。不要为了动画重新引入字幕延迟。校准中暂停自动跟随；普通点句跳转、校准点句只调整偏移，样式改动不得更改这一语义。
 
@@ -119,11 +144,13 @@ MV 使用可关闭的独立来源窗口，网页全屏铺满窗口内容，不�
 
 搜索框内 `.search-mode` 使用两个原生按钮组成 `role="group"`，以 `aria-pressed` 表示选择，保留 Tab／Enter 和焦点样式。歌名模式默认开启，输入标签为“搜索歌名或歌手”；视频模式为“搜索 Bilibili 视频”。歌名模式允许部分歌名、歌名加歌手或版本词；视频模式直接使用官方视频排序。选择写入 `library.json` 的 `settings.searchMode`，旧库缺失或非法值使用 `song`。切换模式时保留输入框原文，重新搜索使用当前模式和原文，并用请求序号和当前模式拒绝旧模式的晚到响应。联想下拉保持 combobox／listbox、选中项与键盘语义，不能因为样式修改丢失 IME 保护或 `no-drag` 命中规则；联想、搜索和选联想都不自动播放。
 
-歌名模式的输入联想和正式搜索独立执行。联想请求 `https://s.search.bilibili.com/main/suggest?term=...`，250ms 防抖，最多 10 条，支持键盘上下／Enter／Escape 和 IME；联想失败仍可直接搜索。沿官方页码召回并保留全部结果，每页及已加载合并结果按标题相关性稳定排序，完整等值、前缀、包含、分词关系优先，同分沿官方页／项顺序；只使用标题，不把 UP 主或简介当作歌手元数据。视频模式不重排。排序只覆盖已召回结果，不宣称全站最相关。规则在 `src/shared/search-mode.ts`，每页调用入口在 `src/api.ts`、`electron/bilibili.ts` 和 `windows-host/BilibiliService.cs`；已加载合并去重后的排序在 `src/App.tsx`，IPC 校验在 `windows-host/MainWindow.xaml.cs`。纯外观改动不得改变这些行为。
+歌名模式的输入联想和正式搜索独立执行。联想请求 `https://s.search.bilibili.com/main/suggest?term=...`，250ms 防抖，最多 10 条，支持键盘上下／Enter／Escape 和 IME；联想失败仍可直接搜索。正式宿主沿官方页码召回并保留全部结果，首屏额外查询 `src/shared/preferred-music-uploaders.json` 前四个合法 MID（两并发、总预算六秒），只合入相关非 DJ 单曲；可选来源超时或验证时保留全站结果。内部按“单曲 → 合集 → 其他”分类，但界面只显示一个连续列表，不显示分类标题或空分类占位。仅部分查询词匹配的结果进入其他，不把 UP 主或简介当作歌手元数据；质量标签不表示实测无损。明确 DJ 查询保留版本意图。视频模式不重排、不做 UP 主召回，保持 Bilibili 官方顺序；后续官方分页不重复查询优先 UP。规则和维护名单的方法见 [SONG-SEARCH.md](SONG-SEARCH.md)。
+
+连续列表中的单曲优先于合集，合集优先于其他；某一类没有结果时直接忽略。优先 UP 主的相关非 DJ 单曲跨 UP 主按有效播放量降序，缺失、非有限或负数播放量按 0 处理；播放量相同再按标题相关度、质量自述标签和原召回顺序排列。普通 UP 主的单曲、合集和其他结果保留原有相关度、质量标签和稳定顺序规则。编号连续，点击任一结果使用完整已加载队列；加载更多后对全部已加载结果合并去重并重新排序，后页单曲可移动到前页合集上方。分类函数在 `src/shared/search-mode.ts` 与 `windows-host/BilibiliSearchRules.cs`；调用入口在 `src/api.ts`、`electron/bilibili.ts` 和 `windows-host/BilibiliService.cs`，跨页处理在 `src/App.tsx`，IPC 校验在 `windows-host/MainWindow.xaml.cs`。网页预览只处理全站结果，实际 UP 主召回需原生宿主。联想、正式搜索、模式切换和加载更多均不自动播放，纯外观改动不得改变这些行为。
 
 响应中的合法空数组显示无结果；缺失结果字段、非数组结构、异常状态码或验证页面必须保留错误／验证提示，不能当作正常空结果。联想错误不清空输入或禁用正式搜索。调整空状态、错误状态和联想下拉外观时保持这一区别。
 
-公开设计参考为 [Spotify Search API](https://developer.spotify.com/documentation/web-api/reference/search) 的曲目／歌手字段查询和 [Apple Get Catalog Search Suggestions](https://developer.apple.com/documentation/applemusicapi/get-catalog-search-suggesions) 的输入建议。它们说明可公开使用的搜索方式，没有公开完整排名算法；openmusic 实际数据与联想来自 Bilibili，本地仅做上述标题相关性规则。
+公开设计参考为 [Spotify Search API](https://developer.spotify.com/documentation/web-api/reference/search) 的曲目／歌手字段查询和 [Apple Get Catalog Search Suggestions](https://developer.apple.com/documentation/applemusicapi/get-catalog-search-suggesions) 的输入建议。它们说明可公开使用的搜索方式，没有公开完整排名算法；open音乐 的数据与联想来自 Bilibili，本地采用上述分类和标题规则。
 
 进度条展示 `windows-host/PlayerHost.cs` 发布的可信时间轴。新选曲和同曲重播从 0 开始；播放中无用户接管的异常前跳／回退恢复最近可信位置，纠正未完成时也保持该位置，不能在界面自行归零。暂停、缓冲和倍速参与进度判断，普通暂停不解除保护；应用手动跳转或源页可信 `pointerdown`／`keydown` 才接管时间轴。样式变更不得修改这一保护、快照顺序或歌词校准行为。
 
@@ -146,13 +173,17 @@ MV 使用可关闭的独立来源窗口，网页全屏铺满窗口内容，不�
 
 外观改动保留“发现新版→用户选择下载→校验通过→用户选择退出并安装”的状态和动作顺序。自动检查不得下载或安装，安装失败和网络错误必须可见且可重试；状态只来自受限更新 IPC，不在 renderer 接受任意下载 URL、路径或脚本。
 
-桌面歌词原生尺寸固定 **900×200**，透明、无边框、置顶、不显示任务栏；控制器将其保持在显示器工作区内。CSS 上方预留工具栏，`.has-error` 增加留白，当前句与下一句完整显示。改变原生尺寸需同步 `windows-host/DesktopLyricsHost.cs`、`windows-host/DesktopSettingsStore.cs` 中旧位置读入尺寸、长句自适应和屏幕边界验收，不能只改 CSS。
+桌面歌词原生尺寸固定 **900×200**，透明、无边框、置顶、不显示任务栏；控制器将其保持在显示器工作区内。CSS 上方始终预留 50px，工具栏固定在 `top: 4px`、高 40px；`.settings-open` 只标记某类设置已打开，不改变工具栏高度、根节点留白或歌词容器的 top／height。`.has-error` 仅标记错误状态，错误提示绝对定位，不改变根节点留白或歌词几何。仅打开或切换设置不应使 `useFittedText` 因布局改变重新缩放；实际更改字体或字号时仍需正常适配长句。改变原生尺寸需同步 `windows-host/DesktopLyricsHost.cs`、`windows-host/DesktopSettingsStore.cs` 中旧位置读入尺寸、长句自适应和屏幕边界验收，不能只改 CSS。
 
 ## 6. 原生拖动、锁定和工具栏
 
 0.5.0 主窗由 WPF 承载 WebView2。CSS 的 `-webkit-app-region` 仍是桥接命中语义：主窗 `.brand`、`.topbar`、`.login-titlebar` 设置 `-webkit-app-region: drag`，`windows-host/bridge.js` 把可信 pointerdown 转为白名单 `window.drag`，再由宿主调用 `DragMove()`。它不是 Electron 自带的原生拖动。交互后代必须 `no-drag`。搜索框、游客登录入口、账号锚点及**全部后代**明确 `no-drag`，避免 SVG 路径点击变成拖窗。新增 select、range、链接、图标或按钮到拖动区时，对控件及后代设置 `no-drag`。
 
-桌面歌词的歌词、标题、空白和工具栏左侧 `.desktop-lyrics-handle` 可拖动；工具栏与全部后代默认 `no-drag`，仅手柄重新启用 `drag`。`.is-locked` 覆盖整个窗口及手柄为 `no-drag !important`。锁定禁止移动，同时保留字体、透明度、解锁、关闭等控件操作。
+桌面歌词的歌词、标题、空白和工具栏左侧 `.desktop-lyrics-handle` 可拖动；工具栏与全部后代默认 `no-drag`，仅手柄重新启用 `drag`。`.is-locked` 覆盖整个窗口及手柄为 `no-drag !important`。默认工具栏为一行：拖动手柄、字体、字号、颜色、透明度、锁定／解锁和关闭；不显示品牌或“桌面歌词”文字。点击任一 `.desktop-settings-trigger` 后，`.desktop-settings-launchers` 在原行隐藏，对应的 `.desktop-settings-panel` 在同一行、同一个 40px 工具栏中原位显示返回按钮和选项；不新增第二行，不占用歌词区域。每个触发按钮同步 `aria-expanded`／`aria-controls`，非当前面板使用 `hidden` 退出 Tab 顺序；返回或 Escape 收起时，键盘操作应将焦点还给原触发按钮。
+
+菜单结构参考天极下载 2024 年公开教程《网易云音乐电脑版桌面歌词怎么打开_如何设置歌词样式》的[桌面歌词截图](https://dynamic-image.yesky.com/600x-/uploadImages/2024/141/43/N397877BK04U.jpg)所展示的简短浮动图标思路，不据此声称已核对最新版网易云客户端。外层触发图标与内层返回、字体、步进和颜色控件共用同一视觉语言：始终无色块底板，背景和边框透明、无整体阴影。文字使用 13px 白色、`.35px` 深色细描边及阴影，SVG 使用 `drop-shadow`；主要图标为 18px，按钮保留 **32×32px** 命中尺寸，拖动手柄为 24×32px。全部按钮无圆角底色或选中框，悬停只提亮图标；四个字体按钮用各自字体渲染“字”，颜色圆点以 `.56`／`1` 不透明度区分普通与选中／悬停，字号与透明度使用减号／数值／加号。键盘焦点必须有可见指示，可由图标、文字或色点光晕呈现，不要求额外圆角底色或 `outline`；禁用态仍需可辨认。
+
+锁定时指针进入只显示居中的解锁图标：其他直系控件使用 `visibility: hidden` 并禁用命中，不留不可见的键盘焦点，保留工具栏与手柄布局以沿用原生命中矩形。`.is-locked .desktop-lyrics-lock` 使用绝对定位 `left: 50%` 和 `translateX(-50%)` 对齐窗口中心，保持自身不透明度 1 和透明背景；仅 `.is-locked.toolbar-visible` 时允许按钮命中。不要设置整个工具栏 `opacity` 或给锁按钮强制 `visibility: visible`，避免稀释解锁按钮或破坏离开后隐藏。锁定及工具栏隐藏时清除设置面板状态，解锁恢复默认图标行，需要调整样式时再次点击对应分类；此效果只作用于独立桌面歌词，不改变歌词本身的透明度设置。
 
 独立桌面歌词由 `DesktopLyrics.tsx` 的 ResizeObserver 报告 CSS 像素下的 viewport、工具栏、手柄矩形和可见性，`desktopLyricsAPI.setDragRegions()` 发送白名单 `desktopLyrics.window.dragRegions`。`windows-host/DesktopLyricsHost.cs` 校验矩形，并在 WPF `PreviewMouseLeftButtonDown` 中先排除锁定状态与可见工具栏控件，再对歌词、标题、空白或手柄调用 `DragMove()`；不能无条件拦截整个控件的点击。宿主每 100ms 发出指针存在状态，位置变化约 250ms 后原子保存，关闭时保存最终位置并解绑窗口／WebView2 事件。修改工具栏布局时必须重新同步矩形并做真实原生命中验收。
 
@@ -160,9 +191,9 @@ WebView2 的透明桌面歌词使用 `WebView2CompositionControl`，通过 WPF v
 
 WebView2 的桌面歌词设置由 `windows-host/DesktopSettingsStore.cs` 独立保存，16KiB 文件上限，校验字体／颜色／字号／透明度与坐标。每次原子写入前保留上一份有效 `.bak`；主文件损坏时读取有效备份，两份均损坏或不可读时保留原文件并显示保存错误。设置仍可在当前会话使用，不能让退出时的默认状态覆盖损坏文件。
 
-工具栏可见性由 `DesktopLyrics.tsx` 的定时器与 WebView2 bridge 的 `desktopLyrics.window.pointer` 事件共同控制，原生控制器检测窗口内指针，处理透明拖动区可能不派发 DOM 事件的情况。当前逻辑是指针在窗口内保持可见、离开后约 2200ms 隐藏；初次／焦点操作会显示。不要仅删除 CSS opacity、仅用 hover、给窗口开启整体鼠标穿透，或改成固定显示。
+工具栏可见性由 `DesktopLyrics.tsx` 的定时器与 WebView2 bridge 的 `desktopLyrics.window.pointer` 事件共同控制，原生控制器检测窗口内指针，处理透明拖动区可能不派发 DOM 事件的情况。指针在窗口内保持可见，鼠标操作后离开约 2200ms 隐藏；初次／焦点操作会显示。工具栏键盘事件启用键盘操作状态，隐藏定时器在当前文档仍有焦点且 `activeElement` 位于工具栏时保持显示；失焦／focusout 后重新计时，pointerdown 清除键盘状态，避免点过按钮留下的焦点使鼠标离开后永不隐藏。任一分类面板显示时，任意工具栏控件上的 Escape 返回默认图标行，并把焦点还给对应的分类触发按钮。不要仅删除 CSS opacity、仅用 hover、给窗口开启整体鼠标穿透，或改成固定显示。
 
-`.toolbar-hidden` 同时禁用 visibility 和 pointer-events，`.toolbar-visible` 恢复命中；错误提示 `pointer-events: none`，不能遮住设置栏。任何相关调整都要用真实 WPF/WebView2 窗口检查指针进入、下拉菜单操作、离开隐藏、再次进入、锁定解锁与拖动。静态截图只能证明外观。
+`.toolbar-hidden` 同时禁用 visibility 和 pointer-events，`.toolbar-visible` 恢复命中；focusout／window blur 仅排隐藏计时，不重新显示菜单，避免隐藏控件产生 blur 后菜单闪回。错误提示 `pointer-events: none`，不能遮住设置栏。任何相关调整都要用真实 WPF/WebView2 窗口检查指针进入、四类设置的点击与返回、离开隐藏、再次进入、锁定解锁与拖动。静态截图只能证明外观。
 
 ## 7. 常见修改方法
 
@@ -173,27 +204,14 @@ WebView2 的桌面歌词设置由 `windows-host/DesktopSettingsStore.cs` 独立�
 3. 检查相邻状态与媒体查询，保存 aria、disabled 和焦点行为；不触碰播放器或存储来实现视觉效果。
 4. 构建并在隔离实例查看受影响页面及长内容，记录截图和验证范围。
 
-### 新增主窗主题
+### 维护或新增主窗主题
 
-当前仅一个静态主题，暂无通用主题枚举／切换器。若任务只要求整体换色，直接改现有 token 与组件色。若明确要用户切换主题，按以下路径实现：
-
-1. 在 `theme.css` 保留默认 `:root`，新增明确的 `[data-theme="主题ID"]` 变量集合，例如：
-
-   ```css
-   :root[data-theme="forest"] {
-     --canvas: #f2f5ed;
-     --sidebar: #e8eee0;
-     --ink: #384a31;
-     --green: #355c2c;
-     --line: #d8e2cf;
-   }
-   ```
-
-2. 为所有表面、次要文字、悬停、错误及歌词状态提取对应语义变量，分别修改 `styles.css`、`lyrics.css`；上述示例只说明选择器约定，不能独自实现完整主题。
-3. 在主 renderer 根元素设置 `document.documentElement.dataset.theme`。新增保存字段需明确默认值、允许主题 ID、旧数据兼容，并沿用 `local-preferences.ts`／`ui-settings.ts` 与 `windows-host/LocalDataStore.cs` 的校验保存链路；不要创建另一套随安装目录变化的存储或接受任意 CSS 文本。
+1. 已有主题 ID 为 `classic`、`bilibili`、`system`、`pixel`。非经典主题由 `html[data-theme]` 选择；经典主题移除该属性。`system` 另用 `html[data-system-scheme="light"|"dark"]`，系统明暗变化时动态更新；其他主题不能被系统明暗自动改色。`classic` 是旧数据与非法值的降级值。
+2. `theme.css` 保留 `classic` 的基础 `:root` token，为新主题提供完整语义 token；`themes.css` 位于最终覆盖位置，负责组件颜色与像素主题的形态。先查此文件与各组件 CSS 的最终优先级，再改规则。新增主题时同时扩展主题允许值、设置控件和旧记录兼容检查。
+3. 主题偏好写入既有 `ui-settings.ts` 的 `yuyin-ui-settings-v1`；启动时先应用偏好，再显示主窗。保存成功后才应用所选主题；保存失败需给出可见提示并保持原主题。不要创建随安装位置变化的第二套存储，也不能接受任意 CSS 文本。
 4. 主窗口的 WPF 背景与窗口设置在 `windows-host/MainWindow.xaml` 受控配置；需要运行时同步时只增加经过宿主校验的有限消息，不关闭隔离或给前台暴露任意原生 API。
-5. 独立桌面歌词保持透明，决定是否仅更新工具栏，不套用主窗 body。主窗主题切换不改变音源、队列、歌词来源或时间校准。
-6. 每个主题的状态与两种窗口尺寸均验收；新增持久化／IPC 需要相应业务回归。
+5. 独立桌面歌词继续透明，保持独立 `desktop-lyrics.css`、工具栏命中与用户自选歌词颜色。主窗主题切换不改变音源、队列、歌词来源或时间校准。
+6. 四个主题在两种窗口尺寸下验收登录、搜索、设置、主歌词、评论、队列、弹窗与状态；`system` 再验收亮暗切换，保存与旧记录兼容用业务回归覆盖。
 
 ### 新增桌面歌词字体或颜色
 
@@ -205,7 +223,7 @@ WebView2 的桌面歌词设置由 `windows-host/DesktopSettingsStore.cs` 独立�
 
 ## 8. PC 与 Android 的统一规则
 
-两端沿用米白／鼠尾草绿基色、唱片与封面元素、圆角卡片、按钮主次关系、歌词当前句的绿色高亮，以及加载／错误／空状态用语。PC 的当前字标是小写 `openmusic`（原名「余音 / YUYIN MUSIC」），手机版此次未改名，后续同步需在手机仓库单独实施。平台布局各自适配：PC 是侧栏与固定播放器，手机是触屏与安全区布局，不能直接复制 PC 宽度或拖窗规则。
+两端原有基线沿用米白／鼠尾草绿、唱片与封面元素、按钮主次关系及加载／错误／空状态用语；PC 新增的三套主题只作用于本仓库，不代表 Android 已同步。PC 的当前源码字标是 `open音乐`（曾用名 openmusic／余音／YUYIN MUSIC），手机版此次未改名，后续同步需在手机仓库单独实施。平台布局各自适配：PC 是侧栏与固定播放器，手机是触屏与安全区布局，不能直接复制 PC 宽度或拖窗规则。
 
 - PC 仓库 `yuyin-music` 与手机仓库 `yuyin-music-mobile` 分别保存源代码、Git 历史和版本；当前不存在共享 npm 样式包、自动同步或跨端主题设置同步。
 - 手机相关入口是其 `src/theme.css`、`src/styles.css`、`src/App.tsx`，以手机仓库实际文件为准。先比对其 token／类名，再实现语义对应，不假定所有 CSS 选择器相同。
@@ -235,5 +253,6 @@ npm run build
 | 桌面歌词 | 4 字体×3 颜色的相关样本，24／56px、30%／100% 透明度、浅／深背景、长句 fit |
 | 原生命中 | 工具栏可见／隐藏／再次进入、控件不拖动、手柄可拖动、锁定、工作区边界 |
 | 保存 | 新增设置的双窗同步、正常退出后重启保留、旧配置兼容 |
+| 主题 | 四套主题的登录与主窗状态，`system` 浅／深双态及运行中切换；独立桌面歌词仍透明 |
 
 提交说明写清改动文件、视觉效果、实际执行的验证与限制。记录浏览器预览、WPF/WebView2 受控响应、真实网络播放、原生输入这几类不同证据，不能把其中一种写成另一种已经通过。截图与日志不得包含个人昵称、头像、cookies、真实音乐库或签名信息。构建包及 `.qa/` 不提交源码；发布产物按版本进入 GitHub Release。

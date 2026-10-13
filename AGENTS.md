@@ -1,6 +1,6 @@
 # Agent 开发约定
 
-本仓库只维护 openmusic（原名余音）**PC／Windows 版**；Android 位于独立 `yuyin-music-mobile` 仓库。先确认工作目录和 Git 状态，不在一个任务中无意修改另一端。展示品牌统一使用小写 `openmusic`；兼容用的 `Yuyin`／`yuyin` 技术标识、存储目录、环境变量、更新／发布文件名和既有仓库地址不能随展示改名直接替换，历史验收与发布记录保留原名。
+本仓库只维护 open音乐（曾用名 openmusic／余音）**PC／Windows 版**；Android 位于独立 `yuyin-music-mobile` 仓库。先确认工作目录和 Git 状态，不在一个任务中无意修改另一端。展示品牌统一使用 `open音乐`（open 为小写）；兼容用的 `Yuyin`／`yuyin` 技术标识、存储目录、环境变量、更新／发布文件名和既有仓库地址不能随展示改名直接替换，历史验收与发布记录保留原名。
 
 1. 修改外观前先读 `docs/STYLE-GUIDE.md`；贡献和验证入口见 `CONTRIBUTING.md`、`docs/QA.md`。先找到组件、选择器和 CSS 的最终覆盖，再修改。
 2. 优先用现有语义颜色、类名和控件。保持 `aria-label`、键盘焦点、选中／禁用状态、弹窗焦点管理，以及窗口 `drag`／`no-drag` 规则。桌面歌词是独立 renderer，不能套用主窗背景或全局样式。

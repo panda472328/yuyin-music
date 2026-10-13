@@ -47,7 +47,7 @@ function parseJSON(json: string, maximum = MAX_JSON_CHARACTERS): unknown {
   try { return JSON.parse(json) } catch { throw new Error('设置 JSON 已损坏。') }
 }
 
-function validateValue(key: string, value: string): void {
+function validateValue(key: string, value: string, allowUnknownTheme = false): void {
   validateKey(key)
   if (key === 'yuyin-lyrics-source-v1') {
     if (value !== 'lrclib' && value !== 'bilibili') throw new Error('歌词来源设置不正确。')
@@ -59,7 +59,10 @@ function validateValue(key: string, value: string): void {
   const record = object(parseJSON(value, maximum))
   if (!record || record.version !== 1) throw new Error('设置数据格式不正确。')
   if (key === 'yuyin-ui-settings-v1') {
-    if (!exactFields(record, ['version', 'volumeBeforeMute', 'sleepUntil']) ||
+    if (!(exactFields(record, ['version', 'volumeBeforeMute', 'sleepUntil']) ||
+      exactFields(record, ['version', 'volumeBeforeMute', 'sleepUntil', 'theme'])) ||
+      (Object.hasOwn(record, 'theme') && (typeof record.theme !== 'string' ||
+        (!allowUnknownTheme && !['classic', 'bilibili', 'system', 'pixel'].includes(record.theme)))) ||
       typeof record.volumeBeforeMute !== 'number' || !Number.isFinite(record.volumeBeforeMute) ||
       record.volumeBeforeMute < 0 || record.volumeBeforeMute > 1 ||
       (record.sleepUntil !== null && (!Number.isSafeInteger(record.sleepUntil) || (record.sleepUntil as number) < 0))) {
@@ -90,7 +93,7 @@ function parsePreferences(json: string): PreferencesData {
   const safeValues: Record<string, string> = Object.create(null)
   for (const [key, value] of Object.entries(values)) {
     if (typeof value !== 'string') throw new Error('设置项目不是有效的文本。')
-    validateValue(key, value)
+    validateValue(key, value, true)
     safeValues[key] = value
   }
   return { version: 1, values: safeValues }

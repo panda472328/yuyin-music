@@ -1,4 +1,4 @@
-!include "LogicLib.nsh"
+﻿!include "LogicLib.nsh"
 
 ; Only opens the exact bundled file for write access, without writing,
 ; truncating, enumerating processes or killing them. Missing files are valid.
@@ -13,7 +13,7 @@ Function ${PREFIX}CheckFile
     ${ElseIf} $1 != 2
     ${AndIf} $1 != 3
         ${IfNot} ${Silent}
-            MessageBox MB_OK|MB_ICONSTOP "程序文件正在使用或无法写入（Windows 错误 $1）。请先退出openmusic，再重新安装或卸载。$\r$\n$ProbePath"
+            MessageBox MB_OK|MB_ICONSTOP "程序文件正在使用或无法写入（Windows 错误 $1）。请先退出open音乐，再重新安装或卸载。$\r$\n$ProbePath"
         ${EndIf}
         SetErrorLevel 2
         Quit

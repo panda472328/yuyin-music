@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Yuyin.WindowsHost;
 
 public static class BilibiliTests
@@ -13,12 +14,12 @@ public static class BilibiliTests
     private static void Assert(bool condition, string name)
     {
         if (!condition) throw new Exception("FAIL: " + name);
-        _checks++;
+        Interlocked.Increment(ref _checks);
     }
     private static async Task RejectAsync(Func<Task> operation, string code, string name)
     {
         try { await operation(); }
-        catch (BilibiliServiceException error) when (error.Code == code) { _checks++; return; }
+        catch (BilibiliServiceException error) when (error.Code == code) { Interlocked.Increment(ref _checks); return; }
         throw new Exception("FAIL: " + name);
     }
     private static HttpResponseMessage Json(object value) => new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };
@@ -51,6 +52,7 @@ public static class BilibiliTests
 
         await AccountChecksAsync();
         await SearchChecksAsync();
+        await PreferredSearchChecksAsync();
         await SuggestionChecksAsync();
         await CaptionChecksAsync();
         await TransportChecksAsync();
@@ -127,7 +129,7 @@ public static class BilibiliTests
                 new { bvid = "BV2222222222", title = "光年之外 翻唱", author = "虚构 UP 主", pic = "", duration = "3:00", play = 10 },
                 new { bvid = "BV3333333333", title = "现场 光年之外", author = "虚构 UP 主", pic = "", duration = "3:00", play = 100 },
             }, numResults = 5, pagesize = 20, numPages = 2 } }));
-        }));
+        }), preferredUploaderMids: Array.Empty<long>());
         service.ContinueAsGuest();
         var ranked = await service.SearchAsync("光年之外", 1, "song");
         Assert(ranked.Songs.Select(song => song.Bvid).SequenceEqual(new[] { "BV1234567890", "BV0987654321", "BV2222222222", "BV3333333333", "BV1111111111" }) && ranked.HasMore && ranked.Total == 5, "native song mode preserves all official results with stable title relevance and source pagination");
@@ -142,7 +144,7 @@ public static class BilibiliTests
             new { bvid = "BV2222222222", title = "晴天", author = "虚构 UP 主", pic = "", duration = "3:00", play = 1 },
             new { bvid = "BV3333333333", title = "晴天 周杰伦 Live", author = "虚构 UP 主", pic = "", duration = "3:00", play = 1 },
             new { bvid = "BV4444444444", title = "周杰伦 现场 晴天", author = "虚构 UP 主", pic = "", duration = "3:00", play = 1 },
-        }, numResults = 4, pagesize = 20, numPages = 1 } }))));
+        }, numResults = 4, pagesize = 20, numPages = 1 } }))), preferredUploaderMids: Array.Empty<long>());
         multiword.ContinueAsGuest();
         Assert((await multiword.SearchAsync("周杰伦 晴天", 1, "song")).Songs.Select(song => song.Bvid).SequenceEqual(new[] { "BV3333333333", "BV4444444444", "BV2222222222", "BV1111111111" }), "native ranking supports reverse-order query tokens without uploader inference");
         Assert((await multiword.SearchAsync("晴天 Live", 1, "song")).Songs.Select(song => song.Bvid).SequenceEqual(new[] { "BV3333333333", "BV2222222222", "BV4444444444", "BV1111111111" }), "native ranking supports version tokens and preserves unmatched titles");
@@ -158,6 +160,159 @@ public static class BilibiliTests
         empty.ContinueAsGuest();
         var emptyPage = await empty.SearchAsync("晴天", 1, "song");
         Assert(emptyPage.Songs.Count == 0 && emptyPage.Total == 40 && emptyPage.HasMore, "valid empty search array preserves official pagination");
+    }
+
+    private static async Task PreferredSearchChecksAsync()
+    {
+        Assert(BilibiliSearchRules.PreferredUploaderMids.Count is > 0 and <= 4
+            && BilibiliSearchRules.PreferredUploaderMids.Contains(3493093607213343L)
+            && BilibiliSearchRules.PreferredUploaderMids.All(mid => mid > 0 && mid <= 9_007_199_254_740_991),
+            "native embedded preferred registry preserves the same large safe MID identities as the renderer");
+        var mids = new long[] { 101, 202, 303, 404 };
+        var calls = new List<Uri>();
+        IReadOnlyList<BrowserCookie> cookies = Array.Empty<BrowserCookie>();
+        var active = 0;
+        var maximum = 0;
+        var identityChange = false;
+        var mainFailure = false;
+        using var service = new BilibiliService(_ => Task.FromResult(cookies), new Handler(async (request, token) => {
+            var uri = request.RequestUri!;
+            lock (calls) calls.Add(uri);
+            if (uri.AbsolutePath == "/x/web-interface/nav") return Json(AnonymousNav());
+            if (uri.AbsolutePath == "/x/web-interface/search/type") return mainFailure ? Json(new { code = -412 }) : Json(new { code = 0, data = new {
+                result = new[] { new { bvid = "BV1111111111", title = "晴天", author = "虚构 UP", pic = "", duration = "3:00", play = 999999, mid = 9 },
+                    new { bvid = "BV2222222222", title = "晴天 合集", author = "虚构 UP", pic = "", duration = "30:00", play = 9, mid = 101 },
+                    new { bvid = "BV3333333333", title = "晴天 DJ版", author = "虚构 UP", pic = "", duration = "3:00", play = 9, mid = 101 } },
+                numResults = 60, numPages = 3, pagesize = 20 } });
+            Assert(uri.AbsolutePath == "/x/space/wbi/arc/search", "preferred search uses the fixed official uploader endpoint");
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var mid = long.Parse(query["mid"]!);
+            Assert(mids.Contains(mid) && query["keyword"] == "晴天" && query["ps"] == "10" && query["pn"] == "1"
+                && Regex.IsMatch(query["w_rid"]!, "^[a-f0-9]{32}$"), "preferred request keeps original keyword and has a bounded signed fixed MID");
+            var current = Interlocked.Increment(ref active);
+            maximum = Math.Max(maximum, current);
+            await Task.Delay(15, token);
+            Interlocked.Decrement(ref active);
+            if (mid == 101) return Json(new { code = -412 });
+            if (mid == 404 && identityChange) cookies = new[] { AuthCookie("controlled-new-session") };
+            return Json(new { code = 0, data = new { list = new { vlist = mid == 202 ? new object[] {
+                new { bvid = "BV4444444444", title = "晴天 高音质", author = "虚构优先 UP", pic = "", length = "4:00", play = 1, mid = 202, tag = "无损" },
+                new { bvid = "BV1111111111", title = "晴天", author = "虚构优先 UP", pic = "", length = "4:00", play = 1, mid = 202 },
+                new { bvid = "BV5555555555", title = "晴天", author = "伪造身份", pic = "", length = "4:00", play = 1, mid = 999 },
+                new { bvid = "BV6666666666", title = "晴天 Remix", author = "虚构优先 UP", pic = "", length = "4:00", play = 1, mid = 202 },
+                new { bvid = "BV7777777777", title = "晴天 合集", author = "虚构优先 UP", pic = "", length = "4:00", play = 1, mid = 202 },
+                new { bvid = "BV8888888888", title = "无关内容", author = "虚构优先 UP", pic = "", length = "4:00", play = 1, mid = 202, tag = "晴天" },
+            } : Array.Empty<object>() } } });
+        }), preferredUploaderMids: mids);
+        service.ContinueAsGuest();
+        var result = await service.SearchAsync("晴天", 1, "song");
+        Assert(result.Songs.Select(song => song.Bvid).SequenceEqual(new[] { "BV4444444444", "BV1111111111", "BV2222222222", "BV3333333333" }),
+            "native preferred retrieval retains source results but admits only related non-DJ single candidates with correct uploader identity");
+        Assert(result.Total == 60 && result.PageSize == 20 && result.HasMore && result.Songs[1].Duration == 180,
+            "native preferred retrieval does not alter source pagination or duplicate source metadata");
+        Assert(result.Songs[0].UploaderMid == 202 && result.Songs[0].SearchTags == "无损" && result.Songs[0].Duration == 240,
+            "native preferred candidates carry validated uploader identity and official tags/duration");
+        Assert(maximum == 2, "native preferred uploader concurrency is bounded to two");
+        var before = calls.Count(uri => uri.AbsolutePath == "/x/space/wbi/arc/search");
+        await service.SearchAsync("晴天", 1, "video");
+        await service.SearchAsync("晴天", 2, "song");
+        await service.SearchAsync("晴天 DJ", 1, "song");
+        Assert(calls.Count(uri => uri.AbsolutePath == "/x/space/wbi/arc/search") == before,
+            "native video mode, later pages and requested DJ versions make no optional uploader requests");
+        identityChange = true;
+        await RejectAsync(() => service.SearchAsync("晴天", 1, "song"), "BILIBILI_SESSION_CHANGED", "native old-session merged preferred results are rejected");
+        mainFailure = true;
+        await RejectAsync(() => service.SearchAsync("晴天", 1, "song"), "BILIBILI_VERIFICATION_REQUIRED", "successful optional uploader results never conceal the primary official search failure");
+
+        var timedOut = false;
+        using var timeoutService = new BilibiliService(_ => Task.FromResult<IReadOnlyList<BrowserCookie>>(Array.Empty<BrowserCookie>()), new Handler(async (request, token) => {
+            if (request.RequestUri!.AbsolutePath == "/x/web-interface/nav") return Json(AnonymousNav());
+            if (request.RequestUri.AbsolutePath == "/x/space/wbi/arc/search") {
+                try { await Task.Delay(Timeout.Infinite, token); }
+                catch (OperationCanceledException) { timedOut = true; throw; }
+            }
+            return Json(new { code = 0, data = new { result = new[] { new { bvid = "BV1111111111", title = "晴天", author = "虚构 UP", duration = "3:00" } }, numResults = 20, numPages = 1, pagesize = 20 } });
+        }), preferredUploaderMids: mids);
+        timeoutService.ContinueAsGuest();
+        var started = DateTimeOffset.UtcNow;
+        var fallback = await timeoutService.SearchAsync("晴天", 1, "song");
+        var elapsed = DateTimeOffset.UtcNow - started;
+        Assert(timedOut && elapsed >= TimeSpan.FromSeconds(5) && elapsed < TimeSpan.FromSeconds(7) && fallback.Songs.Single().Bvid == "BV1111111111",
+            "native shared six-second budget bounds both waves of optional uploader timeouts and preserves the complete official result");
+
+        var single = TestSong with { Title = "晴天", Duration = 180 };
+        Assert(BilibiliSearchRules.Category(single, "晴天") == "single" && BilibiliSearchRules.Category(single with { Title = "晴天 合集" }, "晴天") == "collection"
+            && BilibiliSearchRules.Category(single with { Title = "晴天 DJ版" }, "晴天") == "other", "native grouping agrees with shared single/collection/other contract");
+        var highPlayAcrossUploader = single with { Id = "high", Bvid = "high", Title = "晴天 翻唱", PlayCount = 900, UploaderMid = 101 };
+        var qualityLowerPlayAcrossUploader = single with { Id = "quality", Bvid = "quality", Title = "晴天 高音质", PlayCount = 500, UploaderMid = 303, SearchTags = "无损" };
+        var exactLowerPlayAcrossUploader = single with { Id = "exact", Bvid = "exact", PlayCount = 100, UploaderMid = 202 };
+        Assert(BilibiliSearchRules.Rank(new[] { exactLowerPlayAcrossUploader, qualityLowerPlayAcrossUploader, highPlayAcrossUploader }, "晴天", mids)
+                .Select(song => song.Bvid).SequenceEqual(new[] { "high", "quality", "exact" }),
+            "native preferred singles from different uploaders sort by play count before title relevance and quality labels");
+        var tiedExact = single with { Id = "tie-exact", Bvid = "tie-exact", PlayCount = 500, UploaderMid = 202 };
+        var tiedQuality = single with { Id = "tie-quality", Bvid = "tie-quality", Title = "晴天 高音质", PlayCount = 500, UploaderMid = 303, SearchTags = "无损" };
+        var tiedPlain = single with { Id = "tie-plain", Bvid = "tie-plain", Title = "晴天 翻唱", PlayCount = 500, UploaderMid = 404 };
+        var tiedPlainSecond = tiedPlain with { Id = "tie-plain-second", Bvid = "tie-plain-second", UploaderMid = 101 };
+        Assert(BilibiliSearchRules.Rank(new[] { tiedPlain, tiedQuality, tiedPlainSecond, tiedExact }, "晴天", mids)
+                .Select(song => song.Bvid).SequenceEqual(new[] { "tie-exact", "tie-quality", "tie-plain", "tie-plain-second" }),
+            "native equal-play preferred singles retain title relevance, quality and stable source tie-breaks");
+        var invalidExact = single with { Id = "invalid-exact", Bvid = "invalid-exact", PlayCount = double.NaN, UploaderMid = 101 };
+        var invalidNegative = single with { Id = "invalid-negative", Bvid = "invalid-negative", Title = "晴天 翻唱", PlayCount = -1, UploaderMid = 202 };
+        var invalidPositiveInfinity = invalidNegative with { Id = "invalid-positive-infinity", Bvid = "invalid-positive-infinity", PlayCount = double.PositiveInfinity, UploaderMid = 303 };
+        var invalidNegativeInfinity = invalidNegative with { Id = "invalid-negative-infinity", Bvid = "invalid-negative-infinity", PlayCount = double.NegativeInfinity, UploaderMid = 404 };
+        var finitePlay = single with { Id = "finite", Bvid = "finite", Title = "晴天 现场", PlayCount = 1, UploaderMid = 303 };
+        Assert(BilibiliSearchRules.Rank(new[] { invalidNegative, invalidExact, invalidPositiveInfinity, invalidNegativeInfinity, finitePlay }, "晴天", mids)
+                .Select(song => song.Bvid).SequenceEqual(new[] { "finite", "invalid-exact", "invalid-negative", "invalid-positive-infinity", "invalid-negative-infinity" }),
+            "native invalid preferred play counts are treated as zero and cannot outrank a finite positive count");
+        var regularExact = single with { Id = "regular-exact", Bvid = "regular-exact", PlayCount = 1, UploaderMid = 999 };
+        var regularHighPlay = single with { Id = "regular-high", Bvid = "regular-high", Title = "晴天 翻唱", PlayCount = 1_000_000, UploaderMid = 998 };
+        Assert(BilibiliSearchRules.Rank(new[] { regularHighPlay, regularExact }, "晴天", mids)
+                .Select(song => song.Bvid).SequenceEqual(new[] { "regular-exact", "regular-high" }),
+            "native non-preferred singles keep title relevance ahead of play count");
+        var mixedLive = single with { Title = "【现场直拍】林忆莲《为你我受冷风吹》《至少还有你》《词不达意》演唱会新现场", Duration = 225, UploaderMid = 101 };
+        Assert(BilibiliSearchRules.Category(mixedLive, "至少还有你") == "collection"
+            && BilibiliSearchRules.Category(single with { Title = "《晴天》与《晴 天！》现场演唱" }, "晴天") == "single"
+            && BilibiliSearchRules.Category(single with { Title = "晴天 高光现场集" }, "晴天") == "collection"
+            && BilibiliSearchRules.Rank(new[] { mixedLive, single with { Title = "至少还有你" } }, "至少还有你", new long[] { 101 })[0].Title == "至少还有你",
+            "native distinct quoted songs and live-set labels are collections; repeats of one title remain singles and uploader boost never promotes a set");
+        Assert(BilibiliSearchRules.Category(single with { Title = "晴天 DJ版" }, "晴天 DJ") == "single" && !BilibiliSearchRules.RequestsDanceVersion("Django"),
+            "native dance version handling respects explicit intent and avoids substring DJ matches");
+        Assert(BilibiliSearchRules.Category(single with { Title = "无关内容", SearchTags = "晴天 无损" }, "晴天") == "other"
+            && BilibiliSearchRules.Category(single with { Title = "晴天 单曲循环", Duration = 3600 }, "晴天") == "other",
+            "native tags do not infer title matches and long loops are grouped as other");
+        var unrelatedArtist = single with { Title = "林俊杰 修炼爱情", UploaderMid = 101 };
+        var requestedSong = single with { Title = "林俊杰 江南", UploaderMid = null };
+        Assert(BilibiliSearchRules.Category(unrelatedArtist, "林俊杰 江南") == "other"
+            && BilibiliSearchRules.Rank(new[] { unrelatedArtist, requestedSong }, "林俊杰 江南", new long[] { 101 })[0] == requestedSong,
+            "native artist-only token matches never promote a different preferred-uploader recording above the requested song");
+
+        using var caseService = new BilibiliService(_ => Task.FromResult<IReadOnlyList<BrowserCookie>>(Array.Empty<BrowserCookie>()), new Handler((request, _) => {
+            var endpoint = request.RequestUri!.AbsolutePath;
+            return Task.FromResult(endpoint == "/x/web-interface/nav" ? Json(AnonymousNav()) : endpoint == "/x/space/wbi/arc/search"
+                ? Json(new { code = 0, data = new { list = new { vlist = new[] { new { bvid = "BV000000000a", title = "晴天", mid = 101, length = "3:00" } } } } })
+                : Json(new { code = 0, data = new { result = new[] { new { bvid = "BV000000000A", title = "晴天", mid = 101, duration = "3:00" } } } }));
+        }), preferredUploaderMids: new long[] { 101 });
+        caseService.ContinueAsGuest();
+        Assert((await caseService.SearchAsync("晴天", 1, "song")).Songs.Select(song => song.Bvid).SequenceEqual(new[] { "BV000000000A", "BV000000000a" }),
+            "native search keeps distinct case-sensitive Bilibili IDs in the merged results");
+
+        var cookieReads = 0;
+        var stuckCookieRead = new TaskCompletionSource<IReadOnlyList<BrowserCookie>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cookieTimeout = new BilibiliService(_ => {
+            // The initial access snapshot completes; the optional WBI refresh
+            // then stalls while the primary request waits for the cookie gate.
+            return Interlocked.Increment(ref cookieReads) == 4 ? stuckCookieRead.Task
+                : Task.FromResult<IReadOnlyList<BrowserCookie>>(Array.Empty<BrowserCookie>());
+        }, new Handler((request, _) => Task.FromResult(request.RequestUri!.AbsolutePath == "/x/web-interface/nav" ? Json(AnonymousNav())
+            : Json(new { code = 0, data = new { result = new[] { new { bvid = "BV1111111111", title = "晴天", duration = "3:00" } } } }))),
+            preferredUploaderMids: new long[] { 101 });
+        cookieTimeout.ContinueAsGuest();
+        started = DateTimeOffset.UtcNow;
+        var cookieFallback = await cookieTimeout.SearchAsync("晴天", 1, "song");
+        elapsed = DateTimeOffset.UtcNow - started;
+        Assert(cookieReads > 4 && elapsed >= TimeSpan.FromSeconds(5) && elapsed < TimeSpan.FromSeconds(7)
+            && cookieFallback.Songs.Single().Bvid == "BV1111111111",
+            "native optional deadline cancels a stuck cookie refresh and releases the gate so official results can complete");
     }
 
     private static async Task SuggestionChecksAsync()

@@ -25,6 +25,7 @@ public sealed partial class BilibiliService : IDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Func<DateTimeOffset> _now;
     private readonly TimeSpan _requestTimeout;
+    private readonly IReadOnlyList<long> _preferredUploaderMids;
     private IReadOnlyList<BrowserCookie> _cookies = Array.Empty<BrowserCookie>();
     private string? _identityFingerprint;
     private long _sessionRevision;
@@ -50,11 +51,13 @@ public sealed partial class BilibiliService : IDisposable
     /// Controlled transport/cookie injection keeps regressions independent of a
     /// real browser profile and lets tests verify the actual C# network path.
     public BilibiliService(Func<string, Task<IReadOnlyList<BrowserCookie>>> cookieReader, HttpMessageHandler handler,
-        Func<DateTimeOffset>? clock = null, TimeSpan? requestTimeout = null)
+        Func<DateTimeOffset>? clock = null, TimeSpan? requestTimeout = null, IReadOnlyList<long>? preferredUploaderMids = null)
     {
         _cookieReader = cookieReader;
         _now = clock ?? (() => DateTimeOffset.UtcNow);
         _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(20);
+        _preferredUploaderMids = (preferredUploaderMids ?? BilibiliSearchRules.PreferredUploaderMids)
+            .Where(mid => mid > 0 && mid <= 9_007_199_254_740_991).Distinct().Take(4).ToArray();
         _client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
         _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36");
         _client.DefaultRequestHeaders.Referrer = new Uri(Home);
@@ -136,25 +139,72 @@ public sealed partial class BilibiliService : IDisposable
         await EnsurePlaybackAccessAsync();
         var revision = CaptureRevision();
         var keyword = query.Trim();
-        if (mode == "song" && Normalize(keyword).Length == 0) throw new BilibiliServiceException("请输入歌曲或视频名称。", "INVALID_QUERY");
+        if (mode == "song" && BilibiliSearchRules.Normalize(keyword).Length == 0) throw new BilibiliServiceException("请输入歌曲或视频名称。", "INVALID_QUERY");
         var url = $"{ApiOrigin}/x/web-interface/search/type?{Query(new Dictionary<string, string> {
             ["search_type"] = "video", ["keyword"] = keyword, ["order"] = "totalrank",
             ["page"] = page.ToString(CultureInfo.InvariantCulture), ["page_size"] = "20",
         })}";
-        var payload = await GetJsonAsync(url, true);
-        EnsureApiSuccess(payload, "Bilibili 搜索失败");
-        var data = Property(payload, "data");
-        var result = Property(data, "result");
-        if (data.ValueKind != JsonValueKind.Object || result.ValueKind != JsonValueKind.Array)
-            throw new BilibiliServiceException("Bilibili 搜索结果格式已变化，请稍后重试。", "BILIBILI_INVALID_RESPONSE");
-        var source = result.EnumerateArray().Select(VideoToSong).Where(song => song is not null).Cast<Song>().ToList();
-        var songs = mode == "song" ? source.Select((song, index) => new { Song = song, Index = index, Score = SongTitleRelevance(song.Title, keyword) })
-            .OrderBy(item => item.Score).ThenBy(item => item.Index).Select(item => item.Song).ToList() : source;
-        var total = Math.Max(0, (int)Math.Round(Number(Property(data, "numResults")) ?? source.Count));
-        var pageSize = Math.Max(1, (int)Math.Round(Number(Property(data, "pagesize")) ?? 20));
-        var pages = Math.Max(1, (int)Math.Round(Number(Property(data, "numPages")) ?? Math.Ceiling(total / (double)pageSize)));
-        await AssertSessionUnchangedAsync(revision);
-        return new SearchResult(keyword, mode, songs, page, pageSize, total, page < pages);
+        using var preferredDeadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        preferredDeadline.CancelAfter(TimeSpan.FromSeconds(6));
+        var preferredTask = mode == "song" && page == 1 && !BilibiliSearchRules.RequestsDanceVersion(keyword)
+            ? SearchPreferredUploadersAsync(keyword, preferredDeadline.Token) : Task.FromResult<IReadOnlyList<Song>>(Array.Empty<Song>());
+        try
+        {
+            var payload = await GetJsonAsync(url, true);
+            EnsureApiSuccess(payload, "Bilibili 搜索失败");
+            var data = Property(payload, "data");
+            var result = Property(data, "result");
+            if (data.ValueKind != JsonValueKind.Object || result.ValueKind != JsonValueKind.Array)
+                throw new BilibiliServiceException("Bilibili 搜索结果格式已变化，请稍后重试。", "BILIBILI_INVALID_RESPONSE");
+            var source = result.EnumerateArray().Select(VideoToSong).Where(song => song is not null).Cast<Song>().ToList();
+            IReadOnlyList<Song> preferredSongs;
+            try { preferredSongs = await preferredTask.WaitAsync(preferredDeadline.Token); }
+            catch (OperationCanceledException) { preferredSongs = Array.Empty<Song>(); }
+            // Official copies win duplicates. Bilibili video IDs are case-sensitive.
+            var all = source.Concat(preferredSongs).GroupBy(song => song.Bvid, StringComparer.Ordinal).Select(group => group.First()).ToList();
+            var songs = mode == "song" ? BilibiliSearchRules.Rank(all, keyword, _preferredUploaderMids) : source;
+            var total = Math.Max(0, (int)Math.Round(Number(Property(data, "numResults")) ?? source.Count));
+            var pageSize = Math.Max(1, (int)Math.Round(Number(Property(data, "pagesize")) ?? 20));
+            var pages = Math.Max(1, (int)Math.Round(Number(Property(data, "numPages")) ?? Math.Ceiling(total / (double)pageSize)));
+            await AssertSessionUnchangedAsync(revision);
+            return new SearchResult(keyword, mode, songs, page, pageSize, total, page < pages);
+        }
+        finally { preferredDeadline.Cancel(); }
+    }
+
+    private async Task<IReadOnlyList<Song>> SearchPreferredUploadersAsync(string keyword, CancellationToken cancellationToken)
+    {
+        if (_preferredUploaderMids.Count == 0) return Array.Empty<Song>();
+        try
+        {
+            var keys = await GetWbiKeysAsync(cancellationToken);
+            using var gate = new SemaphoreSlim(2, 2);
+            var jobs = _preferredUploaderMids.Select(async mid => {
+                var entered = false;
+                try
+                {
+                    await gate.WaitAsync(cancellationToken);
+                    entered = true;
+                    var query = BilibiliSubtitleRules.BuildWbiQuery(new Dictionary<string, string> {
+                        ["mid"] = mid.ToString(CultureInfo.InvariantCulture), ["keyword"] = keyword,
+                        ["pn"] = "1", ["ps"] = "10", ["order"] = "pubdate", ["tid"] = "0",
+                    }, keys.ImgUrl, keys.SubUrl, _now().ToUnixTimeSeconds());
+                    var payload = await GetJsonAsync($"{ApiOrigin}/x/space/wbi/arc/search?{query}", true, cancellationToken, TimeSpan.FromSeconds(4));
+                    EnsureApiSuccess(payload, "Bilibili UP 主搜索暂时不可用");
+                    var videos = Property(Property(Property(payload, "data"), "list"), "vlist");
+                    if (videos.ValueKind != JsonValueKind.Array) return Array.Empty<Song>();
+                    return videos.EnumerateArray().Take(10).Select(item => UploaderVideoToSong(item, mid))
+                        .Where(song => song is not null && BilibiliSearchRules.Category(song, keyword) == "single"
+                            && !BilibiliSearchRules.IsDanceVersion(song.Title)).Cast<Song>().ToArray();
+                }
+                catch (Exception error) when (error is BilibiliServiceException or OperationCanceledException or ObjectDisposedException)
+                { return Array.Empty<Song>(); }
+                finally { if (entered) gate.Release(); }
+            }).ToArray();
+            return (await Task.WhenAll(jobs)).SelectMany(songs => songs).ToArray();
+        }
+        catch (Exception error) when (error is BilibiliServiceException or OperationCanceledException or ObjectDisposedException)
+        { return Array.Empty<Song>(); }
     }
 
     public async Task<IReadOnlyList<string>> SearchSuggestionsAsync(string query)
@@ -400,18 +450,18 @@ public sealed partial class BilibiliService : IDisposable
         if (uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || !string.IsNullOrEmpty(uri.UserInfo) ||
             (includeCookies && uri.Host is not ("api.bilibili.com" or "s.search.bilibili.com")))
             throw new BilibiliServiceException("服务请求地址不合法。", "INVALID_ENDPOINT");
-        if (includeCookies) await RefreshCookiesAsync();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken);
         timeout.CancelAfter(maximumTimeout is { } maximum && maximum < _requestTimeout ? maximum : _requestTimeout);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-        if (includeCookies)
-        {
-            string header;
-            lock (_stateGate) header = CookieHeader(uri, _cookies, _now());
-            if (header.Length > 0) request.Headers.TryAddWithoutValidation("Cookie", header);
-        }
         try
         {
+            if (includeCookies)
+            {
+                await RefreshCookiesAsync(timeout.Token);
+                string header;
+                lock (_stateGate) header = CookieHeader(uri, _cookies, _now());
+                if (header.Length > 0) request.Headers.TryAddWithoutValidation("Cookie", header);
+            }
             using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
             if (!response.IsSuccessStatusCode)
             {
@@ -452,17 +502,18 @@ public sealed partial class BilibiliService : IDisposable
         }
     }
 
-    private async Task RefreshCookiesAsync()
+    private async Task RefreshCookiesAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        await _cookieGate.WaitAsync(_lifetime.Token);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken);
+        await _cookieGate.WaitAsync(timeout.Token);
         bool changed = false;
         try
         {
             var snapshot = new Dictionary<string, BrowserCookie>(StringComparer.Ordinal);
             foreach (var uri in new[] { Home, ApiOrigin, SuggestOrigin })
             {
-                var cookies = await _cookieReader(uri).WaitAsync(_lifetime.Token);
+                var cookies = await _cookieReader(uri).WaitAsync(timeout.Token);
                 foreach (var cookie in cookies)
                 {
                     if (!ValidBrowserCookie(cookie, _now())) continue;
@@ -560,7 +611,25 @@ public sealed partial class BilibiliService : IDisposable
     {
         var bvid = Text(Property(item, "bvid"));
         if (!Regex.IsMatch(bvid, "^BV[0-9A-Za-z]{10}$")) return null;
-        return new Song(bvid, bvid, StripText(Property(item, "title")), StripText(Property(item, "author")), SafeUrl(Text(Property(item, "pic"))), Duration(Property(item, "duration")), PlayCount(Property(item, "play")), "bilibili", $"https://www.bilibili.com/video/{bvid}/");
+        var mid = SearchMid(Property(item, "mid"));
+        var tags = StripText(Property(item, "tag"));
+        if (tags.Length > 2000) tags = tags[..2000];
+        return new Song(bvid, bvid, StripText(Property(item, "title")), StripText(Property(item, "author")), SafeUrl(Text(Property(item, "pic"))), Duration(Property(item, "duration")), PlayCount(Property(item, "play")), "bilibili", $"https://www.bilibili.com/video/{bvid}/", UploaderMid: mid, SearchTags: tags.Length > 0 ? tags : null);
+    }
+
+    private static long? SearchMid(JsonElement value)
+    {
+        var number = Number(value);
+        return number is { } mid && double.IsFinite(mid) && mid > 0 && mid <= 9_007_199_254_740_991 && mid == Math.Truncate(mid) ? (long)mid : null;
+    }
+
+    private static Song? UploaderVideoToSong(JsonElement item, long expectedMid)
+    {
+        var mid = Property(item, "mid");
+        if (mid.ValueKind != JsonValueKind.Undefined && SearchMid(mid) != expectedMid) return null;
+        var song = VideoToSong(item);
+        if (song is null) return null;
+        return song with { UploaderMid = expectedMid, Duration = Duration(Property(item, "length")) };
     }
 
     private static Song? FavoriteToSong(JsonElement item)
@@ -597,32 +666,6 @@ public sealed partial class BilibiliService : IDisposable
     {
         if (value.StartsWith("//", StringComparison.Ordinal)) value = "https:" + value;
         return Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && uri.IsDefaultPort && string.IsNullOrEmpty(uri.UserInfo) && (uri.Host.EndsWith(".hdslb.com", StringComparison.OrdinalIgnoreCase) || uri.Host.EndsWith(".bilibili.com", StringComparison.OrdinalIgnoreCase) || uri.Host.Equals("hdslb.com", StringComparison.OrdinalIgnoreCase) || uri.Host.Equals("bilibili.com", StringComparison.OrdinalIgnoreCase)) ? uri.ToString() : "";
-    }
-    private static double SongTitleRelevance(string title, string query)
-    {
-        var songName = Normalize(query);
-        var titleName = Normalize(title);
-        if (songName.Length == 0 || titleName.Length == 0) return 7;
-        if (titleName == songName) return 0;
-        if (titleName.StartsWith(songName, StringComparison.Ordinal)) return 1;
-        if (titleName.Contains(songName, StringComparison.Ordinal)) return 2;
-        var tokens = Regex.Split(query.Normalize(NormalizationForm.FormKC).ToLowerInvariant(), @"[\s\p{P}]+").Where(token => token.Length > 0).Distinct(StringComparer.Ordinal).ToArray();
-        var matched = tokens.Count(token => titleName.Contains(token, StringComparison.Ordinal));
-        if (tokens.Length > 1 && matched == tokens.Length) return 3;
-        if (songName.Contains(titleName, StringComparison.Ordinal)) return 4;
-        if (matched > 0) return 5 + (tokens.Length - matched) / (double)tokens.Length;
-        return 7;
-    }
-    private static string Normalize(string value)
-    {
-        var normalized = value.Normalize(NormalizationForm.FormKC).ToLowerInvariant();
-        var builder = new StringBuilder(normalized.Length);
-        foreach (var character in normalized.EnumerateRunes())
-        {
-            var category = Rune.GetUnicodeCategory(character);
-            if (!Rune.IsWhiteSpace(character) && category is not UnicodeCategory.ConnectorPunctuation and not UnicodeCategory.DashPunctuation and not UnicodeCategory.OpenPunctuation and not UnicodeCategory.ClosePunctuation and not UnicodeCategory.InitialQuotePunctuation and not UnicodeCategory.FinalQuotePunctuation and not UnicodeCategory.OtherPunctuation) builder.Append(character.ToString());
-        }
-        return builder.ToString();
     }
 
     public void Dispose()

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpFromLine, AudioLines, Check, ChevronDown, ChevronRight, Clock3, Disc3, ExternalLink, Headphones, Heart, ListMusic, LoaderCircle, MessageCircle, MoreHorizontal, Music2, Pause, Play, Plus, Repeat, Repeat1, Search, Settings2, Shuffle, SkipBack, SkipForward, Sparkles, Trash2, Video, Volume1, Volume2, VolumeX, X } from 'lucide-react'
 import type { PlaybackStatus, SearchResult, Song } from '../electron/types'
-import { rankSongTitleResults, type SearchMode } from './shared/search-mode'
+import { classifySongSearchResult, preferredMusicUploaderMids, rankSongSearchResults, requestsDanceVersion, type SearchMode } from './shared/search-mode'
 import { api, isDesktop } from './api'
 import { addToPlaylist, createPlaylist, deletePlaylist, getNextIndex, importBilibiliPlaylist, initializeLibrary, loadLibrary, recordHistory, removeFromPlaylist, renamePlaylist, saveLibrary, toggleFavorite, type LibraryState } from './library'
 import recommendations from './data/recommendations.json'
@@ -13,7 +13,7 @@ import DesktopLyricsSettings from './DesktopLyricsSettings'
 import BilibiliFavoritesDialog, { type FavoritePlaylistImport } from './BilibiliFavoritesDialog'
 import SearchBox from './SearchBox'
 import { Monitor } from 'lucide-react'
-import { loadUISettings, saveUISettings, type UISettings } from './ui-settings'
+import { loadUISettings, saveUISettings, type UISettings, type UITheme } from './ui-settings'
 import { useBilibiliAccount } from './useBilibiliAccount'
 import { BilibiliAccountMenu, BilibiliLoginGate } from './BilibiliAccount'
 import { UpdateProvider, UpdateSettings, useUpdates } from './Updates'
@@ -48,18 +48,50 @@ function IconButton({ children, label, onClick, active = false, disabled = false
   return <button type="button" title={label} aria-label={label} aria-pressed={pressed} className={`icon-button ${active ? 'active' : ''} ${className}`} onClick={onClick} disabled={disabled}>{children}</button>
 }
 
-export default function App() {
-  return <UpdateProvider>{isDesktop ? <DesktopAccountApp /> : <MusicApp />}</UpdateProvider>
+const themeOptions: { id: UITheme; name: string; description: string }[] = [
+  { id: 'classic', name: '经典', description: '米白与草木绿' },
+  { id: 'bilibili', name: 'Bilibili', description: '粉蓝活力' },
+  { id: 'system', name: '跟随系统', description: '自动切换明暗' },
+  { id: 'pixel', name: '像素风', description: '清晰的像素格调' },
+]
+
+function ThemeSettings({ theme, onChange }: { theme: UITheme; onChange: (theme: UITheme) => void }) {
+  return <section className="settings-panel theme-settings-panel" aria-labelledby="theme-settings-title">
+    <h2 id="theme-settings-title">界面主题</h2>
+    <div className="theme-options" role="group" aria-label="选择界面主题">
+      {themeOptions.map(option => <button key={option.id} type="button" className={`theme-option ${theme === option.id ? 'selected' : ''}`} aria-pressed={theme === option.id} onClick={() => onChange(option.id)}>
+        <span className="theme-option-preview" data-preview={option.id} aria-hidden="true"><span className="theme-option-preview-sidebar" /><span className="theme-option-preview-content"><i /><i /><i /></span></span>
+        <span className="theme-option-details"><strong className="theme-option-name">{option.name}</strong><small className="theme-option-description">{option.description}</small></span>
+        <Check className="theme-option-check" size={16} aria-hidden="true" />
+      </button>)}
+    </div>
+  </section>
 }
 
-function DesktopAccountApp() {
+export default function App() {
+  const [theme, setTheme] = useState<UITheme>(() => loadUISettings(0).settings.theme)
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    if (theme === 'classic') delete root.dataset.theme
+    else root.dataset.theme = theme
+    if (theme !== 'system') { delete root.dataset.systemScheme; return }
+    const scheme = window.matchMedia('(prefers-color-scheme: dark)')
+    const updateScheme = () => { root.dataset.systemScheme = scheme.matches ? 'dark' : 'light' }
+    updateScheme()
+    scheme.addEventListener('change', updateScheme)
+    return () => scheme.removeEventListener('change', updateScheme)
+  }, [theme])
+  return <UpdateProvider>{isDesktop ? <DesktopAccountApp onThemeChange={setTheme} /> : <MusicApp onThemeChange={setTheme} />}</UpdateProvider>
+}
+
+function DesktopAccountApp({ onThemeChange }: { onThemeChange: (theme: UITheme) => void }) {
   const session = useBilibiliAccount()
   return session.phase === 'guest' || session.phase === 'loggedIn' && session.account
-    ? <MusicApp accountSession={session} />
+    ? <MusicApp accountSession={session} onThemeChange={onThemeChange} />
     : <BilibiliLoginGate session={session} />
 }
 
-function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBilibiliAccount> }) {
+function MusicApp({ accountSession, onThemeChange }: { accountSession?: ReturnType<typeof useBilibiliAccount>; onThemeChange: (theme: UITheme) => void }) {
   const { setBannerBlocked } = useUpdates()
   const [initialLibrary] = useState(() => initializeLibrary())
   const [library, setLibrary] = useState<LibraryState>(initialLibrary.state)
@@ -134,6 +166,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
     return true
   }
   const setSleepUntil = (value: number | null) => changeUISettings({ sleepUntil: value })
+  const setTheme = (theme: UITheme) => { if (changeUISettings({ theme })) onThemeChange(theme) }
   const changeLibrary = (change: (state: LibraryState) => LibraryState) => {
     if (initialLibrary.error) { notify(`${initialLibrary.error} 请解决后重新打开播放器。`); return false }
     const updated = change(libraryRef.current)
@@ -237,7 +270,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
       const next = nextPage === 1 ? result : current?.mode === mode && searchQueryRef.current === trimmed
         ? { ...result, songs: [...current.songs, ...result.songs].filter((song, index, all) => all.findIndex(item => item.bvid === song.bvid) === index) }
         : current
-      replaceSearchResult(next && mode === 'song' ? { ...next, songs: rankSongTitleResults(next.songs, trimmed) } : next)
+      replaceSearchResult(next && mode === 'song' ? { ...next, songs: rankSongSearchResults(next.songs, trimmed) } : next)
     } catch (error) { if (sequence === searchSequence.current && mode === searchModeRef.current) setSearchError(errorText(error)) }
     finally { if (sequence === searchSequence.current && mode === searchModeRef.current) setSearchLoading(false) }
   }
@@ -293,7 +326,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
   }, [sleepUntil])
   useEffect(() => {
     if (!('mediaSession' in navigator)) return
-    if (status.song) navigator.mediaSession.metadata = new MediaMetadata({ title: title(status.song), artist: status.song.artist, album: 'openmusic · Bilibili', artwork: status.song.cover ? [{ src: status.song.cover }] : [] })
+    if (status.song) navigator.mediaSession.metadata = new MediaMetadata({ title: title(status.song), artist: status.song.artist, album: 'open音乐 · Bilibili', artwork: status.song.cover ? [{ src: status.song.cover }] : [] })
     navigator.mediaSession.playbackState = status.state === 'playing' ? 'playing' : 'paused'
     navigator.mediaSession.setActionHandler('play', () => { void api.resume().catch(() => {}) })
     navigator.mediaSession.setActionHandler('pause', () => { void api.pause().catch(() => {}) })
@@ -330,7 +363,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
     try {
       const data = await api.importLibrary(); if (!data) return
       const parsed = JSON.parse(data)
-      if (parsed.version !== 1 || !Array.isArray(parsed.favorites) || !Array.isArray(parsed.playlists) || !Array.isArray(parsed.history) || !Array.isArray(parsed.queue)) throw new Error('这不是有效的openmusic音乐库备份。')
+      if (parsed.version !== 1 || !Array.isArray(parsed.favorites) || !Array.isArray(parsed.playlists) || !Array.isArray(parsed.history) || !Array.isArray(parsed.queue)) throw new Error('这不是有效的open音乐音乐库备份。')
       const imported = loadLibrary({ getItem: () => data, setItem: () => {} })
       // Merge collections so restoring a backup cannot erase songs added since it was exported.
       const saved = changeLibrary(current => ({ ...current,
@@ -364,12 +397,12 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
       </div>
     </div>
   }
-  function songTable(songs: Song[]) {
-    return <div className="song-table" role="table" aria-label="歌曲列表">
+  function songTable(songs: Song[], label = '歌曲列表') {
+    return <div className="song-table" role="table" aria-label={label}>
       <div className="song-table-header" role="row"><span>#</span><span>歌曲 / 视频</span><span>UP 主</span><span>{page === 'history' ? '播放时间' : '播放量'}</span><span>时长</span><span /></div>
       {songs.map((song, index) => <div key={song.bvid} className={`song-row ${status.song?.bvid === song.bvid ? 'current' : ''}`} role="row" onDoubleClick={() => playCollection(songs, song)}>
         <button className="row-index" aria-label={`播放 ${title(song)}`} onClick={() => playCollection(songs, song)} onDoubleClick={event => event.stopPropagation()}>{status.song?.bvid === song.bvid && status.state === 'playing' ? <AudioLines size={16} /> : <><span>{String(index + 1).padStart(2, '0')}</span><Play className="row-play" size={14} fill="currentColor" /></>}</button>
-        <button className="song-identity" onClick={() => playCollection(songs, song)} onDoubleClick={event => event.stopPropagation()}><Cover song={song} /><span><strong title={song.title}>{title(song)}</strong><small><span className="bili-chip">bilibili</span>{page === 'search' && index === 0 && <span className="highest">首条结果</span>}</small></span></button>
+        <button className="song-identity" onClick={() => playCollection(songs, song)} onDoubleClick={event => event.stopPropagation()}><Cover song={song} /><span><strong title={song.title}>{title(song)}</strong><small><span className="bili-chip">bilibili</span>{page === 'search' && searchMode === 'song' && song.uploaderMid && preferredMusicUploaderMids.includes(song.uploaderMid) && !requestsDanceVersion(song.title) && classifySongSearchResult(song, searchQuery) === 'single' ? <span className="highest">优先 UP 主</span> : page === 'search' && index === 0 && <span className="highest">首条结果</span>}</small></span></button>
         <span className="song-artist" title={song.artist}>{song.artist}</span>
         <span className="song-meta">{page === 'history' ? new Date(library.history.find(entry => entry.song.bvid === song.bvid)?.playedAt ?? 0).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : formatCount(song.playCount)}</span>
         <span className="song-duration">{formatTime(song.duration)}</span>{songActions(song, Boolean(selectedPlaylist))}
@@ -382,7 +415,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
 
   return <div className={`app-shell ${queueOpen ? 'queue-visible' : ''}`}>
     <aside className="sidebar">
-      <div className="brand"><span className="brand-icon"><AudioLines size={26} strokeWidth={2.3} /></span><span className="brand-name">openmusic<small className="brand-subtitle">YOUR MUSIC SPACE</small></span></div>
+      <div className="brand"><span className="brand-icon"><AudioLines size={26} strokeWidth={2.3} /></span><span className="brand-name">open音乐<small className="brand-subtitle">YOUR MUSIC SPACE</small></span></div>
       <div className="sidebar-label">听见喜欢</div>
       <nav>{navItems.map(item => <button key={item.id} className={`nav-item ${page === item.id ? 'selected' : ''}`} onClick={() => navigate(item.id)}><item.icon size={19} /><span>{item.label}</span>{item.id === 'favorites' && library.favorites.length > 0 && <small>{library.favorites.length}</small>}{page === item.id && <i />}</button>)}<button type="button" className="nav-item" aria-label="Bilibili · MV" aria-busy={openingMV} title={!currentSong ? '先播放一首歌，再观看 MV' : '观看当前视频 · 网页全屏'} disabled={!currentSong || status.state === 'loading' || openingMV} onClick={() => void openMV()}>{openingMV ? <LoaderCircle size={19} className="spin" /> : <Video size={19} />}<span>Bilibili · MV</span></button></nav>
       <div className="playlist-heading"><span className="sidebar-label">我的歌单</span><IconButton label="新建歌单" onClick={() => openModal({ type: 'create' })}><Plus size={17} /></IconButton></div>
@@ -407,9 +440,9 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
           <div className="page-bottom">音乐响起，世界安静了一点。<AudioLines size={14} /></div>
         </>}
 
-        {page === 'search' && <><div className="page-heading"><div><div className="eyebrow">FIND YOUR SOUND</div><h1>搜索结果<span className="heading-dot">.</span></h1><p>“{searchQuery}” <span className="inline-divider">/</span> {searchResult ? searchMode === 'song' ? `已找到 ${searchResult.songs.length.toLocaleString()} 个相关视频` : `${searchResult.total.toLocaleString()} 个 Bilibili 视频` : searchMode === 'song' ? '按歌名相关性整理结果' : '在 Bilibili 寻找声音'}</p></div><span className="sort-badge"><ChevronDown size={14} />{searchMode === 'song' ? '歌名相关性 · 综合排序' : 'Bilibili 综合排序'}</span></div><div className="search-notice"><span className="notice-icon"><AudioLines size={18} /></span><span>点击一首歌曲开始播放<small>{searchMode === 'song' ? '支持歌名片段、歌手和 Live 等版本词；保留 Bilibili 官方召回并优先展示标题更相关的结果。' : '音源来自原视频，MV、翻唱或合辑都可能出现在结果中。'}</small></span><button onClick={() => navigate('settings')}>偏好设置<ChevronRight size={14} /></button></div>
+        {page === 'search' && <><div className="page-heading"><div><div className="eyebrow">FIND YOUR SOUND</div><h1>搜索结果<span className="heading-dot">.</span></h1><p>“{searchQuery}” <span className="inline-divider">/</span> {searchResult ? searchMode === 'song' ? `已找到 ${searchResult.songs.length.toLocaleString()} 个相关视频` : `${searchResult.total.toLocaleString()} 个 Bilibili 视频` : searchMode === 'song' ? '优先寻找单曲音源' : '在 Bilibili 寻找声音'}</p></div><span className="sort-badge"><ChevronDown size={14} />{searchMode === 'song' ? '优先 UP 主 · 播放量排序' : 'Bilibili 综合排序'}</span></div><div className="search-notice"><span className="notice-icon"><AudioLines size={18} /></span><span>点击一首歌曲开始播放<small>{searchMode === 'song' ? '优先 UP 主的非 DJ 单曲按播放量排序，所有结果连续展示；音质取决于原视频。' : '音源来自原视频，MV、翻唱或合辑都可能出现在结果中。'}</small></span><button onClick={() => navigate('settings')}>偏好设置<ChevronRight size={14} /></button></div>
           {searchError && <div className="error-state"><h3>这次没能连接到 Bilibili</h3><p>{searchError}</p><div><button className="button-primary" onClick={() => { void (accountSession ? accountSession.openLogin() : api.login().catch(error => notify(errorText(error)))) }}><ExternalLink size={15} />打开 Bilibili 登录 / 验证</button><button className="button-secondary" onClick={() => void search(searchQuery)}>重新搜索</button></div></div>}
-          {searchLoading && !searchResult ? <div className="loading-state"><LoaderCircle size={26} className="spin" /><h3>{searchMode === 'song' ? '正在寻找这首歌' : '正在搜索视频'}</h3><p>{searchMode === 'song' ? '正在获取 Bilibili 结果并按标题相关性整理。' : '正在按 Bilibili 综合排序获取结果。'}</p></div> : visibleSongs.length ? songTable(visibleSongs) : !searchError && emptyState(searchMode === 'song' ? '还没有找到相关结果' : '还没有找到这个声音', searchMode === 'song' ? searchResult?.hasMore ? '当前页面没有相关结果，可继续加载，或换一个歌名和歌手组合。' : '没有找到相关视频，试试输入歌名、歌手或版本词。' : '试试完整歌名，或者加上歌手的名字。')}
+          {searchLoading && !searchResult ? <div className="loading-state"><LoaderCircle size={26} className="spin" /><h3>{searchMode === 'song' ? '正在寻找这首歌' : '正在搜索视频'}</h3><p>{searchMode === 'song' ? '正在搜索单曲 UP 主与 Bilibili 全站结果。' : '正在按 Bilibili 综合排序获取结果。'}</p></div> : visibleSongs.length ? songTable(visibleSongs, '搜索结果') : !searchError && emptyState(searchMode === 'song' ? '还没有找到相关结果' : '还没有找到这个声音', searchMode === 'song' ? searchResult?.hasMore ? '当前页面没有相关结果，可继续加载，或换一个歌名和歌手组合。' : '没有找到相关视频，试试输入歌名、歌手或版本词。' : '试试完整歌名，或者加上歌手的名字。')}
           {searchResult?.hasMore && <button className="load-more button-secondary" disabled={searchLoading} onClick={() => void search(searchQuery, searchResult.page + 1)}>{searchLoading ? <LoaderCircle size={15} className="spin" /> : <Plus size={15} />}加载更多</button>}
         </>}
 
@@ -419,7 +452,7 @@ function MusicApp({ accountSession }: { accountSession?: ReturnType<typeof useBi
           {visibleSongs.length ? songTable(visibleSongs) : emptyState(page === 'history' ? '下一首，会留下记忆' : libraryFilter ? '没有匹配的歌曲' : '留个位置，给下一首喜欢', page === 'history' ? '成功开始播放的歌曲会自动记录在这里。' : '搜索喜欢的歌曲，点亮爱心或添加到歌单。')}
         </>}
 
-        {page === 'settings' && <><div className="page-heading"><div><div className="eyebrow">MAKE YOURSELF AT HOME</div><h1>听歌偏好<span className="heading-dot">.</span></h1><p>按你的习惯，布置这个音乐空间。</p></div><span className="version">openmusic v{packageInfo.version}</span></div><div className="settings-panel"><h2>播放与音源</h2><div className="setting-row"><span><strong>Bilibili 账号与验证</strong><small>在独立窗口登录。会话保存在本机，openmusic 不会读取你的密码。</small></span><button className="button-secondary" onClick={() => void (accountSession ? accountSession.openLogin() : api.login().catch(error => notify(errorText(error))))}>打开 Bilibili<ExternalLink size={14} /></button></div><div className="setting-row"><span><strong>睡眠定时</strong><small>{sleepUntil ? `将在 ${new Date(sleepUntil).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 暂停播放` : '给今晚的音乐留一个安静的结尾。'}</small></span><select aria-label="睡眠定时" value={sleepUntil ? 'active' : 'off'} onChange={event => { const value = event.target.value; setSleepUntil(value === 'off' ? null : Date.now() + Number(value) * 60_000) }}><option value="off">关闭</option>{sleepUntil && <option value="active">已设定</option>}<option value="15">15 分钟后</option><option value="30">30 分钟后</option><option value="60">60 分钟后</option><option value="90">90 分钟后</option></select></div></div><UpdateSettings /><DesktopLyricsSettings desktop={desktopLyrics} /><div className="settings-panel"><h2>我的音乐库</h2><div className="setting-row"><span><strong>导出音乐库备份</strong><small>保存歌单、收藏、历史和听歌偏好，不包含音频文件。</small></span><button className="button-secondary" onClick={() => void api.exportLibrary(JSON.stringify(library, null, 2)).then(saved => { if (saved) notify('音乐库已导出') }).catch(error => notify(errorText(error)))}><ArrowDownToLine size={15} />导出备份</button></div><div className="setting-row"><span><strong>恢复我的收藏</strong><small>导入 openmusic JSON 备份，与当前歌单和收藏合并。</small></span><button className="button-secondary" onClick={() => void importBackup()}><ArrowUpFromLine size={15} />导入备份</button></div><div className="library-stats"><span><strong>{library.favorites.length}</strong>首收藏</span><span><strong>{library.playlists.length}</strong>份歌单</span><span><strong>{library.history.length}</strong>条历史</span><span className="storage-note"><Check size={14} />{initialLibrary.error ? "音乐库读取失败，保存已暂停" : "更改后立即保存到本机"}</span></div></div><div className="settings-panel shortcut-panel"><h2>顺手的快捷键</h2><span>搜索<kbd>Ctrl K</kbd></span><span>播放 / 暂停<kbd>Space</kbd></span><span>上一首 / 下一首<kbd>Alt ← / →</kbd></span></div><div className="about-note"><AudioLines size={22} /><p>openmusic 是一扇自己的音乐窗口。播放由后台浏览器中的 Bilibili 原视频提供，<br />音质和可用性随原视频而定；部分内容可能需要在源站登录或完成验证。</p>{!isDesktop && <small>当前为网页预览，请运行桌面客户端使用后台播放。</small>}</div></>}
+        {page === 'settings' && <><div className="page-heading"><div><div className="eyebrow">MAKE YOURSELF AT HOME</div><h1>听歌偏好<span className="heading-dot">.</span></h1><p>按你的习惯，布置这个音乐空间。</p></div><span className="version">open音乐 v{packageInfo.version}</span></div><ThemeSettings theme={uiSettings.theme} onChange={setTheme} /><div className="settings-panel"><h2>播放与音源</h2><div className="setting-row"><span><strong>Bilibili 账号与验证</strong><small>在独立窗口登录。会话保存在本机，open音乐 不会读取你的密码。</small></span><button className="button-secondary" onClick={() => void (accountSession ? accountSession.openLogin() : api.login().catch(error => notify(errorText(error))))}>打开 Bilibili<ExternalLink size={14} /></button></div><div className="setting-row"><span><strong>睡眠定时</strong><small>{sleepUntil ? `将在 ${new Date(sleepUntil).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 暂停播放` : '给今晚的音乐留一个安静的结尾。'}</small></span><select aria-label="睡眠定时" value={sleepUntil ? 'active' : 'off'} onChange={event => { const value = event.target.value; setSleepUntil(value === 'off' ? null : Date.now() + Number(value) * 60_000) }}><option value="off">关闭</option>{sleepUntil && <option value="active">已设定</option>}<option value="15">15 分钟后</option><option value="30">30 分钟后</option><option value="60">60 分钟后</option><option value="90">90 分钟后</option></select></div></div><UpdateSettings /><DesktopLyricsSettings desktop={desktopLyrics} /><div className="settings-panel"><h2>我的音乐库</h2><div className="setting-row"><span><strong>导出音乐库备份</strong><small>保存歌单、收藏、历史和听歌偏好，不包含音频文件。</small></span><button className="button-secondary" onClick={() => void api.exportLibrary(JSON.stringify(library, null, 2)).then(saved => { if (saved) notify('音乐库已导出') }).catch(error => notify(errorText(error)))}><ArrowDownToLine size={15} />导出备份</button></div><div className="setting-row"><span><strong>恢复我的收藏</strong><small>导入 open音乐 JSON 备份，与当前歌单和收藏合并。</small></span><button className="button-secondary" onClick={() => void importBackup()}><ArrowUpFromLine size={15} />导入备份</button></div><div className="library-stats"><span><strong>{library.favorites.length}</strong>首收藏</span><span><strong>{library.playlists.length}</strong>份歌单</span><span><strong>{library.history.length}</strong>条历史</span><span className="storage-note"><Check size={14} />{initialLibrary.error ? "音乐库读取失败，保存已暂停" : "更改后立即保存到本机"}</span></div></div><div className="settings-panel shortcut-panel"><h2>顺手的快捷键</h2><span>搜索<kbd>Ctrl K</kbd></span><span>播放 / 暂停<kbd>Space</kbd></span><span>上一首 / 下一首<kbd>Alt ← / →</kbd></span></div><div className="about-note"><AudioLines size={22} /><p>open音乐 是一扇自己的音乐窗口。播放由后台浏览器中的 Bilibili 原视频提供，<br />音质和可用性随原视频而定；部分内容可能需要在源站登录或完成验证。</p>{!isDesktop && <small>当前为网页预览，请运行桌面客户端使用后台播放。</small>}</div></>}
       </main>
     </div>
 

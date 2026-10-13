@@ -8,3 +8,140 @@
   --text-muted: #788174;
   --warning-text: #8b715b;
 }
+
+/* Main-window themes. The transparent desktop-lyrics renderer does not import this file. */
+:root[data-theme="bilibili"] {
+  color-scheme: light;
+  --canvas: #f8f9fc;
+  --sidebar: #fff;
+  --ink: #2b2f3a;
+  --green: #bc3569;
+  --line: #e7eaf0;
+  --surface: #fff;
+  --text-muted: #687181;
+  --warning-text: #a35430;
+  --ui-subtle: #f1f3f8;
+  --ui-hover: #fceaf1;
+  --ui-selected: #fbdce9;
+  --ui-field: #fff;
+  --ui-faint: #778191;
+  --ui-border-strong: #eab2c7;
+  --ui-button: #bc3569;
+  --ui-button-hover: #9f2554;
+  --ui-on-button: #fff;
+  --ui-hero: #fce5ee;
+  --ui-hero-ink: #5c2542;
+  --ui-cover: #f0e0e9;
+  --ui-player: #fffffffa;
+  --ui-shadow: #1d23341a;
+  --ui-overlay: #1e243b66;
+  --ui-error-bg: #fff2ea;
+  --ui-warning-bg: #fff6e8;
+  --ui-danger: #b83f58;
+  --ui-track: #dfe4ec;
+  --ui-focus: #bc3569;
+  --ui-zebra: #f3f5f980;
+  --ui-decoration: #00a1d6;
+}
+
+:root[data-theme="system"] {
+  color-scheme: light;
+  --canvas: #f7f7f7;
+  --sidebar: #f0f1f2;
+  --ink: #24272c;
+  --green: #005a9e;
+  --line: #dfe2e5;
+  --surface: #fff;
+  --text-muted: #626a74;
+  --warning-text: #97602c;
+  --ui-subtle: #ebeff3;
+  --ui-hover: #e8f2fa;
+  --ui-selected: #d9ecfa;
+  --ui-field: #fff;
+  --ui-faint: #747d88;
+  --ui-border-strong: #8abce0;
+  --ui-button: #0067b8;
+  --ui-button-hover: #005a9e;
+  --ui-on-button: #fff;
+  --ui-hero: #e7f0f5;
+  --ui-hero-ink: #1d3f55;
+  --ui-cover: #e1e8ec;
+  --ui-player: #fffffffa;
+  --ui-shadow: #1d28331c;
+  --ui-overlay: #18242f70;
+  --ui-error-bg: #fff1e9;
+  --ui-warning-bg: #fff6e9;
+  --ui-danger: #ae4350;
+  --ui-track: #d6dde4;
+  --ui-focus: #0067b8;
+  --ui-zebra: #edf1f580;
+  --ui-decoration: #72a9c8;
+}
+
+:root[data-theme="system"][data-system-scheme="dark"] {
+  color-scheme: dark;
+  --canvas: #17191d;
+  --sidebar: #202329;
+  --ink: #f1f3f5;
+  --green: #8ec5ff;
+  --line: #3b424a;
+  --surface: #262a31;
+  --text-muted: #b2bac5;
+  --warning-text: #e5b47b;
+  --ui-subtle: #30363e;
+  --ui-hover: #344353;
+  --ui-selected: #294866;
+  --ui-field: #20242a;
+  --ui-faint: #a1aab6;
+  --ui-border-strong: #5794cb;
+  --ui-button: #286eaf;
+  --ui-button-hover: #3783c7;
+  --ui-on-button: #fff;
+  --ui-hero: #263c4b;
+  --ui-hero-ink: #f3f7fb;
+  --ui-cover: #35414d;
+  --ui-player: #23272eea;
+  --ui-shadow: #00000069;
+  --ui-overlay: #05080cba;
+  --ui-error-bg: #44302d;
+  --ui-warning-bg: #433a2a;
+  --ui-danger: #f096a0;
+  --ui-track: #48515b;
+  --ui-focus: #8ec5ff;
+  --ui-zebra: #242a3180;
+  --ui-decoration: #8cc7ed;
+}
+
+:root[data-theme="pixel"] {
+  color-scheme: light;
+  --canvas: #f3f8f3;
+  --sidebar: #e7f0e9;
+  --ink: #273a35;
+  --green: #205c49;
+  --line: #35594c;
+  --surface: #fbfdf8;
+  --text-muted: #4b655a;
+  --warning-text: #8a4235;
+  --ui-subtle: #dce9dd;
+  --ui-hover: #d3e8db;
+  --ui-selected: #b9dcca;
+  --ui-field: #fff;
+  --ui-faint: #577166;
+  --ui-border-strong: #205c49;
+  --ui-button: #205c49;
+  --ui-button-hover: #164535;
+  --ui-on-button: #fff;
+  --ui-hero: #d8e9df;
+  --ui-hero-ink: #1e4034;
+  --ui-cover: #d8e7da;
+  --ui-player: #f6fbf3;
+  --ui-shadow: #223b3290;
+  --ui-overlay: #1c3328a8;
+  --ui-error-bg: #f9e8dc;
+  --ui-warning-bg: #fff1da;
+  --ui-danger: #9d453b;
+  --ui-track: #a9bfaf;
+  --ui-focus: #bf513d;
+  --ui-zebra: #e7f0e980;
+  --ui-decoration: #ce705d;
+}

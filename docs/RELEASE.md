@@ -1,5 +1,7 @@
 # 发布与文件管理
 
+当前源码版本为 **0.5.3，尚未发布**。展示名称与未来 Windows 发布页标题为 `open音乐`；发行文件仍为 `Yuyin-X.Y.Z-Setup.exe`。新增优先单曲来源、连续搜索列表和同安装快捷方式迁移，见 [SONG-SEARCH.md](SONG-SEARCH.md) 与 [INSTALLATION.md](INSTALLATION.md)。下方 0.5.2 的已发布附件、摘要和稳定清单保持原样；待完成正式构建、上传与匿名下载复核后，再记录新发布证据和推进清单。
+
 PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码位于本仓库；Android 源码位于 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。不要把其中一个工程嵌套进另一个仓库。
 
 ## PC 0.5.2（openmusic，2026-10-12 正式发布）

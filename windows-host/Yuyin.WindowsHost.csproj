@@ -6,9 +6,9 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Product>openmusic</Product>
-    <Title>openmusic</Title>
-    <Description>openmusic · 基于 Bilibili 的桌面音乐播放器</Description>
+    <Product>open音乐</Product>
+    <Title>open音乐</Title>
+    <Description>open音乐 · 基于 Bilibili 的桌面音乐播放器</Description>
     <AssemblyName>Yuyin.WindowsHost</AssemblyName>
     <RootNamespace>Yuyin.WindowsHost</RootNamespace>
     <ApplicationIcon>../build/icon.ico</ApplicationIcon>
@@ -21,5 +21,6 @@
   <ItemGroup>
     <None Update="bridge.js" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="../build/icon.ico" Link="icon.ico" />
+    <EmbeddedResource Include="../src/shared/preferred-music-uploaders.json" LogicalName="Yuyin.WindowsHost.PreferredMusicUploaders" />
   </ItemGroup>
 </Project>

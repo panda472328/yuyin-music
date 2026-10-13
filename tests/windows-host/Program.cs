@@ -32,11 +32,22 @@ try {
     Reject(() => store.WriteLibrary("{}"), "reject invalid schema");
     store.WritePreference("yuyin-lyrics-source-v1", "bilibili");
     new LocalDataStore(directory).WritePreference("yuyin-ui-settings-v1", "{\"version\":1,\"volumeBeforeMute\":0.4,\"sleepUntil\":null}");
+    var themedUi = "{\"version\":1,\"volumeBeforeMute\":0.4,\"sleepUntil\":null,\"theme\":\"pixel\"}";
+    store.WritePreference("yuyin-ui-settings-v1", themedUi);
+    Assert(new LocalDataStore(directory).ReadPreference("yuyin-ui-settings-v1") == themedUi, "new theme survives restart");
     Assert(new LocalDataStore(directory).ReadPreference("yuyin-lyrics-source-v1") == "bilibili", "separate stores preserve preferences");
     Reject(() => store.ReadPreference("../secrets"), "key allowlist");
     Reject(() => store.WritePreference("yuyin-lyrics-source-v1", "unknown"), "provider allowlist");
     Reject(() => store.WritePreference("yuyin-ui-settings-v1", "{\"version\":1,\"volumeBeforeMute\":2,\"sleepUntil\":null}"), "preference bounds");
+    Reject(() => store.WritePreference("yuyin-ui-settings-v1", "{\"version\":1,\"volumeBeforeMute\":0.4,\"sleepUntil\":null,\"theme\":\"unknown\"}"), "theme allowlist");
+    var futureTheme = "{\"version\":1,\"volumeBeforeMute\":0.4,\"sleepUntil\":null,\"theme\":\"future-theme\"}";
     var prefs = Path.Combine(directory, "preferences.json");
+    File.WriteAllText(prefs, System.Text.Json.JsonSerializer.Serialize(new { version = 1, values = new Dictionary<string, string> {
+        ["yuyin-ui-settings-v1"] = futureTheme, ["yuyin-lyrics-source-v1"] = "bilibili"
+    } }));
+    Assert(store.ReadPreference("yuyin-ui-settings-v1") == futureTheme, "unknown saved theme is readable for renderer fallback");
+    store.WritePreference("yuyin-ui-settings-v1", themedUi);
+    Assert(store.ReadPreference("yuyin-lyrics-source-v1") == "bilibili", "theme repair preserves other preferences");
     File.WriteAllText(prefs, "broken"); File.WriteAllText(prefs + ".bak", "broken too");
     Reject(() => store.WritePreference("yuyin-lyrics-source-v1", "lrclib"), "corrupt settings refuses overwrite");
     Assert(File.ReadAllText(prefs) == "broken", "failed preference save preserves bytes");

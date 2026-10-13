@@ -84,6 +84,8 @@ function parseSong(value: unknown): Song | null {
     source: 'bilibili',
     url: `https://www.bilibili.com/video/${entry.bvid}/`,
     ...(typeof entry.searchQuery === 'string' ? { searchQuery: cleanText(entry.searchQuery, 80) } : {}),
+    ...(Number.isSafeInteger(entry.uploaderMid) && Number(entry.uploaderMid) > 0 ? { uploaderMid: Number(entry.uploaderMid) } : {}),
+    ...(typeof entry.searchTags === 'string' ? { searchTags: cleanText(entry.searchTags, 2000) } : {}),
   }
 }
 

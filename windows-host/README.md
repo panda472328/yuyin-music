@@ -1,8 +1,8 @@
-# openmusic Windows WebView2 宿主
+# open音乐 Windows WebView2 宿主
 
-openmusic（原名余音）从 0.5.0 起使用 WPF/.NET 8 承载现有 React 界面，音源页和桌面歌词分别运行在独立 WebView2 窗口中。发行文件不包含 Electron、Chromium 或 Fixed Version WebView2 Runtime；浏览器内核来自 Windows 上共享的 Microsoft Edge WebView2 Evergreen Runtime。
+open音乐（曾用名 openmusic／余音）从 0.5.0 起使用 WPF/.NET 8 承载现有 React 界面，音源页和桌面歌词分别运行在独立 WebView2 窗口中。发行文件不包含 Electron、Chromium 或 Fixed Version WebView2 Runtime；浏览器内核来自 Windows 上共享的 Microsoft Edge WebView2 Evergreen Runtime。
 
-用户可见名称为小写 `openmusic`。为兼容已有安装与本地数据，宿主命名空间／程序集 `Yuyin.WindowsHost`、`YUYIN_*` 环境变量、`%LOCALAPPDATA%/YuyinMusic` 状态目录、安装／卸载标识和 `Yuyin-<版本>-Setup.exe` 发行文件名保持不变。已发布 0.5.0 附件及历史验证记录不因展示改名而改写。
+当前 0.5.3 源码的用户可见名称为 `open音乐`，尚未发布。为兼容已有安装与本地数据，宿主命名空间／程序集 `Yuyin.WindowsHost`、`YUYIN_*` 环境变量、`%LOCALAPPDATA%/YuyinMusic` 状态目录、安装／卸载标识和 `Yuyin-<版本>-Setup.exe` 发行文件名保持不变。已发布 0.5.2 及更早附件和历史验证记录不因展示改名而改写。
 
 ## 宿主接口
 
@@ -12,6 +12,7 @@ React renderer 继续使用 `MusicAPI` 和 `DesktopLyricsAPI`。`src/webview2-br
 | --- | --- |
 | `MainWindow.xaml.cs` | 本地 renderer 来源和方法白名单、窗口控制、登录窗口、收藏夹与文件对话框、退出保存 |
 | `BilibiliService.cs`、`BilibiliSubtitles.cs` | 使用本应用 WebView2 会话查询账号、官方双模式搜索、收藏夹、原视频字幕和 LRCLIB |
+| `BilibiliSearchRules.cs` | 歌名结果分类与排序、嵌入的公开优先 UP 主名单；与 `src/shared/search-mode.ts` 对齐 |
 | `PlayerHost.cs` | 独立音源窗口、后台播放、归零与可信时钟、手动跳转、音量与结束事件 |
 | `LocalDataStore.cs` | 音乐库、窗口和设置的校验写入、有效备份与损坏恢复 |
 | `DesktopLyricsHost.cs` | 独立透明歌词 renderer、原生拖动与锁定、透明度、位置保存与工作区边界 |
@@ -54,11 +55,11 @@ npm run publish:webview2 -- --framework-dependent
 
 ## 系统 WebView2 前置条件
 
-系统已安装 Evergreen Runtime 时，安装器复用它。缺失时，仅首次运行随包附带的小型官方 bootstrapper，联网下载并安装微软共享运行时；失败会明确停止，尚不覆盖 openmusic 程序文件。网络完全离线且系统无 Runtime 时，应先使用微软的 Evergreen Standalone Installer 安装运行时，再安装 openmusic。
+系统已安装 Evergreen Runtime 时，安装器复用它。缺失时，仅首次运行随包附带的小型官方 bootstrapper，联网下载并安装微软共享运行时；失败会明确停止，尚不覆盖 open音乐 程序文件。网络完全离线且系统无 Runtime 时，应先使用微软的 Evergreen Standalone Installer 安装运行时，再安装 open音乐。
 
-应用启动还通过 `CoreWebView2Environment.GetAvailableBrowserVersionString()` 再次检测。运行时缺失时，窗口显示说明和微软官方下载入口；可以正常关闭窗口，安装 Runtime 后重新启动 openmusic。Windows 上安装了 Edge 浏览器不代表一定存在可用的 WebView2 Runtime。
+应用启动还通过 `CoreWebView2Environment.GetAvailableBrowserVersionString()` 再次检测。运行时缺失时，窗口显示说明和微软官方下载入口；可以正常关闭窗口，安装 Runtime 后重新启动 open音乐。Windows 上安装了 Edge 浏览器不代表一定存在可用的 WebView2 Runtime。
 
-官方下载：[Microsoft Edge WebView2](https://developer.microsoft.com/microsoft-edge/webview2/#download-section)。微软负责 Evergreen 内核更新；openmusic 的版本、源码和安装包更新仍由本项目维护。
+官方下载：[Microsoft Edge WebView2](https://developer.microsoft.com/microsoft-edge/webview2/#download-section)。微软负责 Evergreen 内核更新；open音乐 的版本、源码和安装包更新仍由本项目维护。
 
 ## 隔离验收
 

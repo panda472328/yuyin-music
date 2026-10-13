@@ -45,6 +45,21 @@ test('all settings and cache records survive new instances without sharing value
   assert.equal(new LocalPreferencesStore(join(directory, 'new', 'profile')).read(SOURCE), 'bilibili')
 })
 
+test('theme saves alongside legacy UI settings and rejects unknown values', t => {
+  const { directory, store, primary } = fixture(t)
+  store.write(UI, ui())
+  assert.equal(new LocalPreferencesStore(directory).read(UI), ui())
+  const themed = JSON.stringify({ version: 1, volumeBeforeMute: .5, sleepUntil: null, theme: 'system' })
+  store.write(UI, themed)
+  assert.equal(new LocalPreferencesStore(directory).read(UI), themed)
+  assert.throws(() => store.write(UI, JSON.stringify({ version: 1, volumeBeforeMute: .5, sleepUntil: null, theme: 'unknown' })), /设置/)
+  const futureTheme = JSON.stringify({ version: 1, volumeBeforeMute: .5, sleepUntil: null, theme: 'future-theme' })
+  writeFileSync(primary, file({ [UI]: futureTheme, [SOURCE]: 'bilibili' }))
+  assert.equal(new LocalPreferencesStore(directory).read(UI), futureTheme)
+  store.write(UI, themed)
+  assert.equal(new LocalPreferencesStore(directory).read(SOURCE), 'bilibili')
+})
+
 test('separate instances merge keys from disk instead of overwriting settings loaded earlier', t => {
   const { directory, store } = fixture(t)
   const other = new LocalPreferencesStore(directory)

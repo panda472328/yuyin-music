@@ -2,7 +2,8 @@ import { BrowserWindow, type Session } from 'electron';
 import { EventEmitter } from 'node:events';
 import type { BilibiliAccountStatus, BilibiliFavoriteFolder, BilibiliFavoriteFoldersResult, BilibiliFavoriteItemsResult, BilibiliFavoriteSongsResult, SearchResult, Song } from './types';
 import { BilibiliAccountSession, BilibiliError, isAuthenticationCookie } from './account';
-import { bilibiliResultText as plainText, isSearchMode, normalizeSongName, parseSearchSuggestions, rankSongTitleResults, type SearchMode } from '../src/shared/search-mode';
+import { bilibiliResultText as plainText, classifySongSearchResult, isSearchMode, normalizeSongName, parseSearchSuggestions, preferredMusicUploaderMids, rankSongSearchResults, requestsDanceVersion, type SearchMode } from '../src/shared/search-mode';
+import { buildWbiQuery } from './subtitles-utils';
 export { BilibiliError } from './account';
 
 const SEARCH_ENDPOINT = 'https://api.bilibili.com/x/web-interface/search/type';
@@ -21,6 +22,9 @@ interface SearchVideo {
   pic?: unknown;
   duration?: unknown;
   play?: unknown;
+  mid?: unknown;
+  tag?: unknown;
+  length?: unknown;
 }
 
 interface SearchResponse {
@@ -66,7 +70,14 @@ function playCount(value: unknown): number {
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * scale)) : 0;
 }
 
+function uploaderMid(value: unknown): number | undefined {
+  if ((typeof value !== 'number' && typeof value !== 'string') || value === '') return undefined;
+  const mid = Number(value);
+  return Number.isSafeInteger(mid) && mid > 0 ? mid : undefined;
+}
+
 function videoToSong(item: SearchVideo): Song | null {
+  if (!item || typeof item !== 'object') return null;
   if (typeof item.bvid !== 'string' || !/^BV[0-9a-zA-Z]{10}$/.test(item.bvid)) return null;
   let cover = typeof item.pic === 'string' ? item.pic : '';
   if (cover.startsWith('//')) cover = `https:${cover}`;
@@ -81,6 +92,8 @@ function videoToSong(item: SearchVideo): Song | null {
     playCount: playCount(item.play),
     source: 'bilibili',
     url: `https://www.bilibili.com/video/${item.bvid}/`,
+    ...(uploaderMid(item.mid) !== undefined ? { uploaderMid: uploaderMid(item.mid) } : {}),
+    ...(plainText(item.tag) ? { searchTags: plainText(item.tag).slice(0, 2000) } : {}),
   };
 }
 
@@ -120,6 +133,8 @@ export class BilibiliService extends EventEmitter {
   private sessionChangedTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
   private confirmedMid: number | null | undefined;
+  private readonly preferredUploaderMids: readonly number[];
+  private wbiKeys: { imgUrl: string; subUrl: string; expires: number } | null = null;
   private readonly cookieChanged = (_event: Electron.Event, cookie: Electron.Cookie) => {
     if (!isAuthenticationCookie(cookie) || this.disposed) return;
     this.accountSession.invalidate();
@@ -127,8 +142,9 @@ export class BilibiliService extends EventEmitter {
     this.scheduleSessionChanged();
   };
 
-  constructor(private readonly session: Session) {
+  constructor(private readonly session: Session, preferredUploaderMids: readonly number[] = preferredMusicUploaderMids) {
     super();
+    this.preferredUploaderMids = [...new Set(preferredUploaderMids.filter(mid => Number.isSafeInteger(mid) && mid > 0))].slice(0, 4);
     this.accountSession = new BilibiliAccountSession(() => this.fetchAccountPayload(), status => {
       if (this.disposed) return;
       const mid = status.loggedIn ? status.account.mid : null;
@@ -225,6 +241,10 @@ export class BilibiliService extends EventEmitter {
     }).toString();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20_000);
+    const preferredController = new AbortController();
+    const preferredTimeout = setTimeout(() => preferredController.abort(), 6_000);
+    const preferredCandidates = mode === 'song' && page === 1 && !requestsDanceVersion(keyword)
+      ? this.searchPreferredUploaders(keyword, preferredController.signal) : Promise.resolve([] as Song[]);
     try {
       const response = await this.session.fetch(url.toString(), {
         credentials: 'include',
@@ -265,7 +285,10 @@ export class BilibiliService extends EventEmitter {
         throw new BilibiliError('Bilibili 搜索结果格式已变化，请稍后重试。', 'BILIBILI_INVALID_RESPONSE');
       }
       const sourceSongs = payload.data.result.map(videoToSong).filter((song): song is Song => song !== null);
-      const songs = mode === 'song' ? rankSongTitleResults(sourceSongs, keyword) : sourceSongs;
+      const candidates = await preferredCandidates;
+      const unique = new Map(sourceSongs.map(song => [song.bvid, song]));
+      for (const song of candidates) if (!unique.has(song.bvid)) unique.set(song.bvid, song);
+      const songs = mode === 'song' ? rankSongSearchResults([...unique.values()], keyword, this.preferredUploaderMids) : sourceSongs;
       const total = Math.max(0, Number(payload.data.numResults) || sourceSongs.length);
       const pageSize = Math.max(1, Number(payload.data.pagesize) || PAGE_SIZE);
       const pages = Number(payload.data.numPages) || Math.ceil(total / pageSize);
@@ -280,7 +303,59 @@ export class BilibiliService extends EventEmitter {
       );
     } finally {
       clearTimeout(timeout);
+      clearTimeout(preferredTimeout);
+      preferredController.abort();
     }
+  }
+
+  private async searchPreferredUploaders(keyword: string, signal: AbortSignal): Promise<Song[]> {
+    if (!this.preferredUploaderMids.length) return [];
+    const fetchJson = async (url: string): Promise<Record<string, unknown>> => {
+      const response = await this.session.fetch(url, { credentials: 'include', signal,
+        headers: { Accept: 'application/json', Referer: BILIBILI_HOME } });
+      if (!response.ok) throw new Error('Optional uploader search unavailable');
+      const payload: unknown = await response.json();
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Invalid optional uploader response');
+      return payload as Record<string, unknown>;
+    };
+    try {
+      let keys = this.wbiKeys;
+      if (!keys || keys.expires <= Date.now()) {
+        const payload = await fetchJson(NAV_ENDPOINT);
+        if (payload.code !== 0 && payload.code !== -101) return [];
+        const data = payload.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : null;
+        const images = data?.wbi_img && typeof data.wbi_img === 'object' ? data.wbi_img as Record<string, unknown> : null;
+        if (typeof images?.img_url !== 'string' || typeof images?.sub_url !== 'string') return [];
+        buildWbiQuery({}, images.img_url, images.sub_url);
+        keys = this.wbiKeys = { imgUrl: images.img_url, subUrl: images.sub_url, expires: Date.now() + 30 * 60_000 };
+      }
+      const results: Song[][] = this.preferredUploaderMids.map(() => []);
+      let next = 0;
+      const worker = async () => {
+        while (!signal.aborted && next < this.preferredUploaderMids.length) {
+          const index = next++;
+          const mid = this.preferredUploaderMids[index];
+          try {
+            const query = buildWbiQuery({ mid, keyword, pn: 1, ps: 10, order: 'pubdate', tid: 0 }, keys!.imgUrl, keys!.subUrl);
+            const payload = await fetchJson(`https://api.bilibili.com/x/space/wbi/arc/search?${query}`);
+            if (payload.code !== 0) continue;
+            const data = payload.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : null;
+            const list = data?.list && typeof data.list === 'object' ? data.list as Record<string, unknown> : null;
+            if (!Array.isArray(list?.vlist)) continue;
+            results[index] = list.vlist.slice(0, 10).flatMap((item: SearchVideo) => {
+              if (!item || typeof item !== 'object' || ('mid' in item && uploaderMid(item.mid) !== mid)) return [];
+              const song = videoToSong(item);
+              if (!song) return [];
+              song.uploaderMid = mid;
+              song.duration = durationSeconds(item.length);
+              return classifySongSearchResult(song, keyword) === 'single' && !requestsDanceVersion(song.title) ? [song] : [];
+            });
+          } catch { /* A failed optional source never replaces the official search error. */ }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(2, this.preferredUploaderMids.length) }, worker));
+      return results.flat();
+    } catch { return []; }
   }
 
   async searchSuggestions(query: string): Promise<string[]> {

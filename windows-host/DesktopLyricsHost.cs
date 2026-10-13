@@ -196,7 +196,7 @@ public sealed class DesktopLyricsHost : IAsyncDisposable
                 // A single alpha step preserves the transparent appearance
                 // while blank space remains a native pointer/drag target.
                 AllowsTransparency = true, Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(1, 0, 0, 0)),
-                Topmost = true, ShowInTaskbar = false, ShowActivated = false, Title = "openmusic · 桌面歌词",
+                Topmost = true, ShowInTaskbar = false, ShowActivated = false, Title = "open音乐 · 桌面歌词",
             };
             // The HWND-backed WebView2 cannot paint into WPF's layered,
             // transparent window. Composition hosting keeps alpha and native

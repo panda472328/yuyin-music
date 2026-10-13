@@ -33,6 +33,8 @@ function fixture(t: TestContext, options: {
   loggedIn?: boolean;
   search?: (url: URL) => unknown | Promise<unknown>;
   suggestions?: (url: URL) => unknown | Promise<unknown>;
+  uploaders?: readonly number[];
+  uploaderSearch?: (url: URL, signal: AbortSignal) => unknown | Promise<unknown>;
 } = {}) {
   const calls: Array<{ url: URL; options: RequestInit }> = [];
   const cookies = new EventEmitter();
@@ -43,14 +45,17 @@ function fixture(t: TestContext, options: {
       calls.push({ url: endpoint, options: init });
       if (endpoint.pathname === '/x/web-interface/nav') return json(options.loggedIn === false
         ? { code: -101 }
-        : { code: 0, data: { isLogin: true, mid: 42, uname: '测试账号', face: '//i0.hdslb.com/avatar.jpg' } });
+        : { code: 0, data: { isLogin: true, mid: 42, uname: '测试账号', face: '//i0.hdslb.com/avatar.jpg',
+          wbi_img: { img_url: 'https://i0.hdslb.com/bfs/wbi/7cd084941338484aae1ad9425b84077c.png', sub_url: 'https://i0.hdslb.com/bfs/wbi/4932caff0ff746eab6f01bf08b70ac45.png' } } });
       if (endpoint.hostname === 'www.bilibili.com' && endpoint.pathname === '/') return new Response('');
       if (endpoint.hostname === 's.search.bilibili.com' && endpoint.pathname === '/main/suggest') return json(options.suggestions ? await options.suggestions(endpoint) : { result: { tag: [] } });
+      if (endpoint.pathname === '/x/space/wbi/arc/search') return json(options.uploaderSearch
+        ? await options.uploaderSearch(endpoint, init.signal as AbortSignal) : { code: 0, data: { list: { vlist: [] } } });
       assert.equal(endpoint.origin + endpoint.pathname, 'https://api.bilibili.com/x/web-interface/search/type');
       return json(options.search ? await options.search(endpoint) : payload([first, popular]));
     },
   } as unknown as Session;
-  const service = new BilibiliService(session);
+  const service = new BilibiliService(session, options.uploaders ?? []);
   t.after(() => service.dispose());
   return { service, calls, cookies, searchCalls: () => calls.filter(call => call.url.pathname.endsWith('/search/type')) };
 }
@@ -289,4 +294,91 @@ test('video mode preserves unrelated title results and invalid modes never start
   await assert.rejects(service.search('光年之外', 1, 'invalid' as never), error => error instanceof BilibiliError && error.code === 'INVALID_SEARCH_MODE');
   await assert.rejects(service.search('， ！', 1, 'song'), error => error instanceof BilibiliError && error.code === 'INVALID_QUERY');
   assert.equal(calls.length, requests);
+});
+
+test('song search requests fixed uploader identities with WBI and merges only related non-DJ singles without altering official totals', async t => {
+  const { service, calls } = fixture(t, { uploaders: [101, 202], search: () => payload([
+    { ...first, title: '晴天', mid: 9 },
+    { ...popular, title: '晴天 合集', mid: 101 },
+  ], 3), uploaderSearch: url => ({ code: 0, data: { list: { vlist: url.searchParams.get('mid') === '101' ? [
+    { ...video('BV0000000003', 1), title: '晴天 高音质', mid: 101, length: '4:00', tag: '无损' },
+    { ...video('BV0000000004', 1), title: '晴天 DJ版', mid: 101, length: '3:00' },
+    { ...video('BV0000000005', 1), title: '晴天 合集', mid: 101, length: '1:00:00' },
+    { ...video('BV0000000006', 1), title: '夏日闲聊', mid: 101, length: '3:00', tag: '晴天' },
+    { ...video('BV0000000007', 1), title: '晴天', mid: 999, length: '3:00' },
+  ] : [{ ...first, title: '晴天', mid: 202, length: '4:00' }] } } }) });
+  const result = await service.search('晴天', 1, 'song');
+  assert.deepEqual(result.songs.map(song => song.bvid), ['BV0000000003', first.bvid, popular.bvid]);
+  assert.equal(result.songs[0].uploaderMid, 101);
+  assert.equal(result.songs[0].searchTags, '无损');
+  assert.equal(result.songs[0].duration, 240);
+  assert.equal(result.songs[1].duration, 200, 'official metadata wins a duplicate');
+  assert.equal(result.total, 60);
+  assert.equal(result.pageSize, 20);
+  assert.equal(result.hasMore, true);
+  const requests = calls.filter(call => call.url.pathname === '/x/space/wbi/arc/search');
+  assert.deepEqual(requests.map(call => call.url.searchParams.get('mid')), ['101', '202']);
+  for (const { url, options } of requests) {
+    assert.equal(url.searchParams.get('keyword'), '晴天');
+    assert.equal(url.searchParams.get('pn'), '1');
+    assert.equal(url.searchParams.get('ps'), '10');
+    assert.match(url.searchParams.get('w_rid')!, /^[a-f0-9]{32}$/);
+    assert.equal(options.credentials, 'include');
+  }
+});
+
+test('optional uploader failures degrade to complete official results; official errors still reject', async t => {
+  const { service } = fixture(t, { uploaders: [101, 202], search: () => payload([{ ...first, title: '晴天' }]),
+    uploaderSearch: url => url.searchParams.get('mid') === '101' ? { code: -412 } : { code: 0, data: { list: { vlist: [
+      { ...popular, title: '晴天', mid: 202, length: '3:00' },
+    ] } } } });
+  assert.deepEqual((await service.search('晴天', 1, 'song')).songs.map(song => song.bvid), [popular.bvid, first.bvid]);
+  const mainFailure = fixture(t, { uploaders: [101], search: () => ({ code: -412 }),
+    uploaderSearch: () => ({ code: 0, data: { list: { vlist: [{ ...first, title: '晴天', mid: 101, length: '3:00' }] } } }) });
+  await assert.rejects(mainFailure.service.search('晴天', 1, 'song'), error => error instanceof BilibiliError && error.code === 'BILIBILI_VERIFICATION_REQUIRED');
+});
+
+test('different case-sensitive Bilibili IDs are not merged as duplicates', async t => {
+  const { service } = fixture(t, { uploaders: [101], search: () => payload([
+    { ...video('BV000000000A', 1), title: '晴天', mid: 101 },
+  ]), uploaderSearch: () => ({ code: 0, data: { list: { vlist: [
+    { ...video('BV000000000a', 1), title: '晴天', mid: 101, length: '3:00' },
+  ] } } }) });
+  assert.deepEqual((await service.search('晴天', 1, 'song')).songs.map(song => song.bvid), ['BV000000000A', 'BV000000000a']);
+});
+
+test('video search, later pages and explicitly requested DJ versions never query preferred uploader pages', async t => {
+  const { service, calls } = fixture(t, { uploaders: [101], search: () => payload([{ ...first, title: '晴天 DJ版' }], 2) });
+  for (const [page, mode, query] of [[1, 'video', '晴天'], [2, 'song', '晴天'], [1, 'song', '晴天 DJ']] as const) {
+    await service.search(query, page, mode);
+  }
+  assert.equal(calls.filter(call => call.url.pathname === '/x/space/wbi/arc/search').length, 0);
+});
+
+test('uploader requests use at most two concurrent workers and reject old-session merged results', async t => {
+  let active = 0;
+  let maximum = 0;
+  const { service, cookies } = fixture(t, { uploaders: [101, 202, 303, 404], search: () => payload([{ ...first, title: '晴天' }]),
+    uploaderSearch: async url => {
+      active++; maximum = Math.max(maximum, active);
+      await new Promise(resolve => setTimeout(resolve, 15));
+      active--;
+      if (url.searchParams.get('mid') === '404') cookies.emit('changed', {}, { name: 'SESSDATA', domain: '.bilibili.com' });
+      return { code: 0, data: { list: { vlist: [] } } };
+    } });
+  await assert.rejects(service.search('晴天', 1, 'song'), error => error instanceof BilibiliError && error.code === 'BILIBILI_SESSION_CHANGED');
+  assert.equal(maximum, 2);
+});
+
+test('an unresponsive optional uploader is aborted within the shared six second budget and official results remain available', async t => {
+  let aborted = false;
+  const { service } = fixture(t, { uploaders: [101], search: () => payload([{ ...first, title: '晴天' }]),
+    uploaderSearch: async (_url, signal) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => { aborted = true; reject(new Error('controlled abort')); }, { once: true });
+    }) });
+  const started = Date.now();
+  const result = await service.search('晴天', 1, 'song');
+  assert.equal(aborted, true);
+  assert.ok(Date.now() - started < 7000);
+  assert.deepEqual(result.songs.map(song => song.bvid), [first.bvid]);
 });

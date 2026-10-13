@@ -1,8 +1,8 @@
-# 参与 openmusic PC 版
+# 参与 open音乐 PC 版
 
 本仓库是 Windows 桌面端，当前 PC 在 GitHub 与 Gitee 稳定通道的版本为 0.5.2（WPF + 系统 WebView2），正式安装文件见 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 和 [Gitee 0.5.2 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2)。Gitee 同字节安装附件、公开国内清单、匿名完整下载校验及实际原生 Gitee 更新探针均已通过，记录见 [发布文档](docs/RELEASE.md)；探针不替代真实安装升级验收。Android 的问题和修改请提交到 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。两个仓库使用独立版本、构建与数据，不把手机源码或 APK 放进 PC 仓库。
 
-展示品牌统一为小写 `openmusic`，历史发布仍可显示余音 / Yuyin Music。品牌改名只修改用户可见文字与布局；`Yuyin.WindowsHost`、`%LOCALAPPDATA%/YuyinMusic`、`YUYIN_*` 环境变量、存储键、安装／卸载标识、更新下载文件名和既有仓库 URL 保留兼容值。不要用全局替换迁移这些标识或重写历史发布记录；其他平台的品牌修改需在独立仓库授权、验证与发布。
+当前源码展示品牌统一为 `open音乐`，历史发布仍可显示 openmusic／余音／Yuyin Music；0.5.3 源码尚未发布。品牌改名只修改用户可见文字与布局；`Yuyin.WindowsHost`、`%LOCALAPPDATA%/YuyinMusic`、`YUYIN_*` 环境变量、存储键、安装／卸载标识、更新下载文件名和既有仓库 URL 保留兼容值。不要用全局替换迁移这些标识或重写历史发布记录；其他平台的品牌修改需在独立仓库授权、验证与发布。新版安装器按实际目标校验迁移旧快捷方式，规则见 [安装与重装](docs/INSTALLATION.md)。
 
 ## 开发流程
 
