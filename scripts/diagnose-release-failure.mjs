@@ -6,6 +6,8 @@ import { execFileSync } from 'node:child_process'
 const repository = 'panda472328/yuyin-music'
 const workflowPath = '.github/workflows/release.yml'
 const publishStep = 'Publish one installer, then advance stable channel'
+const installerStep = 'Verify native installer guards without installing on the runner'
+const diagnosticSteps = new Set([publishStep, installerStep])
 const stableTag = /^pc-v(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/
 
 export function sanitizeDiagnostic(value, secrets = []) {
@@ -22,18 +24,23 @@ export function sanitizeDiagnostic(value, secrets = []) {
 }
 
 export function extractPublishFailure(log, secrets = []) {
+  return extractStepFailure(log, publishStep, secrets)
+}
+
+export function extractStepFailure(log, step, secrets = []) {
+  if (!diagnosticSteps.has(step)) throw new Error('Only the installer verification or final Publish step may be diagnosed.')
   // gh prefixes each log line with the job and step name. Never emit another step's log.
   const lines = String(log).split(/\r?\n/).flatMap(line => {
     const fields = line.split('\t')
-    if (fields[0] !== 'release' || fields[1] !== publishStep || fields.length < 3) return []
+    if (fields[0] !== 'release' || fields[1] !== step || fields.length < 3) return []
     return fields.slice(2).join('\t').replace(/^\d{4}-\d{2}-\d{2}T[0-9:.]+Z\s*/, '')
   })
   const clean = sanitizeDiagnostic(lines.join('\n'), secrets)
   const messages = [...new Set(clean.split(/\r?\n/).filter(line =>
-    /(?:\b(?:Error|SyntaxError|TypeError|RangeError):|GitHub 操作失败|\bHTTP [45]\d\d\b|\bgh:|##\[error\]|Process completed with exit code)/.test(line)
+    /(?:\b(?:Error|SyntaxError|TypeError|RangeError):|GitHub 操作失败|\bHTTP [45]\d\d\b|\bgh:|##\[error\]|Process completed with exit code|not ok|✖|AssertionError|Expected values|\b(?:actual|expected|operator|failureType|error):)/.test(line)
   ))]
-  if (!messages.length) throw new Error('The final Publish step had no recognizable error; raw logs were withheld.')
-  return messages.slice(0, 8).map(line => line.trim().slice(0, 600)).join('\n').slice(0, 1800)
+  if (!messages.length) throw new Error('The selected step had no recognizable error; raw logs were withheld.')
+  return messages.slice(0, step === installerStep ? 16 : 8).map(line => line.trim().slice(0, 600)).join('\n').slice(0, 1800)
 }
 
 function safeAsset(asset, expectedUrl, expectedFilename) {
@@ -164,11 +171,11 @@ export function diagnoseFailedPublication({ root = process.cwd(), env = process.
   const releaseJobs = Array.isArray(jobs) ? jobs.filter(job => job.name === 'release') : []
   const steps = releaseJobs.length === 1 && Array.isArray(releaseJobs[0].steps) ? releaseJobs[0].steps : []
   const failed = steps.filter(step => step.conclusion === 'failure')
-  if (failed.length !== 1 || failed[0].name !== publishStep) throw new Error('Only a failure in the final Publish step may be diagnosed.')
+  if (failed.length !== 1 || !diagnosticSteps.has(failed[0].name)) throw new Error('Only a failure in the installer verification or final Publish step may be diagnosed.')
   const log = gh(['run', 'view', String(run.id), '--repo', repository, '--attempt', String(run.run_attempt), '--log-failed'])
   return { tag, commit, releaseMetadata, runId: run.id, attempt: run.run_attempt,
     url: `https://github.com/${repository}/actions/runs/${run.id}`,
-    message: extractPublishFailure(log, [env.GH_TOKEN, env.GITHUB_TOKEN]) }
+    message: extractStepFailure(log, failed[0].name, [env.GH_TOKEN, env.GITHUB_TOKEN]) }
 }
 
 function annotation(value) {
@@ -184,7 +191,7 @@ export function reportDiagnostic(result, summary) {
     console.log(`::warning title=Read-only Release metadata::${annotation(metadata)}`)
     fs.appendFileSync(summary, `### Read-only Release metadata and recovery checks\n\n\`\`\`json\n${JSON.stringify(result.releaseMetadata, null, 2)}\n\`\`\`\n\nOnly allowlisted fields and URL-match booleans are shown. Release body, author and URL text are withheld.\n\n`)
   }
-  fs.appendFileSync(summary, `### Read-only publication diagnosis\n\n${identity}\n\n${result.url ? `[Original failed run](${result.url})\n\n` : ''}\`\`\`text\n${message}\n\`\`\`\n\nOnly the current tagged source and final Publish error were inspected. Tokens, authentication headers and all logged URLs were removed. No logs were uploaded and no Release was changed.\n`)
+  fs.appendFileSync(summary, `### Read-only publication diagnosis\n\n${identity}\n\n${result.url ? `[Original failed run](${result.url})\n\n` : ''}\`\`\`text\n${message}\n\`\`\`\n\nOnly the current tagged source and the allowlisted failed step were inspected. Tokens, authentication headers and all logged URLs were removed. No logs were uploaded and no Release was changed.\n`)
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

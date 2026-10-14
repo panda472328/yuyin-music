@@ -4,6 +4,8 @@ PC 版通过本仓库的 GitHub `updates/stable.json` 和 Gitee `updates/domesti
 
 0.5.3 当前仅为待发布源码：展示名称与快捷方式改为 `open音乐`，下次安装按实际目标替换同安装的已知旧快捷方式，见 [INSTALLATION.md](INSTALLATION.md)。Gitee／GitHub 地址、更新 schema、应用安装身份与 `Yuyin-X.Y.Z-Setup.exe` 文件名保持兼容；未公开最终附件并完成校验前不推进更新清单。
 
+2026-10-14 核对：`pc-v0.5.3` 标签已同步两端，但 [首次标签构建 38379654504](https://github.com/panda472328/yuyin-music/actions/runs/38379654504) 在原生安装器保护测试阶段失败，尚未发布安装附件；两份公开清单仍为 0.5.2。因此 0.5.2 客户端检查后没有新版提示属于当前发布状态，不能据此认定自动检查未运行。自动检查在启动时执行，之后每 6 小时执行；设置页可手动检查并查看错误。0.4.9 及更早没有自动更新，0.4.10 至 0.5.0 只使用 GitHub 通道。
+
 ## 国内更新通道（0.5.2 已启用）
 
 0.5.2 的 Gitee 正式 Release／唯一附件 ID 为 `1200021`／`3371613`，文件为 `Yuyin-0.5.2-Setup.exe`，大小 `54264043` 字节，SHA-256 为 `12b818df22cc804faaf1295f5774a84a8cb24c0577ea5edf760a3bfe228a0d6c`。[候选准备 Actions 38247735370](https://github.com/panda472328/yuyin-music/actions/runs/38247735370) 与本机匿名准备脚本均完整下载并核验上述附件；本机候选严格审核与 GitHub stable 一致后，以提交 `a94c428` 保存 `updates/domestic.json` 并推送两个远程。[国内清单／原生探针 Actions 38249178605](https://github.com/panda472328/yuyin-music/actions/runs/38249178605) 已成功复核候选元数据并运行原生 Gitee 探针。本机实际原生 Gitee 更新探针已通过：实际 `UpdateService` 选择 Gitee，匿名完整下载并两次核验同一大小与 SHA-256，输出 `Public native Gitee probe passed`，退出码为 0。国内通道已启用；探针未启动安装器，不代表实际已安装客户端完整升级通过。

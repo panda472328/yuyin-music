@@ -4,10 +4,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { diagnoseFailedPublication, extractPublishFailure, inspectCurrentRelease, reportDiagnostic, sanitizeDiagnostic, selectFailedTagRun, summarizeRelease } from './diagnose-release-failure.mjs'
+import { diagnoseFailedPublication, extractPublishFailure, extractStepFailure, inspectCurrentRelease, reportDiagnostic, sanitizeDiagnostic, selectFailedTagRun, summarizeRelease } from './diagnose-release-failure.mjs'
 
 const repository = 'panda472328/yuyin-music'
 const publishStep = 'Publish one installer, then advance stable channel'
+const installerStep = 'Verify native installer guards without installing on the runner'
 const tag = 'pc-v0.4.14'
 const commit = '023bec8ae0e7c3ccb4d5ca9667245313e8ef54e2'
 const run = { id: 38109329998, run_number: 51, run_attempt: 1, event: 'push', head_branch: tag, head_sha: commit,
@@ -74,6 +75,25 @@ test('diagnostic has no local authentication fallback or arbitrary tag override'
     assert.throws(f.diagnose, /Diagnostic|diagnostic/)
     assert.equal(f.calls.length, 0)
   }
+})
+
+test('installer diagnosis retains assertion details while withholding other steps and secrets', t => {
+  const f = fixture(t)
+  f.state.jobs[0].steps[0].name = installerStep
+  const line = message => 'release\t' + installerStep + '\t2026-10-13T09:58:00.000Z ' + message
+  f.state.log = [line('not ok 1 - controlled shortcut migration'),
+    line('  error: Expected values to be strictly equal'), line('  actual: 2'), line('  expected: 0'),
+    line('  operator: strictEqual'), line('Error: GH_TOKEN=controlled-ephemeral-token'),
+    logLine('Error: unrelated publication error'), line('Error: https://host.invalid/file?signature=controlled-secret')].join('\n')
+  const result = f.diagnose()
+  assert.match(result.message, /controlled shortcut migration/)
+  assert.match(result.message, /actual: 2/)
+  assert.match(result.message, /expected: 0/)
+  assert.equal(result.message.includes('controlled-ephemeral-token'), false)
+  assert.equal(result.message.includes('controlled-secret'), false)
+  assert.equal(result.message.includes('unrelated publication error'), false)
+  assert.equal(f.calls.some(({ args }) => args.some(value => ['POST', 'PUT', 'PATCH', 'DELETE', 'download', 'upload', 'create', 'edit'].includes(value))), false)
+  assert.throws(() => extractStepFailure(f.state.log, 'Install locked dependencies'), /Only/)
 })
 
 test('run selection rejects other commits, repositories, events and non-failed executions', () => {
