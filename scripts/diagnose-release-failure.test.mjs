@@ -106,6 +106,18 @@ test('run selection rejects other commits, repositories, events and non-failed e
   assert.throws(() => selectFailedTagRun([{ ...run, id: '38109329998' }], tag, commit), /Invalid/)
 })
 
+test('UNKNOWN STEP is accepted only after the run has one allowlisted failure and no other failed job', t => {
+  const f = fixture(t)
+  f.state.jobs[0].steps[0].name = installerStep
+  f.state.log = 'release\tUNKNOWN STEP\t2026-10-13T09:58:00.000Z Error: controlled assertion failure'
+  assert.match(f.diagnose().message, /controlled assertion failure/)
+  assert.throws(() => extractStepFailure(f.state.log, installerStep), /withheld/)
+  f.state.jobs.push({ name: 'other', steps: [{ name: 'Other failure', conclusion: 'failure' }] })
+  f.calls.length = 0
+  assert.throws(f.diagnose, /Other failed jobs/)
+  assert.equal(f.calls.some(({ args }) => args.includes('--log-failed')), false)
+})
+
 test('identity changes and failures in other steps stop before reading logs', t => {
   for (const change of ['identity', 'step', 'multiple', 'jobs']) {
     const f = fixture(t)

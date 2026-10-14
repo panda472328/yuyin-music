@@ -93,7 +93,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Diagnose the latest installer or publication failure without changing GitHub
+      - name: Diagnose the single failed installer or publication step without changing GitHub
         continue-on-error: true
         run: node scripts/diagnose-release-failure.mjs
       - name: Verify read-only diagnosis guards

@@ -27,19 +27,26 @@ export function extractPublishFailure(log, secrets = []) {
   return extractStepFailure(log, publishStep, secrets)
 }
 
-export function extractStepFailure(log, step, secrets = []) {
+export function extractStepFailure(log, step, secrets = [], allowUnknownStep = false) {
   if (!diagnosticSteps.has(step)) throw new Error('Only the installer verification or final Publish step may be diagnosed.')
   // gh prefixes each log line with the job and step name. Never emit another step's log.
   const lines = String(log).split(/\r?\n/).flatMap(line => {
     const fields = line.split('\t')
-    if (fields[0] !== 'release' || fields[1] !== step || fields.length < 3) return []
+    if (fields[0] !== 'release' || (fields[1] !== step && !(allowUnknownStep && fields[1] === 'UNKNOWN STEP')) || fields.length < 3) return []
     return fields.slice(2).join('\t').replace(/^\d{4}-\d{2}-\d{2}T[0-9:.]+Z\s*/, '')
   })
   const clean = sanitizeDiagnostic(lines.join('\n'), secrets)
   const messages = [...new Set(clean.split(/\r?\n/).filter(line =>
     /(?:\b(?:Error|SyntaxError|TypeError|RangeError):|GitHub 操作失败|\bHTTP [45]\d\d\b|\bgh:|##\[error\]|Process completed with exit code|not ok|✖|AssertionError|Expected values|\b(?:actual|expected|operator|failureType|error):)/.test(line)
   ))]
-  if (!messages.length) throw new Error('The selected step had no recognizable error; raw logs were withheld.')
+  if (!messages.length) {
+    const lines = String(log).split(/\r?\n/).filter(Boolean)
+    const prefixes = [...new Set(lines.map(line => {
+      const fields = line.split('\t')
+      return `${fields[0] === 'release' ? 'release' : '[other job]'} / ${diagnosticSteps.has(fields[1]) ? fields[1] : fields[1] === 'UNKNOWN STEP' ? 'UNKNOWN STEP' : '[other step]'} / ${Math.min(fields.length, 3)} fields`
+    }))].slice(0, 4).join('; ')
+    throw new Error(`The selected step had no recognizable error; raw logs were withheld. Format: ${prefixes}; lines=${lines.length}.`)
+  }
   return messages.slice(0, step === installerStep ? 16 : 8).map(line => line.trim().slice(0, 600)).join('\n').slice(0, 1800)
 }
 
@@ -172,10 +179,13 @@ export function diagnoseFailedPublication({ root = process.cwd(), env = process.
   const steps = releaseJobs.length === 1 && Array.isArray(releaseJobs[0].steps) ? releaseJobs[0].steps : []
   const failed = steps.filter(step => step.conclusion === 'failure')
   if (failed.length !== 1 || !diagnosticSteps.has(failed[0].name)) throw new Error('Only a failure in the installer verification or final Publish step may be diagnosed.')
+  if (jobs.some(job => job.name !== 'release' && job.steps?.some(step => step.conclusion === 'failure'))) throw new Error('Other failed jobs prevent unambiguous log diagnosis.')
   const log = gh(['run', 'view', String(run.id), '--repo', repository, '--attempt', String(run.run_attempt), '--log-failed'])
   return { tag, commit, releaseMetadata, runId: run.id, attempt: run.run_attempt,
     url: `https://github.com/${repository}/actions/runs/${run.id}`,
-    message: extractStepFailure(log, failed[0].name, [env.GH_TOKEN, env.GITHUB_TOKEN]) }
+    // gh occasionally cannot label a log archive's step. --log-failed has been
+    // verified above to refer to exactly one allowlisted failure in this run.
+    message: extractStepFailure(log, failed[0].name, [env.GH_TOKEN, env.GITHUB_TOKEN], true) }
 }
 
 function annotation(value) {
