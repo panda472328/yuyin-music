@@ -1,10 +1,33 @@
 # 发布与文件管理
 
-当前源码版本为 **0.5.3，尚未发布**。展示名称与未来 Windows 发布页标题为 `open音乐`；发行文件仍为 `Yuyin-X.Y.Z-Setup.exe`。新增优先单曲来源、连续搜索列表和同安装快捷方式迁移，见 [SONG-SEARCH.md](SONG-SEARCH.md) 与 [INSTALLATION.md](INSTALLATION.md)。下方 0.5.2 的已发布附件、摘要和稳定清单保持原样；待完成正式构建、上传与匿名下载复核后，再记录新发布证据和推进清单。
+当前正式版本为 **0.5.3**，GitHub 与 Gitee 均已公开同一份安装文件，两份更新清单均已推进。展示名称与 Windows 发布页标题为 `open音乐`；发行文件仍为 `Yuyin-X.Y.Z-Setup.exe`。新增可选主题、透明单行桌面歌词菜单、优先单曲来源、连续搜索列表和同安装快捷方式迁移，见 [STYLE-GUIDE.md](STYLE-GUIDE.md)、[SONG-SEARCH.md](SONG-SEARCH.md) 与 [INSTALLATION.md](INSTALLATION.md)。历史标签、附件与验收记录保持不变。
 
 PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码位于本仓库；Android 源码位于 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。不要把其中一个工程嵌套进另一个仓库。
 
-## PC 0.5.2（openmusic，2026-10-12 正式发布）
+## PC 0.5.3（open音乐，2026-10-14 正式发布）
+
+[GitHub 发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.3) 与 [Gitee 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.3) 均只提供一个最终附件 `Yuyin-0.5.3-Setup.exe`。两端使用相同字节，继续使用系统 WebView2，不分发浏览器内核。
+
+| 项目 | 值 |
+| --- | --- |
+| 产品源码与不可变标签提交 | `9c5771c87a1e9ce6937a3cd3a0f2a3e6f519c8e0` |
+| 安装包字节数 | `54308717` |
+| 安装包 SHA-256 | `7345462ad98740c75297fbf393286f0fd86279daa6b178f98abc607b5a907c42` |
+| GitHub Release／附件 ID | `412294304`／`639013819` |
+| GitHub 发布时间（UTC） | `2026-10-14T02:55:48Z` |
+| GitHub 稳定清单提交 | `2c7529be963ab06a6d820c01ffe4379e4b357446` |
+| Gitee Release／附件 ID | `1204255`／`3385779` |
+| 国内清单提交（两个远程） | `7fbe04a62065ea1ee14c89e1420cdc4c91f177ee` |
+
+[首次标签运行 38379654504](https://github.com/panda472328/yuyin-music/actions/runs/38379654504) 在测试创建模拟中文快捷方式时失败，未公开文件且未保留构建备份。测试改用显式 Unicode 的原生 ShellLink 接口后，本机和 [云端复测 38502378473](https://github.com/panda472328/yuyin-music/actions/runs/38502378473) 的 15 项安装器检查通过。随后 [构建 38502636191](https://github.com/panda472328/yuyin-music/actions/runs/38502636191) 从原标签重新构建产品，只覆盖上述测试夹具；应用、宿主、受控原生媒体、构建、安装器生命周期和备份步骤均成功，最终创建 Release 请求返回 HTTP 403。
+
+发布器保留远端标签提交校验，创建现有标签的 Release 时省略多余的 `target_commitish`。[恢复 38503555685](https://github.com/panda472328/yuyin-music/actions/runs/38503555685) 成功复用备份 `11866209454`，没有再次构建或替换文件；备份 ZIP 为 `54306574` 字节、SHA-256 为 `6feb30f7fa9884ed15e92c5bece09e2dd65e21eda6184ff3b285c91952dfff76`，该摘要不作为 EXE 摘要。恢复核对运行与 artifact 身份、唯一 EXE、ZIP 边界／CRC／摘要，上传后完整下载 GitHub 附件复核，再公开并推进 stable。
+
+本机通过官方 GitHub 下载地址分段取得完整 EXE，合并后的大小与 SHA-256 均与正式文件一致；Gitee 上传此同一文件。国内准备脚本完成匿名官方 API／受限官方跳转下载、完整大小与 SHA-256 校验以及附件身份回读，审核候选后推进国内清单。[国内验证 Actions 38505689616](https://github.com/panda472328/yuyin-music/actions/runs/38505689616) 完成相同候选审核及实际原生 Gitee 下载探针，工作流成功。
+
+本机原生探针选择了 0.5.3 的 Gitee 清单，下载最终触发 GitHub 回退；虽然回退文件完成校验，探针仍按规则失败，不能记为本机 Gitee 下载通过。本次未定位该传输回退的具体原因，不将其归因于用户网络或产品缺陷；云端原生 Gitee 通过也不证明所有用户网络均可直达。完整跨机器安装升级和全部原生菜单输入尚未验收，详情见 [QA.md](QA.md)。本机 `release/Yuyin-0.5.3-Setup.exe` 已替换为正式下载并核验的文件，旧本机测试包仅保留在被忽略的 QA 目录。
+
+## PC 0.5.2（历史，openmusic，2026-10-12 正式发布）
 
 [GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.2) 和 [Gitee 正式发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2) 已公开。两端只上传同一份最终安装附件 [Yuyin-0.5.2-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.2/Yuyin-0.5.2-Setup.exe)，不另发修复包、便携包或 blockmap；发布页自动生成的 Source code ZIP／TAR 为源码入口。本版修正 Gitee 官方附件下载路径的大小写兼容，继续严格限制固定 API、单次官方跳转、版本文件名、签名格式、大小与 SHA-256。0.5.1 及更早版本的标签和安装文件保持不可变。
 

@@ -1,16 +1,16 @@
 # Windows 安装与重装
 
-当前 PC 正式版本为 **0.5.2**，继续使用 WPF + 系统 WebView2 和同一个安装身份／数据目录。正式下载文件见 [GitHub 0.5.2 发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.2) 和 [Gitee 0.5.2 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2)；各版本的大小、SHA-256 和构建记录见 [RELEASE.md](RELEASE.md)。
+当前 PC 正式版本为 **0.5.3**，继续使用 WPF + 系统 WebView2 和同一个安装身份／数据目录。正式下载文件见 [GitHub 0.5.3 发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.3) 和 [Gitee 0.5.3 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.3)；各版本的大小、SHA-256 和构建记录见 [RELEASE.md](RELEASE.md)。
 
-PC **0.5.2 已正式发布**，正式脚本为 `build/webview2-installer.nsi`。GitHub 与 Gitee 均提供同一份唯一正式文件 [Yuyin-0.5.2-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.2/Yuyin-0.5.2-Setup.exe)，大小 `54264043` 字节，SHA-256 为 `12b818df22cc804faaf1295f5774a84a8cb24c0577ea5edf760a3bfe228a0d6c`。当前用户默认目录为 `%LOCALAPPDATA%/Programs/YuyinMusic`，数据为独立 `%LOCALAPPDATA%/YuyinMusic`。安装包包含 .NET 运行文件；系统 WebView2 缺失时通过签名有效的微软官方小型引导程序联网安装，共享内核不随应用更新打包。运行时安装失败会先停止，不覆盖程序文件。0.5.1 的 `54274254` 字节和 0.5.0 的 `54235650` 字节安装文件及其校验记录作为历史证据保留，不用来校验 0.5.2 下载。
+PC **0.5.3 已正式发布**，正式脚本为 `build/webview2-installer.nsi`。GitHub 与 Gitee 均提供同一份唯一正式文件 [Yuyin-0.5.3-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.3/Yuyin-0.5.3-Setup.exe)，大小 `54308717` 字节，SHA-256 为 `7345462ad98740c75297fbf393286f0fd86279daa6b178f98abc607b5a907c42`。当前用户默认目录为 `%LOCALAPPDATA%/Programs/YuyinMusic`，数据为独立 `%LOCALAPPDATA%/YuyinMusic`。安装包包含 .NET 运行文件；系统 WebView2 缺失时通过签名有效的微软官方小型引导程序联网安装，共享内核不随应用更新打包。运行时安装失败会先停止，不覆盖程序文件。0.5.1 的 `54274254` 字节和 0.5.0 的 `54235650` 字节安装文件及其校验记录作为历史证据保留，不用来校验 0.5.3 下载。
 
-安装前正常退出 openmusic（旧版显示余音）；文件占用或目录不可写时显示明确错误并停止。应用内选择安装更新时，安装器校验 `/YUYINPID=` 并有限等待该进程自然退出，不强杀。卸载按确切发行文件列表删除，保留应用外的数据和安装目录内无关文件。0.5.2 沿用 WebView2 0.5.0／0.5.1 的收藏和设置；不自动迁移旧 Electron 客户端的数据或会话，不要用新包覆盖旧端目录。下文保留 0.4.x 历史问题说明。
+安装前正常退出 open音乐（旧版显示 openmusic／余音）；文件占用或目录不可写时显示明确错误并停止。应用内选择安装更新时，安装器校验 `/YUYINPID=` 并有限等待该进程自然退出，不强杀。卸载按确切发行文件列表删除，保留应用外的数据和安装目录内无关文件。0.5.3 沿用 WebView2 0.5.0／0.5.1／0.5.2 的收藏和设置；不自动迁移旧 Electron 客户端的数据或会话，不要用新包覆盖旧端目录。下文保留 0.4.x 历史问题说明。
 
-0.5.1 起支持 Gitee／GitHub 双源更新器，0.5.2 修正 Gitee 官方附件路径的大小写兼容。Gitee 0.5.2 正式页已发布，[候选准备 Actions 38247735370](https://github.com/panda472328/yuyin-music/actions/runs/38247735370) 已通过匿名完整下载及大小／SHA-256 核验；国内清单已推送，实际原生更新探针确认选择 Gitee 并完整下载同字节文件，国内通道已启用。用户仍可从两端正式页手动下载同一份安装包；实际已安装客户端的用户选择安装与完整升级流程尚未完整验收，证据见 [RELEASE.md](RELEASE.md) 与 [QA.md](QA.md)。
+0.5.1 起支持 Gitee／GitHub 双源更新器，0.5.2 修正 Gitee 官方附件路径兼容，0.5.3 继续沿用。两端正式页已发布同一份 0.5.3 安装文件，国内准备脚本匿名完整下载并核验大小／SHA-256 后推进清单；实际原生下载探针结果见 [RELEASE.md](RELEASE.md) 与 [QA.md](QA.md)。用户可选择应用内更新或手动下载；实际已安装客户端的完整升级尚未验收。
 
 安装保护从 PC 0.4.12 起随正常版本提供，不另发修复包；0.4.11 构建失败，没有公开安装文件。以对应版本的 GitHub Release 和 SHA-256 为准，不用重新构建的不同文件替换历史附件。
 
-## 0.5.3 源码的快捷方式迁移（未发布）
+## 0.5.3 的快捷方式迁移（已发布）
 
 新桌面入口恰为 `open音乐.lnk`，开始菜单为 `open音乐/open音乐.lnk`。`build/webview2-installer-shortcuts.nsh` 通过 Windows `IShellLinkW`／`IPersistFile` 读取实际目标并规范化绝对路径，只有目标与本次 `$INSTDIR/Yuyin.WindowsHost.exe` 一致时才替换已知 openmusic／余音旧链接；卸载链接单独校验 `Uninstall Yuyin.exe`。不按名称模糊扫描或删除整个目录。
 

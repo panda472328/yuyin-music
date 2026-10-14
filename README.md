@@ -2,21 +2,21 @@
 
 一个基于 WPF、系统 WebView2、React 和 TypeScript 的 Windows 音乐播放器。米白与鼠尾草绿的独立听歌界面，音源来自后台浏览器中的 Bilibili 原视频。0.5.0 起安装包不再携带 Electron／Chromium 内核。
 
-当前源码的展示名称为 **open音乐**（曾用名 openmusic／余音／Yuyin Music），源版本 **0.5.3 尚未发布**。界面、窗口和安装向导统一使用此名称；已发布的 0.5.2 及更早安装包、标签和校验记录保留原名。为兼容已有安装、收藏、设置和更新，数据目录、技术标识、源码仓库地址及安装包文件名仍保留原来的 `Yuyin`／`yuyin` 值；改名不迁移或清空用户数据。手机版仍在独立仓库，本次仅修改 PC 版。
+当前正式版本为 **open音乐 0.5.3**（曾用名 openmusic／余音／Yuyin Music）。界面、窗口和安装向导统一使用此名称；0.5.2 及更早安装包、标签和校验记录保留原名。为兼容已有安装、收藏、设置和更新，数据目录、技术标识、源码仓库地址及安装包文件名仍保留原来的 `Yuyin`／`yuyin` 值；改名不迁移或清空用户数据。手机版仍在独立仓库，本次仅修改 PC 版。
 
 0.5.3 的安装器会创建名称恰为 **open音乐** 的桌面和开始菜单快捷方式，并替换已知旧名称中确实指向本次安装的链接。指向其他安装目录、独立旧 Electron 版或自建文件的链接保留；新名称已被其他目标占用时，安装器提示并停止，避免覆盖无关快捷方式。已发布的 0.5.1／0.5.2 不包含此迁移。
 
-当前正式版本为 **0.5.2**，修正 Gitee 官方附件下载路径的大小写兼容，保留 0.5.1 的当前视频评论区、MV 入口和双源更新器，继续使用 Windows 系统 WebView2；详见 [版本记录](CHANGELOG.md)。[GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.2) 和 [Gitee 正式发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2) 已公开，两端稳定清单均为 0.5.2，实际原生 Gitee 更新探针已通过。Android 版在[独立仓库](https://github.com/panda472328/yuyin-music-mobile)维护，两端分别构建、存储数据和发布版本。
+0.5.3 保留经典配色，新增 Bilibili、跟随系统和像素风主题，更新单曲优先搜索、透明单行桌面歌词菜单和旧快捷方式迁移；详见 [版本记录](CHANGELOG.md)。[GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.3) 和 [Gitee 正式发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.3) 已公开，两端更新清单均为 0.5.3，附件已通过完整大小及 SHA-256 校验。Android 版在[独立仓库](https://github.com/panda472328/yuyin-music-mobile)维护，两端分别构建、存储数据和发布版本。
 
 ## 下载与安装
 
-前往 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 或 [Gitee 0.5.2 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.2) 下载正式版，两端只提供同一份最终安装文件：
+前往 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 或 [Gitee 0.5.3 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.3) 下载正式版，两端只提供同一份最终安装文件：
 
-| 0.5.2 正式文件 | 用途 |
+| 0.5.3 正式文件 | 用途 |
 | --- | --- |
-| [Yuyin-0.5.2-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.2/Yuyin-0.5.2-Setup.exe) | Windows x64 安装版，中文向导，可选择安装目录 |
+| [Yuyin-0.5.3-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.3/Yuyin-0.5.3-Setup.exe) | Windows x64 安装版，中文向导，可选择安装目录 |
 
-正式安装包为 **54,264,043 字节（约 54.3 MB）**，由 [Windows Actions 38206256264](https://github.com/panda472328/yuyin-music/actions/runs/38206256264) 从 `pc-v0.5.2` 构建并发布；Gitee 上传同一份文件。[国内候选准备 Actions 38247735370](https://github.com/panda472328/yuyin-music/actions/runs/38247735370) 和 [国内清单／原生探针 Actions 38249178605](https://github.com/panda472328/yuyin-music/actions/runs/38249178605) 均已成功完成匿名完整下载及大小／SHA-256 校验。实际构建提交和稳定清单证据见 [发布与文件管理](docs/RELEASE.md)，许可文本见 [第三方声明](THIRD_PARTY_NOTICES.md)。发布页自动生成的 Source code ZIP / TAR 是源码下载入口。
+正式安装包为 **54,308,717 字节（约 54.3 MB）**，由 [Windows Actions 38502636191](https://github.com/panda472328/yuyin-music/actions/runs/38502636191) 从原 `pc-v0.5.3` 标签构建，通过验证后备份，再由 [恢复发布 38503555685](https://github.com/panda472328/yuyin-music/actions/runs/38503555685) 复用相同文件公开。Gitee 上传同一份完整文件，匿名下载及大小／SHA-256 校验已通过。构建提交、原生下载探针和两端清单证据见 [发布与文件管理](docs/RELEASE.md)，许可文本见 [第三方声明](THIRD_PARTY_NOTICES.md)。发布页自动生成的 Source code ZIP / TAR 是源码下载入口。
 
 支持 Windows 10 1903（build 18362）及 Windows 11 x64。安装包包含 .NET 运行文件，使用系统 Microsoft Edge WebView2 Evergreen Runtime；若系统缺少 WebView2，安装器通过微软官方小型引导程序联网安装共享运行时，不把内核装进每份应用。此架构版本使用新数据目录，不自动读取旧 Electron 客户端资料。
 
@@ -32,7 +32,7 @@
 
 ## 功能
 
-- 两种搜索模式：默认歌名搜索使用 Bilibili 官方输入联想，允许部分歌名、歌名加歌手或版本词。0.5.3 源码在首屏额外查询经公开采样筛选的单曲 UP 主，结果连续展示、不显示分类标题；内部保留“单曲 → 合集 → 其他”优先级，相关的非 DJ 优先 UP 单曲跨 UP 主按播放量排序；指定 DJ／混音时保留版本意图。全站官方结果完整保留，视频搜索保持 Bilibili 官方排序，适合播客。联想、选择候选和搜索只更新结果，不自动播放；搜索模式在本机保存。来源名单、规则和限制见 [歌名搜索](docs/SONG-SEARCH.md)。
+- 两种搜索模式：默认歌名搜索使用 Bilibili 官方输入联想，允许部分歌名、歌名加歌手或版本词。0.5.3 在首屏额外查询经公开采样筛选的单曲 UP 主，结果连续展示、不显示分类标题；内部保留“单曲 → 合集 → 其他”优先级，相关的非 DJ 优先 UP 单曲跨 UP 主按播放量排序；指定 DJ／混音时保留版本意图。全站官方结果完整保留，视频搜索保持 Bilibili 官方排序，适合播客。联想、选择候选和搜索只更新结果，不自动播放；搜索模式在本机保存。来源名单、规则和限制见 [歌名搜索](docs/SONG-SEARCH.md)。
 - 后台原视频播放、暂停、跳转、上一首／下一首、音量、静音、系统媒体按键和睡眠定时。选曲和同曲重播从头开始；无用户操作的异常跳转恢复最近可信进度，暂停继续保留当前位置。
 - 列表循环、单曲循环、随机播放及队列管理。
 - 收藏、歌单、最近播放历史，音乐库 JSON 导出与合并恢复。
@@ -133,9 +133,9 @@ npm run dist
 
 ## 验证范围
 
-0.5.2 的正式标签 Actions 已成功完成业务／宿主回归、最终构建、安装保护、公开附件下载校验和 GitHub 稳定清单推进；国内候选准备另通过 Gitee 匿名完整下载和大小／SHA-256 校验，国内清单已推送，实际原生 Gitee 更新探针已通过。本机宿主受控回归通过 289 项检查，其中 138 项为更新检查。历史 0.5.1 的隔离回归通过 173 项 TypeScript 业务测试、287 项宿主契约检查（其中 136 项更新检查）、34 项受控原生媒体检查、22 项 WebView2 页面检查、26 项 MV 脚本检查、11 项安装保护／受控流程检查、83 项发布工具检查和 7 组国内清单准备检查；锁文件元数据检查覆盖 435 个包。各版本证据保留在 [docs/QA.md](docs/QA.md) 与 [docs/RELEASE.md](docs/RELEASE.md)；0.4.x Electron 历史检查不代表新宿主已通过同一项验收。
+0.5.3 的原标签产品通过云端应用、宿主、受控原生媒体和 15 项安装器回归，正式发布复用完整校验的构建备份；两端稳定清单均已推进，国内附件匿名完整下载及大小／SHA-256 校验已通过。原生下载探针和验证限制见 [docs/QA.md](docs/QA.md)。以下为历史验证：0.5.2 的正式标签 Actions 已成功完成业务／宿主回归、最终构建、安装保护、公开附件下载校验和 GitHub 稳定清单推进；国内候选准备另通过 Gitee 匿名完整下载和大小／SHA-256 校验，国内清单已推送，实际原生 Gitee 更新探针已通过。本机宿主受控回归通过 289 项检查，其中 138 项为更新检查。历史 0.5.1 的隔离回归通过 173 项 TypeScript 业务测试、287 项宿主契约检查（其中 136 项更新检查）、34 项受控原生媒体检查、22 项 WebView2 页面检查、26 项 MV 脚本检查、11 项安装保护／受控流程检查、83 项发布工具检查和 7 组国内清单准备检查；锁文件元数据检查覆盖 435 个包。各版本证据保留在 [docs/QA.md](docs/QA.md) 与 [docs/RELEASE.md](docs/RELEASE.md)；0.4.x Electron 历史检查不代表新宿主已通过同一项验收。
 
-桌面歌词已在真实 WPF/WebView2 窗口通过歌词正文拖动、位置写盘、字号按钮、工具栏隐藏与重新显示检查；锁定后禁止拖动和设置重启恢复仍未完整验收。字体／颜色／透明度控件、两个规定尺寸的完整原生页面状态、正式安装向导、桌面／开始菜单快捷方式、卸载、缺失 WebView2 Runtime 的联网引导、真实 Bilibili 登录／音源和评论写入、源站网页全屏兼容性、跨机器 UAC，以及实际已安装 0.5.x 的应用内更新也尚未完整验收。网页预览和受控响应不能替代这些检查。
+历史 0.5.0 的桌面歌词已在真实 WPF/WebView2 窗口通过歌词正文拖动、位置写盘、字号按钮、工具栏隐藏与重新显示检查；锁定后禁止拖动和设置重启恢复仍未完整验收。字体／颜色／透明度控件、两个规定尺寸的完整原生页面状态、正式安装向导、桌面／开始菜单快捷方式、卸载、缺失 WebView2 Runtime 的联网引导、真实 Bilibili 登录／音源和评论写入、源站网页全屏兼容性、跨机器 UAC，以及实际已安装 0.5.x 的应用内更新也尚未完整验收。网页预览和受控响应不能替代这些检查。 0.5.3 单行菜单和新增主题的原生输入验收限制单独记录于 QA，不能用旧窗口验收代替。
 
 详细结果及未执行项见 [docs/QA.md](docs/QA.md)。Bilibili 页面与接口会变化，其他电脑和账号的可用性需要实际验证。
 
