@@ -24,6 +24,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verify-installer-recovery:
+    if: github.repository == 'panda472328/yuyin-music' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Install locked test dependencies
+        run: npm ci --registry=https://registry.npmjs.org
+      - name: Verify installer fixtures on the release runner without publishing
+        env:
+          YUYIN_REQUIRE_INSTALLER_TESTS: '1'
+        run: npm run test:installer
+
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/pc-v') && github.repository == 'panda472328/yuyin-music'
     runs-on: windows-latest

@@ -50,6 +50,15 @@ test('WebView2 installer performs controlled install, update wait and exact unin
   const caseDesktop = join(desktop, '余音.lnk')
   const customDesktop = join(desktop, '我的音乐.lnk')
   const malformedLink = join(programs, '余音', '余音音乐播放器.lnk')
+  // A legacy shortcut represents an existing installation. Some Windows shell
+  // versions reject WScript.Shell.TargetPath for a missing target directory.
+  // Keep all simulated installations real and confined to this QA directory.
+  const previousApplication = Buffer.from('MZ controlled previous application fixture')
+  for (const file of [application, otherApplication, join(qa, 'electron install', '余音.exe'),
+    join(target, 'Uninstall Yuyin.exe'), join(qa, 'other install', 'Uninstall Yuyin.exe')]) {
+    await mkdir(dirname(file), { recursive: true })
+    await writeFile(file, previousApplication)
+  }
   await writeLinks([
     { path: legacyDesktop, target: application },
     { path: otherDesktop, target: otherApplication },
@@ -91,6 +100,7 @@ test('WebView2 installer performs controlled install, update wait and exact unin
       const result = await execute(installer, ['/S', `/YUYINPID=${pid}`])
       assert.equal(result.code, 2, result.stdout + result.stderr)
       assert.equal(await exists(join(target, 'installed.marker')), false)
+      assert.deepEqual(await readFile(application), previousApplication)
     }
   })
   await t.test('unrelated shortcut with the new display name blocks before extraction', async () => {
@@ -98,6 +108,7 @@ test('WebView2 installer performs controlled install, update wait and exact unin
     const result = await execute(installer, ['/S'])
     assert.equal(result.code, 2, result.stdout + result.stderr)
     assert.equal(await exists(join(target, 'installed.marker')), false)
+    assert.deepEqual(await readFile(application), previousApplication)
     assert.equal((await linkTarget(newDesktop)).toLowerCase(), otherApplication.toLowerCase())
     assert.equal(await exists(legacyDesktop), true)
     // A shortcut belonging to this install can be replaced by the installer.
