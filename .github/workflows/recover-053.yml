@@ -1,0 +1,118 @@
+name: Publish the previously unpublished PC 0.5.3 tag
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/recover-053.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: windows-stable-release
+  cancel-in-progress: false
+
+jobs:
+  publish-unpublished-053:
+    if: github.repository == 'panda472328/yuyin-music' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: pc-v0.5.3
+      ORIGINAL_BUILD_COMMIT: 9c5771c87a1e9ce6937a3cd3a0f2a3e6f519c8e0
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: 9c5771c87a1e9ce6937a3cd3a0f2a3e6f519c8e0
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Require the immutable unpublished tag and verified Unicode test fixture
+        shell: pwsh
+        run: |
+          @'
+          import fs from 'node:fs'
+          import path from 'node:path'
+          import { execFileSync } from 'node:child_process'
+          const repository = 'panda472328/yuyin-music'
+          const commit = '9c5771c87a1e9ce6937a3cd3a0f2a3e6f519c8e0'
+          const fixtureCommit = '697dd21157c9ff6a538040071760e88bd92e6381'
+          const git = args => execFileSync('git', args, { encoding: 'utf8' }).trim()
+          const api = route => JSON.parse(execFileSync('gh', ['api', '--method', 'GET', `repos/${repository}/${route}`],
+            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }))
+          if (process.env.GITHUB_REPOSITORY !== repository || process.env.ORIGINAL_BUILD_COMMIT !== commit ||
+              git(['rev-parse', 'HEAD']) !== commit || git(['rev-parse', 'refs/tags/pc-v0.5.3^{commit}']) !== commit)
+            throw new Error('The original PC 0.5.3 source and tag must remain unchanged.')
+          const stable = api('contents/updates/stable.json?ref=main')
+          if (stable.encoding !== 'base64' || JSON.parse(Buffer.from(stable.content, 'base64').toString('utf8')).version !== '0.5.2')
+            throw new Error('This one-time recovery requires the previous stable version 0.5.2.')
+          let complete = false
+          for (let page = 1; page <= 100; page++) {
+            const releases = api(`releases?per_page=100&page=${page}`)
+            if (!Array.isArray(releases) || releases.some(release => release.tag_name === 'pc-v0.5.3'))
+              throw new Error('An existing 0.5.3 Release must be recovered without rebuilding.')
+            if (releases.length < 100) { complete = true; break }
+          }
+          if (!complete) throw new Error('Release pagination limit exceeded.')
+          const original = api('actions/runs/38379654504')
+          if (original.head_sha !== commit || original.head_branch !== 'pc-v0.5.3' || original.event !== 'push' ||
+              original.path !== '.github/workflows/release.yml' || original.head_repository?.full_name !== repository ||
+              original.status !== 'completed' || original.conclusion !== 'failure' || original.run_attempt !== 1)
+            throw new Error('Original failed build identity does not match.')
+          const fixtureRun = api('actions/runs/38502378473')
+          const fixtureJobs = api('actions/runs/38502378473/jobs?per_page=100').jobs
+          if (fixtureRun.head_sha !== fixtureCommit || fixtureRun.event !== 'push' ||
+              fixtureRun.path !== '.github/workflows/release.yml' || fixtureRun.head_repository?.full_name !== repository ||
+              !Array.isArray(fixtureJobs) || fixtureJobs.filter(job => job.name === 'verify-installer-recovery' &&
+                job.status === 'completed' && job.conclusion === 'success').length !== 1)
+            throw new Error('The Unicode installer fixture has not passed on Windows Actions.')
+          // Only test fixtures are overlaid. Product source, dependencies and build recipes remain at the original tag.
+          for (const file of ['scripts/webview2-installer-flow.test.mjs', 'scripts/fixtures/windows-shortcut.cs']) {
+            fs.mkdirSync(path.dirname(file), { recursive: true })
+            fs.writeFileSync(file, execFileSync('git', ['show', `${fixtureCommit}:${file}`]))
+          }
+          const changed = git(['diff', '--name-only']).split('\n')
+          if (changed.length !== 1 || changed[0] !== 'scripts/webview2-installer-flow.test.mjs')
+            throw new Error('Recovery may change only the installer test fixture.')
+          console.log('Original unpublished 0.5.3 source verified; only the tested Unicode shortcut fixture is overlaid.')
+          '@ | node --input-type=module -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate version and dependency lock
+        run: |
+          node scripts/release.mjs --validate-version --tag "$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-release-lock.mjs
+      - name: Install locked dependencies
+        run: npm ci --registry=https://registry.npmjs.org
+      - name: Verify release channel guards
+        run: node --test scripts/release.test.mjs scripts/release-cli.test.mjs scripts/check-release-lock.test.mjs
+      - name: Verify application behavior
+        run: npm test
+      - name: Verify Windows host contracts
+        run: npm run test:host
+      - name: Verify controlled native media
+        run: npm run test:host-native
+      - name: Build the original tagged Windows WebView2 installer
+        run: npm run dist:installer -- --x64 --publish never
+      - name: Verify native installer guards and lifecycle with Unicode fixtures
+        env:
+          YUYIN_REQUIRE_INSTALLER_TESTS: '1'
+        run: npm run test:installer
+      - name: Back up the verified installer before publication
+        uses: actions/upload-artifact@v4
+        with:
+          name: yuyin-pc-v0.5.3-installer
+          path: release/Yuyin-0.5.3-Setup.exe
+          if-no-files-found: error
+          retention-days: 7
+      - name: Publish one installer and advance stable only after download verification
+        run: node scripts/release.mjs --publish --tag "$env:RELEASE_TAG" --artifact "release/Yuyin-0.5.3-Setup.exe" --build-commit "$env:ORIGINAL_BUILD_COMMIT"
