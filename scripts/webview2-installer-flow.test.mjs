@@ -26,18 +26,19 @@ test('WebView2 installer performs controlled install, update wait and exact unin
   const shell = join(qa, 'shell')
   const desktop = join(shell, 'Desktop')
   const programs = join(shell, 'Programs')
-  const shellTool = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+  const csc = join(process.env.SystemRoot || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe')
+  const shortcutTool = join(qa, 'shortcut.exe')
+  const shortcutBuild = await execute(csc, ['/nologo', `/out:${shortcutTool}`, join(root, 'scripts', 'fixtures', 'windows-shortcut.cs')])
+  assert.equal(shortcutBuild.code, 0, shortcutBuild.stdout + shortcutBuild.stderr)
   const writeLinks = async entries => {
-    for (const entry of entries) await mkdir(dirname(entry.path), { recursive: true })
-    const result = await execute(shellTool, ['-NoProfile', '-NonInteractive', '-Command',
-      '$qaLinkShell = New-Object -ComObject WScript.Shell; foreach ($qaLink in ($env:YUYIN_QA_LINKS | ConvertFrom-Json)) { $qaShortcut = $qaLinkShell.CreateShortcut($qaLink.path); $qaShortcut.TargetPath = $qaLink.target; $qaShortcut.Description = "Controlled installer regression fixture"; $qaShortcut.Save() }'],
-    { YUYIN_QA_LINKS: JSON.stringify(entries) })
-    assert.equal(result.code, 0, result.stdout + result.stderr)
+    for (const entry of entries) {
+      await mkdir(dirname(entry.path), { recursive: true })
+      const result = await execute(shortcutTool, ['write', qa, entry.path, entry.target])
+      assert.equal(result.code, 0, result.stdout + result.stderr)
+    }
   }
   const linkTarget = async file => {
-    const result = await execute(shellTool, ['-NoProfile', '-NonInteractive', '-Command',
-      '[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false); $qaLinkShell = New-Object -ComObject WScript.Shell; $qaLinkShell.CreateShortcut($env:YUYIN_QA_LINK).TargetPath'],
-    { YUYIN_QA_LINK: file })
+    const result = await execute(shortcutTool, ['read', qa, file])
     assert.equal(result.code, 0, result.stdout + result.stderr)
     return result.stdout.trim()
   }
@@ -50,9 +51,8 @@ test('WebView2 installer performs controlled install, update wait and exact unin
   const caseDesktop = join(desktop, '余音.lnk')
   const customDesktop = join(desktop, '我的音乐.lnk')
   const malformedLink = join(programs, '余音', '余音音乐播放器.lnk')
-  // A legacy shortcut represents an existing installation. Some Windows shell
-  // versions reject WScript.Shell.TargetPath for a missing target directory.
-  // Keep all simulated installations real and confined to this QA directory.
+  // Keep all simulated legacy installations inside this QA directory. The
+  // Unicode native helper avoids locale-dependent WScript COM conversions.
   const previousApplication = Buffer.from('MZ controlled previous application fixture')
   for (const file of [application, otherApplication, join(qa, 'electron install', '余音.exe'),
     join(target, 'Uninstall Yuyin.exe'), join(qa, 'other install', 'Uninstall Yuyin.exe')]) {
@@ -69,6 +69,13 @@ test('WebView2 installer performs controlled install, update wait and exact unin
     { path: join(programs, 'openmusic', '卸载openmusic.lnk'), target: join(target, 'Uninstall Yuyin.exe') },
     { path: join(programs, '余音', '卸载余音.lnk'), target: join(qa, 'other install', 'Uninstall Yuyin.exe') },
   ])
+  await t.test('Unicode shortcut fixtures round trip and reject paths outside QA', async () => {
+    assert.equal((await linkTarget(legacyDesktop)).toLowerCase(), application.toLowerCase())
+    const escaped = await execute(shortcutTool, ['write', qa, legacyDesktop, join(root, '.qa', 'outside-fixture.exe')])
+    assert.equal(escaped.code, 1)
+    assert.match(escaped.stderr, /must stay inside its QA directory/)
+    assert.equal((await linkTarget(legacyDesktop)).toLowerCase(), application.toLowerCase())
+  })
   await writeFile(malformedLink, 'controlled unreadable shortcut')
   const protectedFiles = [otherDesktop, electronDesktop, customDesktop, malformedLink, join(programs, '余音', '卸载余音.lnk')]
   const originalProtectedBytes = new Map(await Promise.all(protectedFiles.map(async file => [file, await readFile(file)])))
@@ -76,7 +83,6 @@ test('WebView2 installer performs controlled install, update wait and exact unin
   await writeFile(join(payload, 'Yuyin.WindowsHost.exe'), 'MZ controlled application fixture')
   await writeFile(join(payload, 'renderer', 'index.html'), 'controlled renderer fixture')
   const fixture = join(qa, 'lock.exe')
-  const csc = join(process.env.SystemRoot || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe')
   await writeFile(join(qa, 'lock.cs'), 'using System; using System.IO; class Fixture { static void Main(string[] args) { using(var file = new FileStream(args[0], FileMode.Open, FileAccess.Read, FileShare.None)) { File.WriteAllText(args[1], "ready"); Console.ReadLine(); } } }')
   const built = await execute(csc, ['/nologo', `/out:${fixture}`, join(qa, 'lock.cs')])
   assert.equal(built.code, 0, built.stdout + built.stderr)
