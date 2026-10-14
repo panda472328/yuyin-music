@@ -42,7 +42,21 @@ jobs:
       - name: Verify installer fixtures on the release runner without publishing
         env:
           YUYIN_REQUIRE_INSTALLER_TESTS: '1'
-        run: npm run test:installer
+        run: |
+          @'
+          import { spawnSync } from 'node:child_process'
+          import { sanitizeDiagnostic } from './scripts/diagnose-release-failure.mjs'
+          const result = spawnSync(process.execPath, ['--test', 'scripts/webview2-installer-guards.test.mjs',
+            'scripts/webview2-installer-flow.test.mjs'], { encoding: 'utf8', windowsHide: true })
+          const output = sanitizeDiagnostic((result.stdout ?? '') + (result.stderr ?? ''),
+            [process.env.GH_TOKEN, process.env.GITHUB_TOKEN])
+          process.stdout.write(output)
+          if (result.status !== 0) {
+            const detail = output.slice(-6000).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')
+            console.log(`::error title=Controlled installer fixture failure::${detail}`)
+          }
+          process.exit(result.status ?? 1)
+          '@ | node --input-type=module -
 
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/pc-v') && github.repository == 'panda472328/yuyin-music'
