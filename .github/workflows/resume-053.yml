@@ -1,0 +1,102 @@
+name: Resume PC 0.5.3 publication from its verified installer backup
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/resume-053.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: windows-stable-release
+  cancel-in-progress: false
+
+jobs:
+  publish-verified-053:
+    if: github.repository == 'panda472328/yuyin-music' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Verify publication and archive guards
+        run: node --test scripts/release.test.mjs scripts/release-cli.test.mjs scripts/check-release-lock.test.mjs scripts/recover-build-artifact.test.mjs
+      - name: Verify and recover the already built installer without rebuilding
+        id: original
+        shell: pwsh
+        run: |
+          @'
+          import fs from 'node:fs'
+          import path from 'node:path'
+          import { execFileSync } from 'node:child_process'
+          import { verifiedInstallerBytes } from './scripts/recover-build-artifact.mjs'
+          const repository = 'panda472328/yuyin-music'
+          const sourceCommit = '9c5771c87a1e9ce6937a3cd3a0f2a3e6f519c8e0'
+          const workflowCommit = '333a983535b2132189e013c3175e2722d2dc2d87'
+          const expected = { archiveSize: 54306574,
+            archiveSha256: '6feb30f7fa9884ed15e92c5bece09e2dd65e21eda6184ff3b285c91952dfff76',
+            filename: 'Yuyin-0.5.3-Setup.exe' }
+          const command = args => execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+          const api = route => JSON.parse(command(['api', '--method', 'GET', `repos/${repository}/${route}`]))
+          const git = args => execFileSync('git', args, { encoding: 'utf8' }).trim()
+          if (process.env.GITHUB_REPOSITORY !== repository ||
+              git(['rev-parse', 'refs/tags/pc-v0.5.3^{commit}']) !== sourceCommit)
+            throw new Error('Original PC 0.5.3 tag identity changed.')
+          const sourcePackage = JSON.parse(git(['show', `${sourceCommit}:package.json`]))
+          const sourceLock = JSON.parse(git(['show', `${sourceCommit}:package-lock.json`]))
+          const currentPackage = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+          if (sourcePackage.name !== 'yuyin-music' || sourcePackage.version !== '0.5.3' ||
+              sourceLock.version !== '0.5.3' || sourceLock.packages?.['']?.version !== '0.5.3' ||
+              currentPackage.name !== sourcePackage.name || currentPackage.version !== sourcePackage.version)
+            throw new Error('Original/current PC versions do not match.')
+          const run = api('actions/runs/38502636191')
+          if (run.head_sha !== workflowCommit || run.head_branch !== 'main' || run.event !== 'push' ||
+              run.path !== '.github/workflows/recover-053.yml' || run.head_repository?.full_name !== repository ||
+              run.status !== 'completed' || run.conclusion !== 'failure' || run.run_attempt !== 1)
+            throw new Error('Installer build run identity mismatch.')
+          const jobs = api('actions/runs/38502636191/attempts/1/jobs?per_page=100').jobs
+          const buildJobs = Array.isArray(jobs) ? jobs.filter(job => job.name === 'publish-unpublished-053') : []
+          if (buildJobs.length !== 1 || !Array.isArray(buildJobs[0].steps)) throw new Error('Build job not unique.')
+          const steps = new Map(buildJobs[0].steps.map(step => [step.name, step.conclusion]))
+          for (const name of ['Require the immutable unpublished tag and verified Unicode test fixture',
+            'Verify application behavior', 'Verify Windows host contracts', 'Verify controlled native media',
+            'Build the original tagged Windows WebView2 installer',
+            'Verify native installer guards and lifecycle with Unicode fixtures',
+            'Back up the verified installer before publication'])
+            if (steps.get(name) !== 'success') throw new Error('Original validation did not pass: ' + name)
+          if (steps.get('Publish one installer and advance stable only after download verification') !== 'failure' ||
+              buildJobs[0].steps.filter(step => step.conclusion === 'failure').length !== 1)
+            throw new Error('Only final publication may have failed.')
+          const artifact = api('actions/artifacts/11866209454')
+          if (artifact.id !== 11866209454 || artifact.name !== 'yuyin-pc-v0.5.3-installer' ||
+              artifact.size_in_bytes !== expected.archiveSize || artifact.digest !== 'sha256:' + expected.archiveSha256 ||
+              artifact.expired !== false || artifact.workflow_run?.id !== run.id ||
+              artifact.workflow_run?.head_sha !== workflowCommit || artifact.workflow_run?.head_branch !== 'main' ||
+              !Number.isFinite(Date.parse(artifact.expires_at)) || Date.parse(artifact.expires_at) <= Date.now())
+            throw new Error('Original installer backup identity mismatch or expired.')
+          const archive = execFileSync('gh', ['api', '--method', 'GET', '--header', 'Accept: application/vnd.github+json',
+            `repos/${repository}/actions/artifacts/11866209454/zip`],
+            { encoding: null, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: expected.archiveSize + 1024 })
+          const bytes = verifiedInstallerBytes(archive, expected)
+          if (!path.isAbsolute(process.env.RUNNER_TEMP ?? '')) throw new Error('Absolute runner temp required.')
+          const directory = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP, 'yuyin-recover-053-'))
+          const output = path.join(directory, expected.filename)
+          fs.writeFileSync(output, bytes, { flag: 'wx' })
+          if (/[\r\n]/.test(output)) throw new Error('Invalid Actions output path.')
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `artifact=${output}\n`)
+          console.log('Verified the original installer ZIP, CRC, unique EXE and source identity; no installer rebuilt.')
+          '@ | node --input-type=module -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish original installer and advance stable after complete download verification
+        env:
+          ORIGINAL_ARTIFACT: ${{ steps.original.outputs.artifact }}
+        run: node scripts/release.mjs --publish --tag pc-v0.5.3 --artifact "$env:ORIGINAL_ARTIFACT" --build-commit 9c5771c87a1e9ce6937a3cd3a0f2a3e6f519c8e0

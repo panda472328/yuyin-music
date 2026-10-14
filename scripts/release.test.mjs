@@ -130,7 +130,7 @@ async function publisherFixture(t, options = {}) {
     if (route === 'releases' && method === 'POST') {
       events.push('create')
       assert.equal(body.tag_name, config.tag)
-      assert.equal(body.target_commitish, 'b'.padEnd(40, '0'))
+      assert.equal(Object.hasOwn(body, 'target_commitish'), false, 'publish the verified existing tag without a new target')
       assert.equal(body.draft, true)
       assert.equal(body.prerelease, false)
       release = { id: releaseId, tag_name: config.tag, draft: true, prerelease: false, assets: [] }

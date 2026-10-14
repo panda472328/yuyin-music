@@ -101,7 +101,9 @@ export async function publishRelease({ config, manifest, artifact, notes, commit
         verifyRemoteTag()
         // A newly created draft may not immediately be visible by tag or in lists.
         // Keep the creation response ID and read that exact resource instead.
-        const created = api('releases', { tag_name: config.tag, target_commitish: commit, draft: true, prerelease: false,
+        // The tag was verified above. Do not ask GitHub to create or retarget it;
+        // target_commitish is unnecessary for an existing immutable tag.
+        const created = api('releases', { tag_name: config.tag, draft: true, prerelease: false,
           name: `${config.platform === 'windows' ? 'open音乐 PC' : '余音 Android'} ${config.version}`, body }, 'POST')
         const id = releaseId(created)
         release = readRelease(id)
