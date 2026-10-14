@@ -37,7 +37,7 @@ export function extractStepFailure(log, step, secrets = [], allowUnknownStep = f
   })
   const clean = sanitizeDiagnostic(lines.join('\n'), secrets)
   const messages = [...new Set(clean.split(/\r?\n/).filter(line =>
-    /(?:\b(?:Error|SyntaxError|TypeError|RangeError):|GitHub 操作失败|\bHTTP [45]\d\d\b|\bgh:|##\[error\]|Process completed with exit code|not ok|✖|AssertionError|Expected values|\b(?:actual|expected|operator|failureType|error):)/.test(line)
+    /(?:\b(?:Error|SyntaxError|TypeError|RangeError):|GitHub 操作失败|\bHTTP [45]\d\d\b|\bgh:|##\[error\]|Process completed with exit code|not ok|✖|AssertionError|Expected values|\b(?:actual|expected|operator|failureType|error):|\bat .*webview2-installer-(?:flow|guards)\.test\.mjs:\d+:\d+|CategoryInfo|FullyQualifiedErrorId|At line:\d+|Value does not fall)/.test(line)
   ))]
   if (!messages.length) {
     const lines = String(log).split(/\r?\n/).filter(Boolean)
