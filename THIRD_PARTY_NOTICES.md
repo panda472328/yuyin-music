@@ -48,3 +48,7 @@ TypeScript（Apache-2.0）、Vite（MIT）、electron-vite（MIT）、electron-b
 ## 更新规则
 
 升级依赖或运行时后，同时核对 `package-lock.json`、实际发行组件及其原 LICENSE / NOTICE，更新本文件和 `licenses/`；更换 Electron 后从新的正式运行时复制完整 Electron / Chromium 声明到 `docs/runtime-licenses/` 对应版本的压缩包，并更新链接。现有许可文本不得通过全局替换版权名称或改为 MIT 的方式更新。
+
+## 本地像素字体
+
+界面与歌词中的 Fusion Pixel 12px 简中字体来自 [TakWolf/fusion-pixel-font](https://github.com/TakWolf/fusion-pixel-font) 的 `2026.09.25` 发行版，采用 SIL Open Font License 1.1。原始字体、来源摘要和组成字体声明保留在 [public/licenses/fusion-pixel](public/licenses/fusion-pixel/)，随网页 renderer 构建分发；不能以本项目 MIT 替换这些字体许可。主题使用本项目布局与 Lucide 图标，不含游戏贴图或游戏字体。

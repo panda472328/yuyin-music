@@ -86,7 +86,12 @@ public sealed class LocalDataStore : ILocalDataStore
             throw new InvalidOperationException("设置数据格式不正确。");
         if (key == "yuyin-ui-settings-v1") {
             var hasTheme = root.TryGetProperty("theme", out var theme);
-            if (!(hasTheme ? Fields(root, "version", "volumeBeforeMute", "sleepUntil", "theme") : Fields(root, "version", "volumeBeforeMute", "sleepUntil")) ||
+            var hasLyricStyle = root.TryGetProperty("lyricStyle", out var lyricStyle);
+            var fields = new List<string> { "version", "volumeBeforeMute", "sleepUntil" };
+            if (hasTheme) fields.Add("theme");
+            if (hasLyricStyle) fields.Add("lyricStyle");
+            if (!Fields(root, fields.ToArray()) ||
+                (hasLyricStyle && (lyricStyle.ValueKind != JsonValueKind.String || (!allowUnknownTheme && !LyricStyles.IsValid(lyricStyle.GetString())))) ||
                 (hasTheme && (theme.ValueKind != JsonValueKind.String || (!allowUnknownTheme && theme.GetString() is not ("classic" or "bilibili" or "system" or "pixel")))) ||
                 !root.GetProperty("volumeBeforeMute").TryGetDouble(out var volume) || !double.IsFinite(volume) || volume < 0 || volume > 1 ||
                 (root.GetProperty("sleepUntil").ValueKind != JsonValueKind.Null && (!root.GetProperty("sleepUntil").TryGetInt64(out var sleep) || sleep < 0 || sleep > 9007199254740991)))

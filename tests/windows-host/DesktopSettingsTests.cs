@@ -18,6 +18,15 @@ public static class DesktopSettingsTests
             var customized = new DesktopLyricsStoredState(new DesktopLyricsSettings(true, true, "kai", 48, "mint", .55), -350, 225);
             var defaults = new DesktopLyricsStoredState(new DesktopLyricsSettings());
             Assert(store.Read() is null, "missing files represent first run");
+            File.WriteAllText(path, "{\"version\":1,\"settings\":{\"font\":\"kai\",\"fontSize\":48},\"left\":120,\"top\":80}");
+            Assert(store.Read()!.Settings.Style == "classic" && store.Read()!.Settings.Font == "kai", "legacy settings adopt classic without changing font");
+            foreach (var preset in new[] { "classic", "focus", "paper", "minecraft" })
+            {
+                var styled = customized with { Settings = customized.Settings with { Style = preset } };
+                store.Save(styled);
+                Assert(new DesktopSettingsStore(directory).Read() == styled, "lyric preset persists with font and coordinates: " + preset);
+            }
+            Reject(() => store.Save(customized with { Settings = customized.Settings with { Style = "unknown" } }), "unknown lyric style rejects before write");
             store.Save(customized);
             Assert(new DesktopSettingsStore(directory).Read() == customized, "all settings and coordinates survive restart");
             store.Save(defaults);

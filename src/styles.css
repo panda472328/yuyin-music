@@ -191,7 +191,7 @@ h1 { font-size: 28px; letter-spacing: 1px; font-weight: 680; }
 .card-source { position: absolute; top: 11px; left: 11px; font-size: 6px; font-weight: 700; letter-spacing: 1px; background: #ffffffd9; border-radius: 3px; color: #7e8d72; padding: 3px 5px; }
 .card-favorite { position: absolute; top: 5px; right: 5px; color: #fff; opacity: 0; z-index: 2; }
 .card-favorite.active { opacity: 1; color: white; }
-.card-image:hover .card-favorite { opacity: 1; }
+.card-image:hover .card-favorite, .card-image:focus-within .card-favorite { opacity: 1; }
 .card-favorite:hover { background: #ffffff35; color: white; }
 .card-play { position: absolute; right: 10px; bottom: 10px; width: 32px; height: 32px; border-radius: 50%; background: #f8f9eeed; display: flex; align-items: center; justify-content: center; padding-left: 9px; color: #5a7443; z-index: 2; }
 .card-play:hover { background: #f6ffdc; transform: scale(1.08); }

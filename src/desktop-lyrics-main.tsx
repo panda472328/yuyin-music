@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import DesktopLyrics from './DesktopLyrics'
 import './desktop-lyrics.css'
+import './pixel-font.css'
 import { createWebView2DesktopLyricsAPI } from './webview2-bridge'
 
 if (!window.desktopLyricsAPI) window.desktopLyricsAPI = createWebView2DesktopLyricsAPI() ?? undefined

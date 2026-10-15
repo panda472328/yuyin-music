@@ -52,3 +52,11 @@ p { margin: 0; }
 .desktop-playing-dot.is-playing { background: #b9f2d0; }
 .desktop-paused-label { color: #b9cec1; font-size: 9px; flex-shrink: 0; }
 .desktop-lyrics-status { position: absolute; top: 47px; left: 50%; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 48px); padding: 4px 11px; font-size: 10px; line-height: 1.4; border-radius: 6px; background: #1d2925ed; border: 1px solid #b9f2d02e; color: #dce9de; box-shadow: 0 2px 8px #0003; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+
+/* Presets change only text; the lyric copy and window remain transparent. */
+.desktop-lyrics[data-lyric-style="focus"] .desktop-lyric-current { font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
+.desktop-lyrics[data-lyric-style="focus"] .desktop-lyric-next { opacity: .75; }
+.desktop-lyrics[data-lyric-style="paper"] .desktop-lyric-current { font-weight: 500; font-style: italic; text-shadow: 1px 2px 0 #241b10, 0 2px 4px #0009; }
+.desktop-lyrics[data-lyric-style="minecraft"] :is(.desktop-lyric-current, .desktop-lyric-next) { text-shadow: 3px 3px 0 #0c1308; -webkit-text-stroke: 1.5px #0c1308; letter-spacing: 0; font-weight: 400; }
+.desktop-lyrics[data-lyric-style="minecraft"] .desktop-lyric-current::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 8px; background: #afd65f; box-shadow: 2px 2px #0c1308; vertical-align: middle; }
+.desktop-lyrics[data-lyric-style="minecraft"] .desktop-playing-dot { border-radius: 0; background: #afd65f; }

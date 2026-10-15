@@ -1,0 +1,65 @@
+/* Main renderer only. Loaded after themes so lyric presets stay independent. */
+.appearance-description { margin: 8px 0 4px; color: var(--text-muted); font-size: 12px; line-height: 1.8; }
+.lyric-style-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 18px 0 24px; }
+.lyric-style-option { min-width: 0; padding: 8px; text-align: left; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.lyric-style-option:hover:not(:disabled) { border-color: var(--green); }
+.lyric-style-option.selected { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); }
+.lyric-style-preview { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 9px; height: 112px; overflow: hidden; color: var(--green); }
+.lyric-style-preview strong { font-size: 14px; font-weight: 700; }
+.lyric-style-preview small { font-size: 9px; opacity: .65; }
+.lyric-style-detail { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin: 12px 2px 6px; color: var(--ink); font-size: 12px; }
+.lyric-style-detail svg { color: var(--green); visibility: hidden; }
+.selected .lyric-style-detail svg { visibility: visible; }
+.lyric-style-description { display: block; margin: 0 2px 4px; color: var(--text-muted); font-size: 10px; line-height: 1.6; }
+.lyric-style-preview[data-lyric-style="focus"] strong { font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.lyric-style-preview[data-lyric-style="paper"] { font-family: 'KaiTi', 'SimSun', serif; }
+.lyric-style-preview[data-lyric-style="paper"] strong { border-bottom: 1px solid currentColor; }
+.lyric-style-preview[data-lyric-style="minecraft"] { font-family: 'Fusion Pixel', 'Consolas', 'Microsoft YaHei', monospace; }
+.lyric-style-preview[data-lyric-style="minecraft"] strong { font-size: 18px; font-weight: 400; border-left: 4px solid var(--ui-decoration); padding-left: 6px; }
+.lyrics-style-select { float: right; display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 11px; margin-left: 14px; }
+.lyrics-style-select select { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 8px 28px 8px 12px; color: var(--ink); -webkit-app-region: no-drag; }
+.lyrics-source-settings { display: flow-root; }
+.lyric-style-options[data-preview-target="desktop"] .lyric-style-preview:not([data-lyric-style="minecraft"]):not([data-lyric-style="paper"]) { font-family: 'Microsoft YaHei', sans-serif; }
+.lyric-style-options[data-preview-target="desktop"] .lyric-style-preview { color: var(--ink); text-shadow: 0 1px 2px #0003; }
+.desktop-style-sample { background: #626d67; border: 1px solid #8d9c92; border-radius: 9px; padding: 18px 22px; }
+.desktop-style-sample > span { font: 10px 'Microsoft YaHei', sans-serif; color: #f0f0e6; }
+.desktop-style-sample p { color: var(--sample-color, #fff); font-size: 26px; line-height: 1.8; margin-top: 8px; overflow-wrap: anywhere; -webkit-text-stroke: 1px #14211d; paint-order: stroke fill; text-shadow: 0 2px 4px #0009; }
+.desktop-style-sample[data-lyric-style="focus"] p { font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.desktop-style-sample[data-lyric-style="paper"] p { font-weight: 500; font-style: italic; text-shadow: 1px 2px 0 #241b10; }
+.desktop-style-sample[data-lyric-style="minecraft"] p { text-shadow: 3px 3px #0c1308; font-weight: 400; }
+.desktop-style-sample[data-lyric-style="minecraft"] p::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 8px; background: #afd65f; box-shadow: 2px 2px #0c1308; vertical-align: middle; }
+
+/* Presets change the text treatment while the reading area stays unframed. */
+:root .lyrics-page:not([data-lyric-style="classic"]) .lyrics-reading {
+  --reading-ink: var(--ink);
+  --reading-muted: var(--text-muted);
+  --reading-active: var(--ui-hover);
+  --reading-line: var(--line);
+  --reading-focus: var(--ui-focus);
+  color: var(--reading-ink);
+}
+:root .lyrics-page:not([data-lyric-style="classic"]) .lyric-line { color: var(--reading-muted); background: transparent; }
+:root .lyrics-page:not([data-lyric-style="classic"]) .lyric-line:hover { color: var(--green); }
+:root .lyrics-page:not([data-lyric-style="classic"]) .lyric-line.is-current { color: var(--green); background: transparent; box-shadow: none; }
+:root .lyrics-page:not([data-lyric-style="classic"]) .lyric-line.is-current::before { background: var(--reading-focus); }
+:root .lyrics-page:not([data-lyric-style="classic"]) :is(.lyrics-click-hint, .lyrics-offset > span, .lyric-timestamp, .lyrics-placeholder, .lyrics-placeholder p, .lyrics-storage-warning) { color: var(--reading-muted); }
+:root .lyrics-page:not([data-lyric-style="classic"]) :is(.lyrics-placeholder h3, .plain-lyrics, .lyrics-alignment-message) { color: var(--reading-ink); }
+:root .lyrics-page:not([data-lyric-style="classic"]) :is(.lyrics-offset, .lyrics-align, .lyrics-calibration-note, .lyrics-placeholder .button-secondary) { background: var(--reading-active); border-color: var(--reading-line); color: var(--reading-ink); }
+:root .lyrics-page:not([data-lyric-style="classic"]) :is(.lyrics-offset button, .lyrics-refresh) { color: var(--reading-ink); }
+:root .lyrics-page:not([data-lyric-style="classic"]) :is(.lyrics-offset button:hover, .lyrics-refresh:hover) { background: var(--reading-active); }
+:root .lyrics-page:not([data-lyric-style="classic"]) .lyrics-reading-footer { border-color: var(--reading-line); gap: 8px; }
+:root .lyrics-page:not([data-lyric-style="classic"]) .lyrics-reading :focus-visible { outline: 2px solid var(--reading-focus); outline-offset: -2px; }
+:root .lyrics-page[data-lyric-style="focus"] .lyric-line { font-size: 24px; font-weight: 600; letter-spacing: .5px; }
+:root .lyrics-page[data-lyric-style="focus"] .lyric-line.is-current { font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 7px; }
+:root .lyrics-page[data-lyric-style="paper"] :is(.lyric-line, .plain-lyrics) { font-family: 'KaiTi', 'SimSun', serif; }
+:root .lyrics-page[data-lyric-style="paper"] .lyric-line { border-bottom: 1px solid var(--reading-line); border-radius: 0; }
+:root .lyrics-page[data-lyric-style="minecraft"] :is(.lyric-line, .plain-lyrics) { font-family: 'Fusion Pixel', 'Consolas', 'Microsoft YaHei', monospace; border-radius: 0; }
+:root .lyrics-page[data-lyric-style="minecraft"] .lyric-line { font-size: 24px; font-weight: 400; padding-left: 32px; }
+:root .lyrics-page[data-lyric-style="minecraft"] .lyric-line.is-current::before { border-radius: 0; width: 4px; height: 4px; background: var(--ui-decoration); box-shadow: 0 -4px var(--ui-decoration), 0 4px var(--ui-decoration), 4px 0 var(--ui-decoration); }
+:root .lyrics-page[data-lyric-style="minecraft"] :is(.lyrics-offset, .lyrics-align, .lyrics-offset button) { border-radius: 0; }
+:root[data-theme="pixel"] :is(.lyric-style-option, .lyrics-style-select select) { border-radius: 0; }
+@media (max-width: 1200px) {
+  .lyric-style-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root .lyrics-page[data-lyric-style="focus"] .lyric-line { font-size: 21px; }
+}
+@media (max-width: 700px) { .lyric-style-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

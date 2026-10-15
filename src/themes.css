@@ -7,6 +7,19 @@
 }
 :root[data-theme] :is(input[type="range"], progress) { accent-color: var(--ui-button); }
 
+/* Shared refinements keep the classic palette and existing window hit regions. */
+:root .page-heading h1 { letter-spacing: -.6px; }
+:root .settings-panel { box-shadow: 0 4px 18px var(--ui-shadow); }
+:root .settings-panel h2 { font-size: 15px; color: var(--ink); }
+:root .setting-row strong { color: var(--ink); }
+:root .setting-row small { color: var(--text-muted); line-height: 1.7; }
+:root .nav-item.selected::before { content: ''; position: absolute; left: 0; top: 13px; bottom: 13px; width: 3px; border-radius: 2px; background: var(--green); }
+:root .player-bar { box-shadow: 0 -4px 24px var(--ui-shadow); }
+:root .song-row:focus-within { background: var(--ui-hover); }
+:root .theme-option:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+:root:not([data-theme]) .hero { background: radial-gradient(ellipse at top left, #f0f4e8, transparent 70%), var(--ui-hero); border: 1px solid #dce5d2; }
+:root:not([data-theme]) :is(.page-heading p, .section-heading p, .song-card > p, .song-artist, .song-meta, .song-duration) { color: var(--text-muted); }
+
 /* Navigation, account, search, and shared surfaces. */
 :root[data-theme] .brand-icon { background: var(--ui-button); color: var(--ui-on-button); }
 :root[data-theme] :is(.brand-subtitle, .sidebar-label, .nav-item, .nav-item small, .sidebar-playlist small, .source-status, .source-status small, .navigation-arrows .icon-button, .local-badge, .guest-login, .account-trigger) {
@@ -30,7 +43,9 @@
 :root[data-theme] .account-menu-error { color: var(--warning-text); }
 :root[data-theme] .search-box { background: var(--ui-subtle); color: var(--text-muted); }
 :root[data-theme] .search-box:focus-within { background: var(--ui-field); border-color: var(--ui-border-strong); }
-:root[data-theme] :is(.search-box input::placeholder, .collection-search input::placeholder, .modal input::placeholder) { color: var(--ui-faint); }
+:root[data-theme] .search-box input::placeholder,
+:root[data-theme] .collection-search input::placeholder,
+:root[data-theme] .modal input::placeholder { color: var(--ui-faint); }
 :root[data-theme] :is(.search-box button, .search-box kbd, .search-mode button) { color: var(--text-muted); }
 :root[data-theme] :is(.search-box kbd, kbd) { border-color: var(--line); }
 :root[data-theme] .search-mode button:hover { color: var(--green); }
@@ -147,8 +162,8 @@
 :root[data-theme] .lyrics-art-label { background: var(--ui-button); color: var(--ui-on-button); }
 :root[data-theme] :is(.lyrics-song-card h2, .lyrics-placeholder h3) { color: var(--ink); }
 :root[data-theme] .lyric-line { color: var(--text-muted); }
-:root[data-theme] .lyric-line:hover { background: var(--ui-hover); color: var(--green); }
-:root[data-theme] .lyric-line.is-current { background: var(--ui-selected); color: var(--green); }
+:root[data-theme] .lyric-line:hover { color: var(--green); }
+:root[data-theme] .lyric-line.is-current { color: var(--green); }
 :root[data-theme] .plain-lyrics { color: var(--ink); }
 :root[data-theme] :is(.lyrics-align, .lyrics-toggle) { border-color: var(--line); color: var(--green); }
 :root[data-theme] :is(.lyrics-align:hover, .lyrics-align[aria-pressed="true"], .lyrics-toggle:hover, .lyrics-toggle.active) { background: var(--ui-selected); border-color: var(--ui-border-strong); color: var(--green); }
@@ -159,12 +174,55 @@
 :root[data-theme] :is(.lyrics-offset button:hover, .lyrics-refresh:hover) { background: var(--ui-hover); color: var(--green); }
 :root[data-theme] .comment-composer textarea { background: var(--ui-field); }
 
-/* The Bilibili theme uses the familiar pink accent with quiet cool neutrals. */
-:root[data-theme="bilibili"] .hero { border: 1px solid #f6cbdd; }
-:root[data-theme="bilibili"] .brand-icon { border-radius: 12px; }
-:root[data-theme="bilibili"] .record-label { background: #f9b7cd; color: #682443; }
-:root[data-theme="bilibili"] .login-disc-center { background: #f9c4d6; color: #71324e; }
-:root[data-theme="bilibili"] .card-play { box-shadow: 0 2px 8px var(--ui-shadow); }
+/* Bilibili: white content cards, pink actions, blue channel markers and video proportions. */
+.card-duration { display: none; }
+:root[data-theme="bilibili"] .topbar { background: #fff; border-bottom: 1px solid #edf0f2; }
+:root[data-theme="bilibili"] .brand-name { color: var(--green); }
+:root[data-theme="bilibili"] .brand-icon { background: var(--bili-pink); border-radius: 8px; position: relative; width: 43px; height: 35px; border: 2px solid #e84b85; box-shadow: inset 0 0 0 3px #fff8; }
+:root[data-theme="bilibili"] .brand-icon::before { content: ''; position: absolute; width: 17px; height: 8px; left: 10px; top: -9px; border-left: 2px solid var(--bili-pink); border-right: 2px solid var(--bili-pink); transform: skew(-18deg); }
+:root[data-theme="bilibili"] .search-box { border-radius: 8px; background: #f1f2f3; border-color: #e3e5e7; }
+:root[data-theme="bilibili"] .search-mode button[aria-pressed="true"] { background: #fff; color: #0084b4; box-shadow: 0 1px 3px #0001; }
+:root[data-theme="bilibili"] .nav-item { border-radius: 6px; }
+:root[data-theme="bilibili"] .nav-item.selected { background: var(--ui-selected); color: var(--green); }
+:root[data-theme="bilibili"] .nav-item.selected::before { border-radius: 0 3px 3px 0; background: var(--bili-pink); width: 4px; }
+:root[data-theme="bilibili"] .page-heading { border-bottom: 1px solid #e3e5e7; padding-bottom: 18px; margin-bottom: 22px; }
+:root[data-theme="bilibili"] .page-heading h1 { font-size: 27px; }
+:root[data-theme="bilibili"] .eyebrow { color: #0084b4; letter-spacing: 1px; }
+:root[data-theme="bilibili"] .hero { border: 1px solid #e3e5e7; border-radius: 10px; background: #fff; min-height: 240px; }
+:root[data-theme="bilibili"] .hero-kicker { display: inline-flex; padding: 6px 9px; color: var(--green); background: var(--ui-selected); border-radius: 4px; letter-spacing: 1px; }
+:root[data-theme="bilibili"] .hero-kicker > span { background: var(--bili-pink); }
+:root[data-theme="bilibili"] .hero h2 { letter-spacing: 0; font-size: 30px; font-weight: 750; }
+:root[data-theme="bilibili"] .hero-art > :not(.art-cover) { display: none; }
+:root[data-theme="bilibili"] .art-cover { inset: 24px 24px 24px 0; width: auto; transform: none; padding: 0; border-radius: 8px; background: #f1f2f3; box-shadow: none; overflow: hidden; }
+:root[data-theme="bilibili"] .art-cover > .cover { height: calc(100% - 44px); border-radius: 0; filter: none; color: #0084b4; background: #dff3fb; }
+:root[data-theme="bilibili"] .art-cover > div:last-child { padding: 9px 14px; display: flex; gap: 12px; align-items: center; }
+:root[data-theme="bilibili"] .art-cover span { font-size: 8px; letter-spacing: 0; color: #0084b4; background: #e0f3fb; padding: 3px 5px; }
+:root[data-theme="bilibili"] .art-cover strong { color: #34373e; font-size: 12px; margin: 0; }
+:root[data-theme="bilibili"] .art-cover svg { color: #0084b4; }
+:root[data-theme="bilibili"] .button-primary { border-radius: 6px; box-shadow: none; }
+:root[data-theme="bilibili"] .button-secondary { border-radius: 6px; border-color: #d9dce0; }
+:root[data-theme="bilibili"] .section-heading h2 { display: flex; align-items: center; gap: 8px; }
+:root[data-theme="bilibili"] .section-heading h2::before { content: ''; display: inline-block; width: 7px; height: 18px; background: var(--ui-decoration); border-radius: 3px; }
+:root[data-theme="bilibili"] .section-heading h2 > span { color: #0084b4; margin-left: 0; }
+:root[data-theme="bilibili"] .text-button { color: #0084b4; }
+:root[data-theme="bilibili"] .song-card { padding: 0 0 10px; background: #fff; border: 1px solid #e3e5e7; border-radius: 7px; overflow: hidden; }
+:root[data-theme="bilibili"] .song-card:hover { border-color: var(--ui-decoration); }
+:root[data-theme="bilibili"] .card-image { aspect-ratio: 16 / 9; border-radius: 0; }
+:root[data-theme="bilibili"] .card-title { padding: 10px 10px 0; font-weight: 500; }
+:root[data-theme="bilibili"] .song-card > p { padding: 0 10px; color: #737982; }
+:root[data-theme="bilibili"] .card-source { background: #ffffffed; color: #0084b4; }
+:root[data-theme="bilibili"] .card-play { right: 9px; bottom: 28px; width: 27px; height: 27px; border-radius: 6px; color: #fff; background: #0008; padding: 0; }
+:root[data-theme="bilibili"] .card-play:hover { background: var(--ui-button); }
+:root[data-theme="bilibili"] .card-listens { left: 9px; bottom: 8px; }
+:root[data-theme="bilibili"] .card-duration { display: block; position: absolute; right: 9px; bottom: 8px; z-index: 2; color: #fff; font-size: 10px; }
+:root[data-theme="bilibili"] .bili-chip { color: #0084b4; background: #eaf7fc; border-color: #cce9f6; }
+:root[data-theme="bilibili"] .player-bar { border-top: 2px solid #f4c4d6; box-shadow: 0 -2px 10px #00000006; }
+:root[data-theme="bilibili"] .main-play { background: var(--ui-button); box-shadow: 0 3px 8px #ff669933; }
+:root[data-theme="bilibili"] :is(.lyrics-source-switch, .comments-sort) { background: transparent; padding-left: 0; border: 0; border-bottom: 1px solid #e3e5e7; border-radius: 0; }
+:root[data-theme="bilibili"] :is(.lyrics-source-switch button, .comments-sort button) { border-radius: 0; }
+:root[data-theme="bilibili"] :is(.lyrics-source-switch button[aria-pressed="true"], .comments-sort button[aria-pressed="true"]) { box-shadow: inset 0 -3px var(--bili-pink); color: var(--green); background: transparent; }
+:root[data-theme="bilibili"] .settings-panel { border-radius: 8px; box-shadow: none; }
+:root[data-theme="bilibili"] .settings-panel h2 { border-left: 4px solid var(--ui-decoration); padding-left: 10px; }
 
 /* Windows follows its current light or dark appearance through data-system-scheme. */
 :root[data-theme="system"] :is(.hero, .login-card, .settings-panel, .modal, .update-banner, .queue-panel) { border: 1px solid var(--line); }
@@ -175,27 +233,23 @@
 :root[data-theme="system"][data-system-scheme="dark"] .toast button { color: #286eaf; }
 :root[data-theme="system"][data-system-scheme="dark"] .button-danger { background: #a33c49; }
 
-/* Pixel theme changes geometry and material as well as color. */
-:root[data-theme="pixel"] body { font-family: 'Cascadia Mono', 'Consolas', 'Microsoft YaHei', monospace; }
-:root[data-theme="pixel"] .main-content {
-  background-color: var(--canvas);
-  background-image: linear-gradient(#2c695010 1px, transparent 1px), linear-gradient(90deg, #2c695010 1px, transparent 1px);
-  background-size: 16px 16px;
-}
+/* Minecraft: native inventory/slot geometry and pixel typography; no scenery images. */
+:root[data-theme="pixel"] body { font-family: 'Fusion Pixel', 'Consolas', 'Microsoft YaHei', monospace; }
+:root[data-theme="pixel"] .main-content { background: var(--canvas); }
 :root[data-theme="pixel"] :is(.brand-icon, .nav-item, .icon-button, .search-box, .search-suggestions, .search-suggestions-list button, .account-trigger, .account-avatar, .account-menu, .login-card, .login-close, .login-card-icon, .hero, .button-primary, .button-secondary, .button-danger, .card-image, .card-play, .playlist-card, .playlist-art, .song-row, .dropdown-menu, .empty-icon, .error-state, .settings-panel, .switch, .setting-row select, .desktop-lyrics-font-preview, .queue-panel, .queue-song, .modal, .modal-symbol, .modal input, .add-playlist-list > button, .bilibili-folder, .bilibili-folder-cover, .toast, .playback-error, .update-banner, .comments-video, .comment-composer, .comment-thread, .comments-sort, .comments-sort button, .comment-composer textarea, .lyrics-source-switch, .lyrics-source-switch button, .lyrics-art, .lyrics-art > img, .lyric-line, .lyrics-align, .lyrics-toggle, .lyrics-offset, .lyrics-offset button) {
   border-radius: 0;
 }
 :root[data-theme="pixel"] :is(.hero, .playlist-card, .settings-panel, .login-card, .modal, .search-suggestions, .account-menu, .dropdown-menu, .queue-panel, .update-banner, .comments-video, .comment-composer, .comment-thread, .lyrics-art) {
   border: 2px solid var(--line);
-  box-shadow: 4px 4px 0 #305a4c40;
+  box-shadow: inset 2px 2px var(--block-highlight), inset -2px -2px #0003, 4px 4px 0 #0003;
 }
 :root[data-theme="pixel"] :is(.button-primary, .button-secondary, .button-danger, .main-play, .card-play) {
   border: 2px solid var(--line);
-  box-shadow: 3px 3px 0 #305a4c50;
+  box-shadow: inset 2px 2px #ffffff45, inset -2px -2px #0007, 3px 3px 0 var(--block-edge);
   transform: none;
 }
 :root[data-theme="pixel"] :is(.button-primary, .button-secondary, .button-danger, .main-play, .card-play):hover {
-  box-shadow: 1px 1px 0 #305a4c70;
+  box-shadow: inset 2px 2px #ffffff45, inset -2px -2px #0007, 1px 1px 0 var(--block-edge);
   transform: translate(2px, 2px);
 }
 :root[data-theme="pixel"] :is(.button-primary, .button-secondary, .button-danger, .main-play, .card-play):active { box-shadow: none; transform: translate(3px, 3px); }
@@ -203,10 +257,56 @@
 :root[data-theme="pixel"] :is(.hero-kicker, .sidebar-label, .eyebrow, .brand-subtitle, .card-source, .bili-chip, .sort-badge) { letter-spacing: 0; font-weight: 700; }
 :root[data-theme="pixel"] :is(.record-label, .login-disc-center) { border: 4px solid var(--line); }
 :root[data-theme="pixel"] .song-row.current { box-shadow: inset 4px 0 var(--ui-decoration); }
-:root[data-theme="pixel"] .lyric-line.is-current { box-shadow: inset 4px 0 var(--ui-decoration); }
+:root[data-theme="pixel"] .lyric-line.is-current::before { border-radius: 0; }
 :root[data-theme="pixel"] :is(.switch, .switch > span, input[type="range"], input[type="range"]::-webkit-slider-thumb) { border-radius: 0; }
 :root[data-theme="pixel"] .modal-backdrop { backdrop-filter: none; }
 :root[data-theme="pixel"] :is(button, input, select, textarea):focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 2px; }
+
+:root[data-theme="pixel"] .sidebar { border-right: 3px solid var(--block-edge); box-shadow: inset -2px 0 #eee; }
+:root[data-theme="pixel"] .brand-icon { background: #606753; border: 2px solid var(--block-edge); box-shadow: inset 3px 3px #a3ab8d, inset -3px -3px #34392b; }
+:root[data-theme="pixel"] .brand-name { font-weight: 400; font-size: 24px; text-shadow: 1px 1px #eee; }
+:root[data-theme="pixel"] :is(.brand-subtitle, .eyebrow, .hero-kicker, .hero-footnote, .card-source, .card-listens, .section-heading h2 > span, .sidebar-label, .source-status, .source-status small, .bili-chip) { font-size: 12px; letter-spacing: 0; }
+:root[data-theme="pixel"] .topbar .search-box input::placeholder { color: #50534c; opacity: 1; }
+:root[data-theme="pixel"] .topbar .button-secondary { color: #fff; }
+:root[data-theme="pixel"] .nav-item { border: 2px solid transparent; }
+:root[data-theme="pixel"] .nav-item.selected { border-color: #fff; background: #969e89; box-shadow: inset 2px 2px #515746, 2px 2px #555; color: #17220b; }
+:root[data-theme="pixel"] .nav-item.selected::before { display: none; }
+:root[data-theme="pixel"] .hero { border: 3px solid var(--block-edge); background: #c6c6c6; box-shadow: inset 3px 3px #fff, inset -3px -3px #555; }
+:root[data-theme="pixel"] .hero-content { width: 58%; }
+:root[data-theme="pixel"] .hero-art { display: none; }
+:root[data-theme="pixel"] .hero h2 { text-shadow: 2px 2px #eee; letter-spacing: 0; font-weight: 400; font-size: 36px; }
+:root[data-theme="pixel"] .hero .button-primary { color: var(--ui-on-button); }
+:root[data-theme="pixel"] :is(.button-primary, .button-secondary) { background: #6c6c6c; color: #fff; border-color: var(--block-edge); text-shadow: 2px 2px #222; font-weight: 400; }
+:root[data-theme="pixel"] :is(.button-primary, .button-secondary):hover { background: #7b866a; color: #efffc9; }
+:root[data-theme="pixel"] .button-danger { background: #804632; color: #fff4eb; }
+:root[data-theme="pixel"] :is(.playlist-art, .cover, .playlist-symbol, .search-mode button) { border-radius: 0; }
+:root[data-theme="pixel"] :is(.card-image, .playlist-art, .lyrics-art, .theme-option-preview) { box-shadow: inset 3px 3px #373737, inset -3px -3px #fff; padding: 4px; border: 1px solid #6d6d6d; }
+:root[data-theme="pixel"] .player-bar { border-top: 3px solid #171717; box-shadow: inset 0 2px #929292; color: #efefef; }
+:root[data-theme="pixel"] .now-playing strong { color: #fff; }
+:root[data-theme="pixel"] .player-bar :is(.now-playing-text > span, .timeline > span) { color: #d3dbc4; font-size: 12px; }
+:root[data-theme="pixel"] .player-bar .now-playing .icon-button { color: #b8d67b; }
+:root[data-theme="pixel"] :is(.playback-controls .icon-button, .player-tools .icon-button, .lyrics-toggle) { color: #e2e2e2; }
+:root[data-theme="pixel"] :is(.playback-controls .icon-button.active, .player-tools .icon-button.active, .lyrics-toggle.active) { color: #c7ed7b; }
+:root[data-theme="pixel"] .playback-controls { width: max-content; margin-inline: auto; gap: 4px; padding: 4px; background: #222; border: 2px solid #111; box-shadow: inset 2px 2px #747474; }
+:root[data-theme="pixel"] .playback-controls .icon-button { background: #656565; box-shadow: inset 2px 2px #aaa, inset -2px -2px #3c3c3c; }
+:root[data-theme="pixel"] .main-play { border-radius: 0; background: #7a855c; border-color: #d1dcad; box-shadow: inset 2px 2px #a7ba7b, inset -2px -2px #434b32; }
+:root[data-theme="pixel"] .player-bar input[type="range"] { height: 7px; border: 1px solid #171717; background: linear-gradient(to right, #86bf35 var(--progress), #171c13 var(--progress)); box-shadow: inset 0 1px #0008; }
+:root[data-theme="pixel"] input[type="range"]::-webkit-slider-thumb { border: 2px solid #e7f6c0; background: #86bf35; box-shadow: 1px 1px #151c10; }
+:root[data-theme="pixel"] .lyrics-art-ring { display: none; }
+:root[data-theme="pixel"] .theme-option { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+.block-inventory-art { display: none; }
+:root[data-theme="pixel"] .block-inventory-art { position: absolute; right: 7%; top: 21px; display: flex; flex-direction: column; gap: 8px; width: 196px; padding: 12px; border: 3px solid #252525; background: #c6c6c6; box-shadow: inset 3px 3px #fff, inset -3px -3px #555, 5px 5px #0003; }
+.block-inventory-title { font-size: 12px; color: #343434; }
+.block-inventory-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.block-slot { display: flex; align-items: center; justify-content: center; position: relative; height: 43px; color: #edf0d6; background: #8b8b8b; border: 2px solid; border-color: #373737 #fff #fff #373737; }
+.block-slot svg { filter: drop-shadow(2px 2px #333); }
+.block-slot:nth-child(3) { color: #b53630; }
+.block-slot:nth-child(7) { color: #c9a85a; }
+.block-slot.equipped { color: #b9df6f; background: #5f6d49; outline: 2px solid #f1ffc9; outline-offset: -4px; }
+.block-slot small { position: absolute; right: 2px; bottom: 0; color: #fff; text-shadow: 1px 1px #222; font-size: 10px; }
+.block-inventory-caption { display: flex; gap: 6px; align-items: center; font-size: 11px; }
+.block-experience { height: 7px; border: 2px solid #232b1b; background: #505641; }
+.block-experience i { display: block; height: 100%; width: 68%; background: #80c32f; box-shadow: inset 0 1px #c1ed6d; }
 
 /* Theme picker remains recognizable in every theme, including the classic default. */
 .theme-options {
@@ -240,7 +340,7 @@
   grid-column: 1 / -1;
   display: block;
   width: 100%;
-  height: 66px;
+  height: 92px;
   overflow: hidden;
   border: 1px solid #0002;
   border-radius: 4px;
@@ -276,7 +376,7 @@
   --preview-canvas: #f8f9fc;
   --preview-sidebar: #fff;
   --preview-player: #fff;
-  --preview-accent: #d44179;
+  --preview-accent: #ff6699;
 }
 .theme-option-preview[data-preview="system"] {
   --preview-canvas: #f7f7f7;
@@ -291,16 +391,16 @@
   --preview-accent: #498bc5;
 }
 .theme-option-preview[data-preview="pixel"] {
-  --preview-canvas: #f3f8f3;
-  --preview-sidebar: #dce9dd;
-  --preview-player: #fbfdf8;
-  --preview-accent: #205c49;
+  --preview-canvas: #c6c6c6;
+  --preview-sidebar: #b4b4b4;
+  --preview-player: #3a3a3a;
+  --preview-accent: #8cbc4c;
   border-radius: 0;
   border-color: #35594c;
   image-rendering: pixelated;
 }
 .theme-option-preview[data-preview="pixel"] .theme-option-preview-content i { border-radius: 0; }
-.theme-option-preview[data-preview="pixel"] .theme-option-preview-content i:first-child { box-shadow: 3px 3px 0 #ce705d; }
+.theme-option-preview[data-preview="pixel"] .theme-option-preview-content i:first-child { height: 22px; background: #8b8b8b; border: 2px solid; border-color: #373737 #fff #fff #373737; box-shadow: inset 0 -4px #86bf35; }
 .theme-option-details { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .theme-option-name { min-width: 0; font-size: 12px; font-weight: 650; overflow-wrap: anywhere; }
 .theme-option-description { font-size: 10px; line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
@@ -310,6 +410,7 @@
 :root[data-theme="pixel"] .theme-option.selected { padding: 9px; }
 @media (max-width: 1200px) {
   .theme-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root[data-theme="pixel"] .nav-item { font-size: 13px; gap: 10px; padding-left: 12px; padding-right: 12px; white-space: nowrap; }
 }
 @media (max-width: 700px) {
   .theme-options { grid-template-columns: minmax(0, 1fr); }

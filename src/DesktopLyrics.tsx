@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ALargeSmall, ChevronLeft, Eye, GripVertical, Lock, Minus, Palette, Plus, Type, Unlock, X } from 'lucide-react'
+import { PIXEL_FONT_FAMILY } from './shared/lyric-styles'
 import {
   DESKTOP_LYRICS_COLOR_OPTIONS,
   DESKTOP_LYRICS_DEFAULT_CONTENT,
@@ -25,7 +26,7 @@ function shortError(error: unknown): string {
 }
 
 /** Fit both the width and available height, so long lyrics remain complete. */
-function useFittedText(text: string, maximumSize: number, fontFamily: string) {
+function useFittedText(text: string, maximumSize: number, fontFamily: string, preset: string) {
   const area = useRef<HTMLDivElement>(null)
   const line = useRef<HTMLParagraphElement>(null)
   useLayoutEffect(() => {
@@ -57,8 +58,9 @@ function useFittedText(text: string, maximumSize: number, fontFamily: string) {
     })
     observer.observe(container)
     void document.fonts.ready.then(fit)
-    return () => { disposed = true; observer.disconnect(); cancelAnimationFrame(frame) }
-  }, [text, maximumSize, fontFamily])
+    document.fonts.addEventListener('loadingdone', fit)
+    return () => { disposed = true; observer.disconnect(); cancelAnimationFrame(frame); document.fonts.removeEventListener('loadingdone', fit) }
+  }, [text, maximumSize, fontFamily, preset])
   return { area, line }
 }
 
@@ -166,7 +168,7 @@ export default function DesktopLyrics() {
   }
 
   const { settings, content } = snapshot
-  const fontFamily = DESKTOP_LYRICS_FONT_OPTIONS.find(option => option.value === settings.font)!.fontFamily
+  const fontFamily = settings.style === 'minecraft' ? PIXEL_FONT_FAMILY : DESKTOP_LYRICS_FONT_OPTIONS.find(option => option.value === settings.font)!.fontFamily
   const color = DESKTOP_LYRICS_COLOR_OPTIONS.find(option => option.value === settings.color)!.color
   const hasCurrent = connected && content.phase === 'ready' && Boolean(content.current.trim())
   let current = content.current
@@ -179,8 +181,8 @@ export default function DesktopLyrics() {
   else if (!content.current.trim()) { current = '♪'; next = content.next || '静听旋律' }
   const currentMaximum = hasCurrent ? settings.fontSize : Math.min(settings.fontSize, 30)
   const nextMaximum = Math.min(24, Math.max(14, settings.fontSize * .55))
-  const currentFit = useFittedText(current, currentMaximum, fontFamily)
-  const nextFit = useFittedText(next, nextMaximum, fontFamily)
+  const currentFit = useFittedText(current, currentMaximum, fontFamily, settings.style)
+  const nextFit = useFittedText(next, nextMaximum, fontFamily, settings.style)
   const error = actionError || snapshot.error
   const settingsDisabled = !connected || !api
   const style = { '--lyrics-color': color, '--lyrics-font': fontFamily, '--lyrics-opacity': settings.opacity } as CSSProperties
@@ -244,7 +246,7 @@ export default function DesktopLyrics() {
     return () => { observer.disconnect(); window.removeEventListener('resize', schedule); if (frame) cancelAnimationFrame(frame) }
   }, [api, toolbarVisible])
 
-  return <main ref={rootElement} className={rootClass} style={style} data-font={settings.font} data-color={settings.color} data-phase={content.phase} data-locked={settings.locked} data-opacity={settings.opacity} aria-label="open音乐桌面歌词" onPointerMove={revealToolbar}>
+  return <main ref={rootElement} className={rootClass} style={style} data-lyric-style={settings.style} data-font={settings.font} data-color={settings.color} data-phase={content.phase} data-locked={settings.locked} data-opacity={settings.opacity} aria-label="open音乐桌面歌词" onPointerMove={revealToolbar}>
     <div className="desktop-lyrics-toolbar" role="toolbar" aria-label="桌面歌词设置" aria-busy={busy} onFocusCapture={event => { toolbarKeyboardFocus.current = (event.target as HTMLElement).matches(':focus-visible'); revealToolbar() }} onBlurCapture={scheduleToolbarHide} onPointerDownCapture={() => { toolbarKeyboardFocus.current = false; revealToolbar() }} onKeyDownCapture={() => { toolbarKeyboardFocus.current = true; revealToolbar() }} onKeyDown={event => {
         if (event.key === 'Escape' && settingsExpanded) {
           event.stopPropagation()
@@ -254,14 +256,14 @@ export default function DesktopLyrics() {
       <div className="desktop-lyrics-handle" aria-label="拖动桌面歌词" title="拖动手柄、歌词或空白处可移动窗口"><GripVertical size={16} /></div>
       <div className="desktop-lyrics-settings">
         <div className="desktop-settings-launchers" hidden={settingsExpanded}>
-          <button ref={element => { settingsButtons.current.font = element }} className="desktop-settings-trigger" aria-label="设置桌面歌词字体" title={`字体：${DESKTOP_LYRICS_FONT_OPTIONS.find(option => option.value === settings.font)?.label}`} aria-expanded={activeSettingsPanel === 'font'} aria-controls="desktop-lyrics-font-panel" disabled={settingsDisabled} onClick={() => openSettingsPanel('font')}><Type size={18} /></button>
+          <button ref={element => { settingsButtons.current.font = element }} className="desktop-settings-trigger" aria-label="设置桌面歌词字体" title={settings.style === 'minecraft' ? '我的世界使用内置像素字体' : `字体：${DESKTOP_LYRICS_FONT_OPTIONS.find(option => option.value === settings.font)?.label}`} aria-expanded={activeSettingsPanel === 'font'} aria-controls="desktop-lyrics-font-panel" disabled={settingsDisabled || settings.style === 'minecraft'} onClick={() => openSettingsPanel('font')}><Type size={18} /></button>
           <button ref={element => { settingsButtons.current.size = element }} className="desktop-settings-trigger" aria-label="设置桌面歌词字号" title={`字号：${settings.fontSize}`} aria-expanded={activeSettingsPanel === 'size'} aria-controls="desktop-lyrics-size-panel" disabled={settingsDisabled} onClick={() => openSettingsPanel('size')}><ALargeSmall size={18} /></button>
           <button ref={element => { settingsButtons.current.color = element }} className="desktop-settings-trigger" aria-label="设置桌面歌词颜色" title={`颜色：${DESKTOP_LYRICS_COLOR_OPTIONS.find(option => option.value === settings.color)?.label}`} aria-expanded={activeSettingsPanel === 'color'} aria-controls="desktop-lyrics-color-panel" disabled={settingsDisabled} onClick={() => openSettingsPanel('color')}><Palette size={18} /></button>
           <button ref={element => { settingsButtons.current.opacity = element }} className="desktop-settings-trigger" aria-label="设置桌面歌词透明度" title={`透明度：${Math.round(settings.opacity * 100)}%`} aria-expanded={activeSettingsPanel === 'opacity'} aria-controls="desktop-lyrics-opacity-panel" disabled={settingsDisabled} onClick={() => openSettingsPanel('opacity')}><Eye size={18} /></button>
         </div>
         <div id="desktop-lyrics-font-panel" className="desktop-settings-panel desktop-font-panel" role="group" aria-label="桌面歌词字体" hidden={activeSettingsPanel !== 'font' || !settingsExpanded}>
           <button className="desktop-settings-back" aria-label="返回桌面歌词设置" title="返回" onClick={() => closeSettingsPanel(toolbarKeyboardFocus.current)}><ChevronLeft size={18} /></button>
-          {DESKTOP_LYRICS_FONT_OPTIONS.map(option => <button className="desktop-font-option" key={option.value} aria-label={`歌词字体：${option.label}`} title={option.label} aria-pressed={settings.font === option.value} disabled={settingsDisabled} onClick={() => void changeSettings({ font: option.value })}><span style={{ fontFamily: option.fontFamily }} aria-hidden="true">字</span></button>)}
+          {DESKTOP_LYRICS_FONT_OPTIONS.map(option => <button className="desktop-font-option" key={option.value} aria-label={`歌词字体：${option.label}`} title={option.label} aria-pressed={settings.font === option.value} disabled={settingsDisabled || settings.style === 'minecraft'} onClick={() => void changeSettings({ font: option.value })}><span style={{ fontFamily: option.fontFamily }} aria-hidden="true">字</span></button>)}
         </div>
         <div id="desktop-lyrics-size-panel" className="desktop-settings-panel desktop-step-panel" role="group" aria-label="桌面歌词字号" hidden={activeSettingsPanel !== 'size' || !settingsExpanded}>
           <button className="desktop-settings-back" aria-label="返回桌面歌词设置" title="返回" onClick={() => closeSettingsPanel(toolbarKeyboardFocus.current)}><ChevronLeft size={18} /></button>

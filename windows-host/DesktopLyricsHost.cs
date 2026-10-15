@@ -95,7 +95,8 @@ public sealed class DesktopLyricsHost : IAsyncDisposable
             patch.TryGetProperty("font", out var font) ? ValidateFont(font.GetString()) : current.Font,
             patch.TryGetProperty("fontSize", out var fontSize) ? ValidateRange(fontSize.GetDouble(), 24, 56, "字号") : current.FontSize,
             patch.TryGetProperty("color", out var color) ? ValidateColor(color.GetString()) : current.Color,
-            patch.TryGetProperty("opacity", out var opacity) ? ValidateRange(opacity.GetDouble(), .3, 1, "透明度") : current.Opacity);
+            patch.TryGetProperty("opacity", out var opacity) ? ValidateRange(opacity.GetDouble(), .3, 1, "透明度") : current.Opacity,
+            patch.TryGetProperty("style", out var style) ? LyricStyles.Validate(style.GetString()) : current.Style);
         lock (_gate) _settings = updated;
         Save();
         if (updated.Enabled) await EnsureWindowAsync();

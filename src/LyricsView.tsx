@@ -5,15 +5,18 @@ import { activeLyricIndex } from './lyrics'
 import { api } from './api'
 import type { LyricsViewState } from './useLyrics'
 import './lyrics.css'
+import { LYRIC_STYLE_OPTIONS, type LyricStyle } from './shared/lyric-styles'
 
 interface Props {
   status: PlaybackStatus
   lyrics: LyricsViewState
   onSeek(seconds: number): void
+  style: LyricStyle
+  onStyleChange(style: LyricStyle): void
 }
 const formatTime = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60)}:${String(Math.floor(Math.max(0, seconds)) % 60).padStart(2, '0')}`
 
-export default function LyricsView({ status, lyrics, onSeek }: Props) {
+export default function LyricsView({ status, lyrics, onSeek, style, onStyleChange }: Props) {
   const viewport = useRef<HTMLDivElement>(null)
   const [coverFailed, setCoverFailed] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
@@ -40,7 +43,7 @@ export default function LyricsView({ status, lyrics, onSeek }: Props) {
     const active = list?.querySelector<HTMLElement>('[data-active="true"]')
     if (list && active) list.scrollTo({ top: active.offsetTop - list.clientHeight / 2 + active.clientHeight / 2, behavior: isBilibili ? 'auto' : 'smooth' })
     else if (activeIndex < 0) list?.scrollTo({ top: 0, behavior: isBilibili ? 'auto' : 'smooth' })
-  }, [activeIndex, song?.bvid, lyrics.phase, lyrics.provider, lyrics.lines, calibrating, isBilibili])
+  }, [activeIndex, song?.bvid, lyrics.phase, lyrics.provider, lyrics.lines, calibrating, isBilibili, style])
   async function chooseLine(time: number) {
     if (!calibrating) { onSeek(Math.max(0, time + lyrics.offsetSeconds)); return }
     if (aligning) return
@@ -61,9 +64,9 @@ export default function LyricsView({ status, lyrics, onSeek }: Props) {
     void api.login().catch(error => setLoginError((error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method '[^']+': (?:\w*Error: )?/, '')))
   }
 
-  return <section className={`lyrics-page ${isBilibili ? 'is-bilibili' : ''}`} aria-label="歌词页面">
+  return <section className={`lyrics-page ${isBilibili ? 'is-bilibili' : ''}`} data-lyric-style={style} aria-label="歌词页面">
     <div className="page-heading"><div><div className="eyebrow">WORDS BEHIND THE MUSIC</div><h1>正在听<span className="heading-dot">.</span></h1><p>把旋律里的每一句，都留在眼前。</p></div>{lyrics.track && <span className="lyrics-provider"><span />{isBilibili ? subtitleLabel : hasTimedLyrics ? '同步歌词' : lyrics.track.instrumental ? '纯音乐' : '文字歌词'} · {isBilibili ? lyrics.subtitle?.label || lyrics.subtitle?.language || 'Bilibili' : 'LRCLIB'}</span>}</div>
-    <div className="lyrics-source-settings"><div className="lyrics-source-switch" role="group" aria-label="歌词来源"><button type="button" aria-pressed={!isBilibili} onClick={() => lyrics.selectProvider('lrclib')}>搜索歌词</button><button type="button" aria-pressed={isBilibili} onClick={() => lyrics.selectProvider('bilibili')}>Bilibili 字幕</button></div><p className="lyrics-source-explanation">{isBilibili ? '读取当前视频已有的 AI 自动字幕或 UP 主字幕，不会为视频生成新字幕。' : 'LRCLIB 的歌词时间轴对应录音版本；MV 片头或剪辑有时间差时，可点「校准歌词」对齐。'}</p>{isBilibili && lyrics.subtitle?.isAI && <p className="lyrics-ai-note">AI 自动字幕可能误识别唱词，仅供参考。</p>}</div>
+    <div className="lyrics-source-settings"><label className="lyrics-style-select">歌词样式<select aria-label="播放器歌词样式" value={style} onChange={event => onStyleChange(event.target.value as LyricStyle)}>{LYRIC_STYLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><div className="lyrics-source-switch" role="group" aria-label="歌词来源"><button type="button" aria-pressed={!isBilibili} onClick={() => lyrics.selectProvider('lrclib')}>搜索歌词</button><button type="button" aria-pressed={isBilibili} onClick={() => lyrics.selectProvider('bilibili')}>Bilibili 字幕</button></div><p className="lyrics-source-explanation">{isBilibili ? '读取当前视频已有的 AI 自动字幕或 UP 主字幕，不会为视频生成新字幕。' : 'LRCLIB 的歌词时间轴对应录音版本；MV 片头或剪辑有时间差时，可点「校准歌词」对齐。'}</p>{isBilibili && lyrics.subtitle?.isAI && <p className="lyrics-ai-note">AI 自动字幕可能误识别唱词，仅供参考。</p>}</div>
     <div className="lyrics-layout">
       <div className="lyrics-song-card"><div className="lyrics-art"><div className="lyrics-art-ring" />{song?.cover && !coverFailed ? <img src={song.cover} alt="当前歌曲封面" referrerPolicy="no-referrer" onError={() => setCoverFailed(true)} /> : <div className="lyrics-art-placeholder"><Disc3 size={74} strokeWidth={.7} /></div>}<span className="lyrics-art-label"><AudioLines size={16} />open音乐 · NOW LISTENING</span></div><h2>{lyrics.track?.trackName ?? song?.title.replace(/【[^】]*】/g, '').trim() ?? '音乐还未开始'}</h2><p>{lyrics.track?.artistName || song?.artist || '选一首歌，听听它的故事'}</p>{lyrics.track?.albumName && <small className="lyrics-album">{lyrics.track.albumName}</small>}{song && <div className="lyrics-source-caption"><span>BILIBILI 音源</span><p title={song.title}>{song.title}</p></div>}<div className="lyrics-card-footnote"><Music2 size={13} />声音在后台，歌词在眼前。</div></div>
       <div className={`lyrics-reading ${calibrating ? 'is-calibrating' : ''}`}>{calibrating && <p className="lyrics-calibration-note" role="status">{aligning ? '正在对齐…' : '听到一句开始时，点击对应歌词，对齐当前播放位置。'}</p>}<div className="lyrics-scroll" ref={viewport}>

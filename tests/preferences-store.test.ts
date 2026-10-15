@@ -72,6 +72,22 @@ test('separate instances merge keys from disk instead of overwriting settings lo
   assert.equal(other.read(LYRICS), emptyEntries)
 })
 
+test('lyric preset writes validate and persist without changing other preferences', t => {
+  const { directory, store } = fixture(t)
+  store.write(SOURCE, 'bilibili')
+  for (const lyricStyle of ['classic', 'focus', 'paper', 'minecraft']) {
+    const saved = JSON.stringify({ version: 1, volumeBeforeMute: .3, sleepUntil: 9000, theme: 'pixel', lyricStyle })
+    store.write(UI, saved)
+    assert.equal(new LocalPreferencesStore(directory).read(UI), saved)
+  }
+  const previous = store.read(UI)
+  for (const lyricStyle of ['unknown', null, {}, 2]) {
+    assert.throws(() => store.write(UI, JSON.stringify({ version: 1, volumeBeforeMute: .3, sleepUntil: null, lyricStyle })))
+  }
+  assert.equal(store.read(UI), previous)
+  assert.equal(store.read(SOURCE), 'bilibili')
+})
+
 test('each save keeps the last valid prior file and leaves no temporary files', t => {
   const { directory, store, primary, backup } = fixture(t)
   store.write(SOURCE, 'lrclib')

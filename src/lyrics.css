@@ -29,9 +29,9 @@
 .lyrics-scroll { position: relative; overflow-y: auto; height: clamp(210px, calc(100vh - 465px), 445px); scrollbar-width: thin; padding: 0 8px 0 0; }
 .lyrics-reading.is-calibrating .lyrics-scroll { height: clamp(170px, calc(100vh - 509px), 401px); }
 .lyrics-lines { padding: 120px 0 175px; }
-.lyric-line { display: block; position: relative; width: 100%; padding: 13px 28px; text-align: left; font-size: 21px; font-weight: 500; line-height: 1.5; color: #a2ae94; border-radius: 8px; transition: color .2s, background .2s; }
-.lyric-line:hover { background: #eaf0e4; color: #7c9364; }
-.lyric-line.is-current { color: #486535; font-weight: 700; background: #e8f0df99; }
+.lyric-line { display: block; position: relative; width: 100%; padding: 13px 28px; text-align: left; font-size: 21px; font-weight: 500; line-height: 1.5; color: #a2ae94; border-radius: 8px; transition: color .2s; }
+.lyric-line:hover { color: #7c9364; }
+.lyric-line.is-current { color: #486535; font-weight: 700; }
 .lyrics-page.is-bilibili .lyric-line { transition: none; }
 .lyric-line.is-current:before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #89a967; position: absolute; left: 10px; top: 29px; }
 .lyric-timestamp { position: absolute; right: 10px; top: -4px; font-size: 9px; font-weight: 400; color: #a5b393; opacity: 0; }

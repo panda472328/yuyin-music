@@ -15,15 +15,17 @@
 | Bilibili 收藏夹导入 | `src/BilibiliFavoritesDialog.tsx` | `src/styles.css` 的 `bilibili-*`、`.modal` |
 | 当前视频评论、点赞与回复 | `src/CommentsView.tsx`、`src/useComments.ts`、`src/comments-controller.ts` | `src/comments.css`，组件直接导入；原生接口在 `windows-host/BilibiliComments.cs` |
 | 当前视频 MV 与后台源窗口 | `src/App.tsx` 的侧栏 MV／底栏评论；`src/api.ts`、`src/webview2-bridge.ts` | 沿用 `.nav-item`／`.icon-button`；宿主在 `windows-host/PlayerHost.cs`，网页全屏脚本在 `windows-host/BilibiliMV.cs` |
-| 主歌词页面 | `src/LyricsView.tsx` | `src/lyrics.css`，组件直接导入 |
+| 主歌词页面与外观预设 | `src/LyricsView.tsx`、`src/LyricStylePicker.tsx` | `src/lyrics.css`，最终预设覆盖 `src/lyric-styles.css` |
 | 主窗的桌面歌词设置 | `src/DesktopLyricsSettings.tsx` | `src/styles.css` 的 `desktop-lyrics-*` 设置类 |
 | 独立桌面歌词 | `src/DesktopLyrics.tsx`、`src/desktop-lyrics-main.tsx` | **仅** `src/desktop-lyrics.css` |
 | 桌面歌词可选字体／颜色和默认值 | 两个设置界面共用 | `electron/desktop-lyrics-types.ts`（共享类型） |
+| 两处歌词样式 ID／预览 | `src/shared/lyric-styles.ts`、`src/LyricStylePicker.tsx` | 主窗 `src/lyric-styles.css`，独立桌面 `src/desktop-lyrics.css` |
+| Minecraft 像素字体／物品栏元素 | `src/ThemeArtwork.tsx`、`src/pixel-font.css` | `src/themes.css`、`src/assets/fonts/`；随包许可见 `public/licenses/fusion-pixel/` |
 | 主窗口尺寸、系统标题栏 | `windows-host/MainWindow.xaml`、`windows-host/MainWindow.xaml.cs` | WPF 窗口参数与窗口状态恢复 |
 | 桌面歌词原生窗口与指针检测 | `windows-host/DesktopLyricsHost.cs` | 固定尺寸、透明、置顶与工作区定位 |
 | 桌面歌词设置校验／保存 | `windows-host/DesktopSettingsStore.cs` | 允许字段、枚举、范围与有效备份 |
 
-主 renderer 的 `styles.css` 首行导入 `theme.css`；`main.tsx` 再导入 `themes.css`，其规则位于组件样式之后，是可选主题的最终覆盖。桌面歌词有自己的 HTML、入口、CSS 和受限 WebView2 bridge，不能给它导入主窗的全局 `body` 背景。`src/ui-settings.ts` 的既有 `yuyin-ui-settings-v1` 记录保存静音前音量、睡眠定时及主窗主题；扩展字段时保持旧记录兼容，不能重命名存储键来实现展示改名。
+主 renderer 的 `styles.css` 首行导入 `theme.css`；`main.tsx` 再导入 `themes.css`，其规则位于组件样式之后，是可选主题的最终覆盖。随后 `lyric-styles.css` 仅覆盖歌词预设与预览，保证歌词外观独立于主题；`pixel-font.css` 只声明字体。桌面歌词有自己的 HTML、入口、CSS 和受限 WebView2 bridge，不能给它导入主窗的全局 `body` 背景。`src/ui-settings.ts` 的既有 `yuyin-ui-settings-v1` 记录保存静音前音量、睡眠定时、主窗主题及 `lyricStyle`；缺少或未知的歌词样式回退 `classic`，保留其他偏好。
 
 先用 `rg` 查类名，再查看文件末尾和媒体查询。`styles.css` 后段存在字号、封面比例和 hero 尺寸的覆盖，例如导航最后为 14px、卡片封面最后为 `aspect-ratio: 1.35`。修改前段相同选择器可能不生效；编辑最终适用规则，避免在文件末尾反复追加同义覆盖。
 
@@ -68,14 +70,19 @@
 | `--ui-shadow`、`--ui-overlay` | 浮层阴影和弹窗遮罩 |
 | `--ui-error-bg`、`--ui-warning-bg`、`--ui-danger` | 错误、警告、危险动作 |
 | `--ui-focus`、`--ui-decoration` | 键盘焦点与小面积装饰 |
+| `--bili-pink` | Bilibili 主题的品牌粉，只用于标记与小面积强调；文字和白字按钮使用更深的粉色以保持对比度 |
 
 | 主题 | 背景／侧栏／表面 | 文字／强调色 | 形态 |
 | --- | --- | --- | --- |
 | `classic` | 米白、浅鼠尾草、暖白 | 深绿灰、鼠尾草绿 | 既有圆角、唱片与封面设计 |
-| `bilibili` | 冷白、白色、淡粉 | 深灰、粉色强调 | 粉白主体，保留音乐播放器的可扫描布局 |
+| `bilibili` | 冷白页面、白色顶栏与内容卡 | 深灰、粉色主动作、蓝色分区 | 小电视形品牌容器、粉色选中标记、蓝色分区条、16:9 视频式卡片与时长、下划线来源标签 |
 | `system` 浅色 | 浅灰、灰白、白色 | 深灰、Windows 蓝 | 跟随系统浅色状态 |
 | `system` 深色 | 深炭灰、深灰、深表面 | 近白、浅蓝 | 跟随系统深色状态，字段、遮罩和焦点也同步变暗 |
-| `pixel` | 浅绿白、格线背景 | 深绿、珊瑚焦点 | 方角、整像素边框与短阴影；不改变命中面积 |
+| `pixel`（我的世界） | 灰色物品栏／凹槽、深灰播放栏 | 炭黑文字、草绿选中、绿色进度 | 内置 Fusion Pixel 字体、灰色立体按钮、3×3 物品栏元素、快捷栏播放控件；不使用场景背景图片 |
+
+`pixel` 的 `--block-edge`／`--block-highlight` 分别定义深色外框与亮边。`ThemeArtwork.tsx` 使用普通布局与现有图标组成物品栏装饰，`aria-hidden` 且不添加伪操作；实际播放按钮保留原动作。真正的播放进度消费既有 `--progress` 绘成绿色经验条。`bilibili` 的 `.card-duration` 显示已有曲目时长，其他主题隐藏。所有主题的占位文字使用显式 `input::placeholder` 选择器；不能把伪元素放进 `:is()`，浏览器会忽略该分支。
+
+Bilibili 当前首页加载的[样式文件](https://s1.hdslb.com/bfs/static/shanks/laputa-home/assets/index-3f345f9f.css)将 `--brand_pink` 指向浅色 `--Pi5: #FF6699`，即 `RGB(255, 102, 153)`；同文件局部旧规则仍可见 `#FB7299`，它不是该变量的当前值。本主题用 `--bili-pink` 对齐前者，正文强调色与白字按钮分别使用更深的 `--green`、`--ui-button`。蓝色分区强调对齐该文件的 `--brand_blue: #00AEEC`。
 
 `themes.css` 覆盖导航、搜索、登录、首页、歌单与歌曲行、设置、弹窗、播放栏、主窗歌词、评论、更新和空／错／加载状态。调整组件时检查该文件中相同选择器的最终规则；新增页面要接入共享 token 和所有四个主题，而不只给默认界面加色。渐变或唱片纹理可留在组件内，但浅底／深底文字、边框、焦点、禁用和选中状态必须逐一检查。
 
@@ -221,9 +228,20 @@ WebView2 的桌面歌词设置由 `windows-host/DesktopSettingsStore.cs` 独立�
 4. `DesktopLyrics.tsx` 自动从选项取得 fontFamily／color，通过 CSS 变量渲染，并在字体加载和尺寸变化后重新 fit。不要用 `!important font-size` 绕过自适应，长中文／英文句仍需完整显示。
 5. 检查两窗设置同步、保存后重启恢复、缺字体 fallback，以及浅／深桌面上的描边与阴影。引入可分发字体时放在项目资源中并记录许可；系统字体文件不提交。
 
+### 歌词外观预设（2026-10-15）
+
+共有 `classic`（经典）、`focus`（聚光）、`paper`（手札）、`minecraft`（我的世界）四款；选项来自 `src/shared/lyric-styles.ts`。设置页用可见预览卡和 `aria-pressed` 显示当前选择；主歌词页另有带 label 的 select，可直接切换。两处独立保存，主窗主题不会替换歌词预设。
+
+- 主窗 `lyricStyle` 经原 `changeUISettings` 流程先保存后应用；TypeScript 和 WPF 本地偏好校验同步允许该字段，旧记录保持兼容，非法写入被拒绝。桌面 `style` 位于原 `desktop-lyrics.json` 的 `settings` 下，缺少时默认经典，原子保存与有效备份机制保持原流程。
+- 主歌词预设只作用于 `.lyrics-reading` 与子元素。歌词区和歌词行无背景、边框底板；聚光用字重与下划线，手札用楷体与细分行线，Minecraft 用像素字与方块标记。`--reading-ink/muted/active/line/focus` 沿当前主题提供文字、操作控件和焦点对比度。切换样式重新居中当前句，但不改变播放时间、来源、offset 或校准语义。
+- 桌面预设只装饰歌词文字：四款均保持 `.desktop-lyrics-copy` 透明且无边框。聚光用粗字重与下划线，手札用轻字重、斜体与文字阴影，Minecraft 用像素字、硬描边与小方块标记；窗口、工具栏与 caption 不导入主窗样式。透明度仍只作用于歌词与曲名。
+- Minecraft 使用本地 Fusion Pixel 12px 简中字体，主窗普通文字避免低于 12px；大标题和歌词优先整数倍。字体来自上游 `2026.09.25`，666,264 字节，SIL OFL 1.1；来源、摘要和组成字体许可随 `public/licenses/fusion-pixel/` 分发。不使用 Minecraft 场景图片或游戏贴图。
+- 桌面 Minecraft 固定使用内置像素字体，主设置与工具栏字体选择禁用并说明原因，原 `font` 值保留，离开该预设即恢复。字号、颜色、透明度照常可调。`useFittedText` 在预设变化与字体加载完成后重新 fit，不用 `!important font-size` 绕过长句自适应。
+- `.desktop-style-sample` 以统一的中性桌面示意色预览有效字体和文字颜色，四款歌词本身没有样式专属背景；两处选项卡通过 `data-preview-target` 区分主窗与桌面文字。预览不播放歌曲、不发起歌词请求。
+
 ## 8. PC 与 Android 的统一规则
 
-两端原有基线沿用米白／鼠尾草绿、唱片与封面元素、按钮主次关系及加载／错误／空状态用语；PC 新增的三套主题只作用于本仓库，不代表 Android 已同步。PC 的当前源码字标是 `open音乐`（曾用名 openmusic／余音／YUYIN MUSIC），手机版此次未改名，后续同步需在手机仓库单独实施。平台布局各自适配：PC 是侧栏与固定播放器，手机是触屏与安全区布局，不能直接复制 PC 宽度或拖窗规则。
+2026-10-15 已将本轮经典、Bilibili、系统明暗、我的世界主题，以及经典、聚光、手札、我的世界四款独立歌词预设，同步到 Android 独立仓库。两端展示名均为 `open音乐`，保留兼容技术标识。手机设置使用主题／歌词预览卡，播放页提供歌词样式选择，原生悬浮歌词使用等效字体与文字装饰。平台布局各自适配：PC 是侧栏与固定播放器，手机是触屏、底部导航与安全区布局，不能直接复制 PC 宽度或拖窗规则。此次仅同步源码，没有更新既有安装包；验证见 [本轮同步记录](QA-UI-SYNC-20261015.md)。
 
 - PC 仓库 `yuyin-music` 与手机仓库 `yuyin-music-mobile` 分别保存源代码、Git 历史和版本；当前不存在共享 npm 样式包、自动同步或跨端主题设置同步。
 - 手机相关入口是其 `src/theme.css`、`src/styles.css`、`src/App.tsx`，以手机仓库实际文件为准。先比对其 token／类名，再实现语义对应，不假定所有 CSS 选择器相同。

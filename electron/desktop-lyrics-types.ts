@@ -1,3 +1,5 @@
+import type { LyricStyle } from '../src/shared/lyric-styles'
+
 export interface DesktopLyricsSettings {
   enabled: boolean
   locked: boolean
@@ -5,6 +7,7 @@ export interface DesktopLyricsSettings {
   fontSize: number
   color: 'white' | 'mint' | 'gold'
   opacity: number
+  style: LyricStyle
 }
 
 export interface DesktopLyricsContent {
@@ -40,7 +43,7 @@ export interface DesktopLyricsDragRegions {
 }
 
 export const DESKTOP_LYRICS_DEFAULT_SETTINGS: Readonly<DesktopLyricsSettings> = {
-  enabled: false, locked: false, font: 'sans', fontSize: 36, color: 'white', opacity: 1,
+  enabled: false, locked: false, font: 'sans', fontSize: 36, color: 'white', opacity: 1, style: 'classic',
 }
 
 export const DESKTOP_LYRICS_DEFAULT_CONTENT: Readonly<DesktopLyricsContent> = {

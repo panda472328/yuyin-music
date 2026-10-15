@@ -67,13 +67,14 @@ public sealed class DesktopSettingsStore
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("version", out var version) ||
             !version.TryGetInt32(out var number) || number != 1 || !root.TryGetProperty("settings", out var settings) ||
             settings.ValueKind != JsonValueKind.Object || !KnownFields(root, "version", "settings", "left", "top") ||
-            !KnownFields(settings, "enabled", "locked", "font", "fontSize", "color", "opacity"))
+            !KnownFields(settings, "enabled", "locked", "font", "fontSize", "color", "opacity", "style"))
             throw new InvalidOperationException("桌面歌词设置格式不正确。");
         var result = new DesktopLyricsSettings(
             Boolean(settings, "enabled", false), Boolean(settings, "locked", false),
             Text(settings, "font", "sans", "sans", "serif", "kai", "rounded"),
             Numeric(settings, "fontSize", 36, 24, 56), Text(settings, "color", "white", "white", "mint", "gold"),
-            Numeric(settings, "opacity", 1, .3, 1));
+            Numeric(settings, "opacity", 1, .3, 1),
+            settings.TryGetProperty("style", out var style) ? LyricStyles.Validate(style.GetString()) : "classic");
         return new DesktopLyricsStoredState(result, Coordinate(root, "left"), Coordinate(root, "top"));
     }
 

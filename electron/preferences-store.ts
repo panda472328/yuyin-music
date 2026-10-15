@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isLyricStyle } from '../src/shared/lyric-styles'
 import {
   closeSync, fstatSync, fsyncSync, mkdirSync, openSync, readSync, renameSync,
   unlinkSync, writeFileSync,
@@ -59,8 +60,9 @@ function validateValue(key: string, value: string, allowUnknownTheme = false): v
   const record = object(parseJSON(value, maximum))
   if (!record || record.version !== 1) throw new Error('设置数据格式不正确。')
   if (key === 'yuyin-ui-settings-v1') {
-    if (!(exactFields(record, ['version', 'volumeBeforeMute', 'sleepUntil']) ||
-      exactFields(record, ['version', 'volumeBeforeMute', 'sleepUntil', 'theme'])) ||
+    const fields = ['version', 'volumeBeforeMute', 'sleepUntil', ...(['theme', 'lyricStyle'].filter(key => Object.hasOwn(record, key)))]
+    if (!exactFields(record, fields) ||
+      (Object.hasOwn(record, 'lyricStyle') && (typeof record.lyricStyle !== 'string' || (!allowUnknownTheme && !isLyricStyle(record.lyricStyle)))) ||
       (Object.hasOwn(record, 'theme') && (typeof record.theme !== 'string' ||
         (!allowUnknownTheme && !['classic', 'bilibili', 'system', 'pixel'].includes(record.theme)))) ||
       typeof record.volumeBeforeMute !== 'number' || !Number.isFinite(record.volumeBeforeMute) ||

@@ -11,7 +11,7 @@ import { DesktopSettingsStore, desktopSettingsPatch, type SavedDesktopSettings }
 function settings(enabled = true): SavedDesktopSettings {
   return {
     version: 1,
-    settings: { enabled, locked: true, font: 'kai', fontSize: 44, color: 'gold', opacity: .6 },
+    settings: { enabled, locked: true, font: 'kai', fontSize: 44, color: 'gold', opacity: .6, style: 'minecraft' },
     bounds: { x: 287, y: 631, width: 900, height: 200 },
   }
 }
@@ -43,7 +43,7 @@ test('older version 1 desktop settings retain style and position while defaultin
   assert.deepEqual(store.read(), {
     data: {
       version: 1,
-      settings: { enabled: true, locked: false, font: 'serif', fontSize: 32, color: 'mint', opacity: 1 },
+      settings: { enabled: true, locked: false, font: 'serif', fontSize: 32, color: 'mint', opacity: 1, style: 'classic' },
       bounds: { x: 12, y: 400, width: 900, height: 200 },
     }, error: null,
   })
@@ -115,7 +115,7 @@ test('failed backup writes retain primary preferences and clean temporary files'
 })
 
 test('desktop setting patches reject invalid fields and ranges', () => {
-  for (const patch of [{ opacity: .1 }, { opacity: NaN }, { locked: 'yes' }, { font: 'unknown' }, { fontSize: 100 }, { surprise: true }]) {
+  for (const patch of [{ style: 'unknown' }, { style: null }, { opacity: .1 }, { opacity: NaN }, { locked: 'yes' }, { font: 'unknown' }, { fontSize: 100 }, { surprise: true }]) {
     assert.throws(() => desktopSettingsPatch(patch), /设置不合法/)
   }
   assert.deepEqual(desktopSettingsPatch({ opacity: .3, locked: false }), { opacity: .3, locked: false })

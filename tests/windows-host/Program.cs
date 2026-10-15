@@ -35,6 +35,12 @@ try {
     var themedUi = "{\"version\":1,\"volumeBeforeMute\":0.4,\"sleepUntil\":null,\"theme\":\"pixel\"}";
     store.WritePreference("yuyin-ui-settings-v1", themedUi);
     Assert(new LocalDataStore(directory).ReadPreference("yuyin-ui-settings-v1") == themedUi, "new theme survives restart");
+    foreach (var preset in new[] { "classic", "focus", "paper", "minecraft" }) {
+        var styledUi = themedUi[..^1] + ",\"lyricStyle\":\"" + preset + "\"}";
+        store.WritePreference("yuyin-ui-settings-v1", styledUi);
+        Assert(new LocalDataStore(directory).ReadPreference("yuyin-ui-settings-v1") == styledUi, "lyric style survives restart: " + preset);
+    }
+    Reject(() => store.WritePreference("yuyin-ui-settings-v1", themedUi[..^1] + ",\"lyricStyle\":\"unknown\"}"), "lyric style allowlist");
     Assert(new LocalDataStore(directory).ReadPreference("yuyin-lyrics-source-v1") == "bilibili", "separate stores preserve preferences");
     Reject(() => store.ReadPreference("../secrets"), "key allowlist");
     Reject(() => store.WritePreference("yuyin-lyrics-source-v1", "unknown"), "provider allowlist");

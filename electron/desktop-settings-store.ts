@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isLyricStyle } from '../src/shared/lyric-styles'
 import {
   closeSync, fstatSync, fsyncSync, mkdirSync, openSync, readSync, renameSync,
   unlinkSync, writeFileSync,
@@ -6,7 +7,7 @@ import {
 import { basename, dirname, join } from 'node:path'
 import { DESKTOP_LYRICS_DEFAULT_SETTINGS, type DesktopLyricsSettings } from './desktop-lyrics-types'
 
-export const DESKTOP_SETTINGS_KEYS = ['enabled', 'locked', 'font', 'fontSize', 'color', 'opacity'] as const
+export const DESKTOP_SETTINGS_KEYS = ['enabled', 'locked', 'font', 'fontSize', 'color', 'opacity', 'style'] as const
 const REQUIRED_SETTINGS_KEYS = ['enabled', 'font', 'fontSize', 'color'] as const
 const MAX_FILE_BYTES = 8192
 
@@ -27,6 +28,7 @@ export function desktopSettingsPatch(value: unknown): Partial<DesktopLyricsSetti
   if (!input || Object.keys(input).some(key => !DESKTOP_SETTINGS_KEYS.includes(key as typeof DESKTOP_SETTINGS_KEYS[number])) ||
     ('enabled' in input && typeof input.enabled !== 'boolean') ||
     ('locked' in input && typeof input.locked !== 'boolean') ||
+    ('style' in input && !isLyricStyle(input.style)) ||
     ('font' in input && !['sans', 'serif', 'kai', 'rounded'].includes(input.font as string)) ||
     ('fontSize' in input && (typeof input.fontSize !== 'number' || !Number.isFinite(input.fontSize) || input.fontSize < 24 || input.fontSize > 56)) ||
     ('color' in input && !['white', 'mint', 'gold'].includes(input.color as string)) ||

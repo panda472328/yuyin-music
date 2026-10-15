@@ -144,7 +144,14 @@ public sealed record DesktopLyricsSettings(
     [property: JsonPropertyName("font")] string Font = "sans",
     [property: JsonPropertyName("fontSize")] double FontSize = 36,
     [property: JsonPropertyName("color")] string Color = "white",
-    [property: JsonPropertyName("opacity")] double Opacity = 1);
+    [property: JsonPropertyName("opacity")] double Opacity = 1,
+    [property: JsonPropertyName("style")] string Style = "classic");
+
+public static class LyricStyles
+{
+    public static bool IsValid(string? value) => value is "classic" or "focus" or "paper" or "minecraft";
+    public static string Validate(string? value) => IsValid(value) ? value! : throw new InvalidOperationException("歌词样式设置无效。");
+}
 
 public sealed record DesktopLyricsContent(
     [property: JsonPropertyName("bvid")] string? Bvid,
