@@ -1,8 +1,26 @@
 # 发布与文件管理
 
-当前正式版本为 **0.5.3**，GitHub 与 Gitee 均已公开同一份安装文件，两份更新清单均已推进。展示名称与 Windows 发布页标题为 `open音乐`；发行文件仍为 `Yuyin-X.Y.Z-Setup.exe`。新增可选主题、透明单行桌面歌词菜单、优先单曲来源、连续搜索列表和同安装快捷方式迁移，见 [STYLE-GUIDE.md](STYLE-GUIDE.md)、[SONG-SEARCH.md](SONG-SEARCH.md) 与 [INSTALLATION.md](INSTALLATION.md)。历史标签、附件与验收记录保持不变。
+当前正式版本为 **0.5.4**，GitHub 与 Gitee 各公开同一份最终安装文件，两份更新清单均已推进。展示名称与 Windows 发布页标题为 `open音乐`；发行文件仍为 `Yuyin-X.Y.Z-Setup.exe`。新版主题与独立歌词预设见 [STYLE-GUIDE.md](STYLE-GUIDE.md)，原单曲搜索与快捷方式规则见 [SONG-SEARCH.md](SONG-SEARCH.md) 和 [INSTALLATION.md](INSTALLATION.md)。历史标签、附件与验收记录保持不变。
 
 PC 与 Android 使用独立仓库、版本、依赖和构建产物。PC 源码位于本仓库；Android 源码位于 [yuyin-music-mobile](https://github.com/panda472328/yuyin-music-mobile)。不要把其中一个工程嵌套进另一个仓库。
+
+## PC 0.5.4（open音乐，2026-10-15 正式发布）
+
+[Gitee 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.4) 与 [GitHub 发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.4) 各保留一个 `Yuyin-0.5.4-Setup.exe`。新版 Bilibili / 我的世界主题、预览卡、四款独立歌词预设与本地字体随本次最终安装包发布；经典配色、原安装身份与系统 WebView2 保留。
+
+| 项目 | 值 |
+| --- | --- |
+| 实际构建与不可变标签提交 | `c24044310746ed3677c8926c7cb7f27d6b895b47` |
+| 安装包字节数 | `54919198` |
+| 安装包 SHA-256 | `2799486dd0b9cd9d4ee2c5893f557ac4c62ba06d023aad6f317a26800654b4e3` |
+| GitHub Release / 附件 ID | `413583245` / `643242954` |
+| GitHub 发布时间（UTC） | `2026-10-15T08:45:34Z` |
+| GitHub 稳定清单提交 | `4926d93` |
+| Gitee Release / 附件 ID | `1207470` / `3397014` |
+
+从干净提交在本机构建后上传 GitHub 草稿，完整回读核对大小与 SHA-256；公开后再匿名完整下载核对。初次大文件回读超时后仅续传校验，没有重新打包或替换附件。[发布事件 Actions 38707965396](https://github.com/panda472328/yuyin-music/actions/runs/38707965396) 成功独立验证已有安装包并推进 stable。Gitee 上传同一份字节，国内候选在官方工具完整匿名下载、校验大小 / SHA-256 并回读附件身份后生成，审核后保存为 `updates/domestic.json`。
+
+构建、344 项宿主、34 项受控原生媒体、15 项安装器检查和 13 项桌面歌词原生渲染均通过；完整结果及范围见 [QA-0.5.4.md](QA-0.5.4.md)。PC 原生鼠标输入专项仍有环境指针干扰，不记为通过；未完成真实 Bilibili 长时间播放、跨机器升级或已安装客户端完整更新安装流程。安装包未配置 Windows 代码签名，保留用户选择下载 / 安装的流程。
 
 ## PC 0.5.3（open音乐，2026-10-14 正式发布）
 

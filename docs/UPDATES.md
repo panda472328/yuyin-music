@@ -1,12 +1,14 @@
 # 应用更新与正式发布
 
-PC 版通过本仓库的 GitHub `updates/stable.json` 和 Gitee `updates/domestic.json` 检查正式版本。当前两份清单为 **0.5.3**；[GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.3) 和 [Gitee 正式发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.3) 的唯一安装包已公开。Android 使用独立仓库和独立更新清单，不共享安装文件、版本号或用户数据。
+PC 版通过本仓库的 GitHub `updates/stable.json` 和 Gitee `updates/domestic.json` 检查正式版本。当前两份清单为 **0.5.4**；[GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.4) 和 [Gitee 正式发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.4) 的唯一安装包已公开。Android 使用独立仓库和独立更新清单，不共享安装文件、版本号或用户数据。
+
+2026-10-15 发布 0.5.4：更新主题与独立歌词预设，兼容原安装、数据和双源更新器。最终文件为 `54919198` 字节，SHA-256 为 `2799486dd0b9cd9d4ee2c5893f557ac4c62ba06d023aad6f317a26800654b4e3`；GitHub / Gitee 使用同一份字节，Gitee Release / 附件为 `1207470` / `3397014`，国内候选在完整匿名下载校验及附件身份回读通过后推进。0.5.2 / 0.5.3 可检查到此版本，同版本字节一致时 Gitee 优先，GitHub 备用。发布身份、线上检查结果及未验收范围见 [RELEASE.md](RELEASE.md) 与 [QA-0.5.4.md](QA-0.5.4.md)。
 
 0.5.3 已正式发布：展示名称与快捷方式改为 `open音乐`，安装按实际目标替换同安装的已知旧快捷方式，见 [INSTALLATION.md](INSTALLATION.md)。Gitee／GitHub 地址、更新 schema、应用安装身份与 `Yuyin-X.Y.Z-Setup.exe` 文件名保持兼容。
 
 2026-10-14 发布已完成：[首次标签构建 38379654504](https://github.com/panda472328/yuyin-music/actions/runs/38379654504) 曾因测试中文路径处理失败；修正夹具后重新构建原标签并保存安装器备份。最终发布请求移除多余标签目标参数，[恢复发布 38503555685](https://github.com/panda472328/yuyin-music/actions/runs/38503555685) 成功公开原备份并推进 stable；随后 Gitee 同字节附件完整校验后推进 domestic。此前 0.5.2 显示“最新版”是清单仍为 0.5.2 的结果。当前 0.5.2 可发现 0.5.3；自动检查在启动时执行，之后每 6 小时执行，设置页也可手动检查。0.4.9 及更早没有自动更新，0.4.10 至 0.5.0 只使用 GitHub 通道。
 
-## 国内更新通道（当前 0.5.3）
+## 国内更新通道
 
 0.5.3 两端安装包为 `54308717` 字节，SHA-256 为 `7345462ad98740c75297fbf393286f0fd86279daa6b178f98abc607b5a907c42`。Gitee Release／附件为 `1204255`／`3385779`，国内清单以 `7fbe04a` 推送两个远程。正式附件匿名完整下载已校验；原生探针结果与实际升级限制见 [QA.md](QA.md)。
 

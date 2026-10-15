@@ -2,21 +2,21 @@
 
 一个基于 WPF、系统 WebView2、React 和 TypeScript 的 Windows 音乐播放器。米白与鼠尾草绿的独立听歌界面，音源来自后台浏览器中的 Bilibili 原视频。0.5.0 起安装包不再携带 Electron／Chromium 内核。
 
-当前正式版本为 **open音乐 0.5.3**（曾用名 openmusic／余音／Yuyin Music）。界面、窗口和安装向导统一使用此名称；0.5.2 及更早安装包、标签和校验记录保留原名。为兼容已有安装、收藏、设置和更新，数据目录、技术标识、源码仓库地址及安装包文件名仍保留原来的 `Yuyin`／`yuyin` 值；改名不迁移或清空用户数据。手机版仍在独立仓库，本次仅修改 PC 版。
+当前正式版本为 **open音乐 0.5.4**（曾用名 openmusic／余音／Yuyin Music）。界面、窗口和安装向导统一使用此名称；0.5.2 及更早安装包、标签和校验记录保留原名。为兼容已有安装、收藏、设置和更新，数据目录、技术标识、源码仓库地址及安装包文件名仍保留原来的 `Yuyin`／`yuyin` 值；改名不迁移或清空用户数据。手机版在独立仓库维护和发布。
 
 0.5.3 的安装器会创建名称恰为 **open音乐** 的桌面和开始菜单快捷方式，并替换已知旧名称中确实指向本次安装的链接。指向其他安装目录、独立旧 Electron 版或自建文件的链接保留；新名称已被其他目标占用时，安装器提示并停止，避免覆盖无关快捷方式。已发布的 0.5.1／0.5.2 不包含此迁移。
 
-0.5.3 保留经典配色，新增 Bilibili、跟随系统和像素风主题，更新单曲优先搜索、透明单行桌面歌词菜单和旧快捷方式迁移；详见 [版本记录](CHANGELOG.md)。[GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.3) 和 [Gitee 正式发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.3) 已公开，两端更新清单均为 0.5.3，附件已通过完整大小及 SHA-256 校验。Android 版在[独立仓库](https://github.com/panda472328/yuyin-music-mobile)维护，两端分别构建、存储数据和发布版本。
+0.5.4 保留经典与系统主题，更新 Bilibili 粉白蓝和我的世界物品栏风格，新增主题预览及主窗 / 桌面歌词各自独立的经典、聚光、手札、我的世界预设，捆绑本地像素字体及许可；详见 [版本记录](CHANGELOG.md)。[GitHub 正式发布页](https://github.com/panda472328/yuyin-music/releases/tag/pc-v0.5.4) 和 [Gitee 正式发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.4) 各提供唯一相同安装文件，两端更新清单均为 0.5.4。Android 0.1.5 在[独立仓库](https://github.com/panda472328/yuyin-music-mobile)同步相应 UI，两端分别构建、存储数据和发布版本。
 
 ## 下载与安装
 
-前往 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 或 [Gitee 0.5.3 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.3) 下载正式版，两端只提供同一份最终安装文件：
+前往 [Gitee 0.5.4 发布页](https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.4) 或 [GitHub Releases](https://github.com/panda472328/yuyin-music/releases/latest) 下载正式版，两端只提供同一份最终安装文件：
 
-| 0.5.3 正式文件 | 用途 |
+| 0.5.4 正式文件 | 用途 |
 | --- | --- |
-| [Yuyin-0.5.3-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.3/Yuyin-0.5.3-Setup.exe) | Windows x64 安装版，中文向导，可选择安装目录 |
+| [Yuyin-0.5.4-Setup.exe](https://github.com/panda472328/yuyin-music/releases/download/pc-v0.5.4/Yuyin-0.5.4-Setup.exe) | Windows x64 安装版，中文向导，可选择安装目录 |
 
-正式安装包为 **54,308,717 字节（约 54.3 MB）**，由 [Windows Actions 38502636191](https://github.com/panda472328/yuyin-music/actions/runs/38502636191) 从原 `pc-v0.5.3` 标签构建，通过验证后备份，再由 [恢复发布 38503555685](https://github.com/panda472328/yuyin-music/actions/runs/38503555685) 复用相同文件公开。Gitee 上传同一份完整文件，匿名下载及大小／SHA-256 校验已通过。构建提交、原生下载探针和两端清单证据见 [发布与文件管理](docs/RELEASE.md)，许可文本见 [第三方声明](THIRD_PARTY_NOTICES.md)。发布页自动生成的 Source code ZIP / TAR 是源码下载入口。
+正式安装包为 **54,919,198 字节（约 54.9 MB）**，从干净的 `pc-v0.5.4` 标签源码构建；GitHub 和 Gitee 上传同一份最终文件，完整下载及大小／SHA-256 校验后才推进更新清单。构建与发布身份见 [发布与文件管理](docs/RELEASE.md)，本轮测试和实际限制见 [0.5.4 验证](docs/QA-0.5.4.md)，许可文本见 [第三方声明](THIRD_PARTY_NOTICES.md)。发布页自动生成的 Source code ZIP / TAR 是源码下载入口。
 
 支持 Windows 10 1903（build 18362）及 Windows 11 x64。安装包包含 .NET 运行文件，使用系统 Microsoft Edge WebView2 Evergreen Runtime；若系统缺少 WebView2，安装器通过微软官方小型引导程序联网安装共享运行时，不把内核装进每份应用。此架构版本使用新数据目录，不自动读取旧 Electron 客户端资料。
 

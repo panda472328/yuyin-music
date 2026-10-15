@@ -1,19 +1,19 @@
 {
   "schemaVersion": 2,
   "platform": "windows",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "artifact": {
-    "url": "https://gitee.com/api/v5/repos/openmusic/openmusic/releases/1204255/attach_files/3385779/download",
-    "sha256": "7345462ad98740c75297fbf393286f0fd86279daa6b178f98abc607b5a907c42",
-    "size": 54308717
+    "url": "https://gitee.com/api/v5/repos/openmusic/openmusic/releases/1207470/attach_files/3397014/download",
+    "sha256": "2799486dd0b9cd9d4ee2c5893f557ac4c62ba06d023aad6f317a26800654b4e3",
+    "size": 54919198
   },
-  "releaseNotesUrl": "https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.3",
-  "notes": "- 设置页新增 Bilibili、跟随系统明暗和像素风三套主窗主题；保留经典配色为默认，主题选择会保存，旧设置自动按经典加载。独立桌面歌词继续使用自身透明样式，不随主窗主题切换。\r\n- 歌名搜索首屏额外查询经公开采样筛选的单曲 UP 主，将相关非 DJ 单曲与官方全站结果合并为一个连续列表；界面不显示分类标题或空分类占位，内部仍按“单曲 → 合集 → 其他”优先级排列。\r\n- 优先来源使用公开 MID 配置，逐视频判断查询匹配、DJ／混音、合集和时长；不同优先 UP 主的相关非 DJ 单曲按有效播放量降序，播放量相同再按标题相关度、质量自述标签和原召回顺序排列。普通 UP 主、合集与其他视频保留原有规则；可选来源失败或超时退回全站结果，不将质量标签当作实际音质保证。\r\n- 视频搜索继续使用 Bilibili 官方顺序；联想、正式搜索、切换模式和加载更多均不自动播放，用户手动选择后才开始播放。\r\n- 当前展示名称统一为 `open音乐`；桌面快捷方式恰为 `open音乐`，覆盖安装时按真实目标迁移同安装的已知旧链接，保留其他安装及无关链接。\r\n- 桌面歌词菜单重做为固定 40px 高的透明单行图标栏；字体、字号、颜色与透明度点击后在同一行原位显示对应控件，不再使用会覆盖歌词的第二行，打开设置前后歌词区位置和高度保持不变。\r\n- 外层图标与内层返回、字体、步进和颜色控件统一为无底色的白色描边样式，悬停只提亮图标。锁定时只显示居中可点击的解锁图标；鼠标离开后约 2.2 秒隐藏，键盘操作期间保持菜单可见，按 Escape 返回默认图标行及对应分类按钮。\r\n- 技术标识、数据目录、用户收藏与设置、安装身份、Gitee／GitHub 更新路径及 `Yuyin` 发布文件名保持兼容；已发布的 0.5.2 附件和稳定清单保持原样。",
-  "publishedAt": "2026-10-14T02:55:48.000Z",
+  "releaseNotesUrl": "https://gitee.com/openmusic/openmusic/releases/tag/pc-v0.5.4",
+  "notes": "- 保留经典草木与跟随系统明暗，更新 Bilibili 粉白蓝主题、预览卡和“我的世界”灰色物品栏风格。\r\n- 播放页与桌面歌词分别增加经典、聚光、手札、我的世界四款独立预设，保留透明文字区、原字体、字号、颜色和透明度；切换样式后重新适配并居中歌词。\r\n- 捆绑本地 Fusion Pixel 字体及完整 OFL / 组成字体许可；像素歌词固定使用内置字体，切回其他样式后恢复原选择。\r\n- 新增预设的原生 / renderer 校验与旧数据兼容，不改变搜索手动播放、媒体时间、歌词来源与校准、账号和歌库。\r\n- 继续使用系统 WebView2、既有安装身份、open音乐 桌面快捷方式和 Gitee / GitHub 双源更新；只发布一个最终安装附件。\r\n- 本轮验证范围及已知限制见 `docs/QA-0.5.4.md`。",
+  "publishedAt": "2026-10-15T08:45:34.000Z",
   "provider": "gitee",
   "source": {
-    "releaseId": 1204255,
-    "attachmentId": 3385779,
-    "filename": "Yuyin-0.5.3-Setup.exe"
+    "releaseId": 1207470,
+    "attachmentId": 3397014,
+    "filename": "Yuyin-0.5.4-Setup.exe"
   }
 }
